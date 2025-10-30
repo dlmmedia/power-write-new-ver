@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "buildCommand": "npm run build",
+  "installCommand": "npm install",
+  "framework": "nextjs",
+  "functions": {
+    "app/api/**/*.ts": {
+      "maxDuration": 300
+    }
+  },
+  "env": {
+    "DATABASE_URL": "@database_url",
+    "AI_GATEWAY_API_KEY": "@ai_gateway_api_key",
+    "AI_GATEWAY_URL": "@ai_gateway_url",
+    "GOOGLE_BOOKS_API_KEY": "@google_books_api_key",
+    "EDGE_CONFIG": "@edge_config"
+  }
+}

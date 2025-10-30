@@ -1,0 +1,294 @@
+# AI Gateway & Multi-Model Setup Guide
+
+This guide explains how to set up the AI Gateway and configure multiple AI models for PowerWrite.
+
+## Overview
+
+PowerWrite uses a multi-model AI system:
+
+- **OpenAI GPT-4o**: Book outline and chapter generation (best quality)
+- **OpenAI GPT-4o-mini**: Fast outline generation (cost-effective)
+- **Google Imagen 3**: Book cover generation (latest Google model)
+- **OpenAI TTS-1**: Audiobook generation (cost-effective voice synthesis)
+
+All models can be routed through **Vercel AI Gateway** for enhanced security, rate limiting, and monitoring.
+
+## Required API Keys
+
+### 1. OpenAI API Key
+Used for text generation and TTS.
+
+**Get your key:**
+1. Go to [platform.openai.com](https://platform.openai.com)
+2. Sign up or log in
+3. Navigate to API Keys
+4. Create new secret key
+5. Copy the key (starts with `sk-`)
+
+**Add to `.env.local`:**
+```env
+OPENAI_API_KEY=sk-your-key-here
+```
+
+### 2. Google AI API Key
+Used for Imagen 3 cover generation.
+
+**Get your key:**
+1. Go to [aistudio.google.com](https://aistudio.google.com)
+2. Sign in with Google account
+3. Click "Get API key"
+4. Create new API key
+5. Copy the key
+
+**Add to `.env.local`:**
+```env
+GOOGLE_AI_API_KEY=your-google-key-here
+```
+
+### 3. Vercel AI Gateway (Optional but Recommended)
+
+The AI Gateway provides:
+- ✅ Request caching and deduplication
+- ✅ Rate limiting and cost control
+- ✅ Request logging and analytics
+- ✅ Automatic failover
+- ✅ Enhanced security
+
+**Set up AI Gateway:**
+1. Go to [vercel.com/dashboard](https://vercel.com/dashboard)
+2. Navigate to **Storage** → **AI Gateway**
+3. Click **Create Gateway**
+4. Name it (e.g., "PowerWrite Gateway")
+5. Add your API keys to the gateway:
+   - OpenAI API Key
+   - Google AI API Key
+6. Copy the gateway URL (format: `https://your-gateway.vercel.app/v1`)
+
+**Add to `.env.local`:**
+```env
+AI_GATEWAY_URL=https://your-gateway.vercel.app/v1
+```
+
+**Note:** If `AI_GATEWAY_URL` is not set, APIs will be called directly.
+
+## Model Configuration
+
+### Text Generation Models
+
+**GPT-4o-mini** (Fast & Cost-Effective)
+- Used for: Book outlines
+- Speed: ~2x faster than GPT-4o
+- Cost: ~60% cheaper
+- Quality: Excellent for structured output
+
+**GPT-4o** (Best Quality)
+- Used for: Chapter generation
+- Speed: Slower but thorough
+- Cost: Higher but worth it
+- Quality: Best narrative and prose
+
+### Image Generation
+
+**Google Imagen 3**
+- Latest Google image model
+- Professional book cover quality
+- Portrait aspect ratio (9:16)
+- Safety filters enabled
+
+### Audio Generation
+
+**OpenAI TTS-1** (Cost-Effective)
+- 6 voice options: alloy, echo, fable, onyx, nova, shimmer
+- Speed adjustable: 0.25x to 4x
+- Automatic chunking for long text
+- MP3 output format
+
+**OpenAI TTS-1-HD** (High Quality)
+- Same features as TTS-1
+- Higher audio quality
+- More expensive
+
+## API Endpoints
+
+### Generate Book Outline
+```bash
+POST /api/generate/outline
+{
+  "userId": "user-id",
+  "config": { /* BookConfiguration */ },
+  "referenceBooks": [ /* optional */ ]
+}
+```
+
+### Generate Full Book
+```bash
+POST /api/generate/book
+{
+  "userId": "user-id",
+  "outline": { /* BookOutline */ },
+  "config": { /* BookConfiguration */ }
+}
+```
+
+### Generate Book Cover
+```bash
+POST /api/generate/cover
+{
+  "userId": "user-id",
+  "title": "Book Title",
+  "author": "Author Name",
+  "genre": "Fiction",
+  "description": "Book description...",
+  "style": "photographic" // optional
+}
+```
+
+### Generate Audiobook
+```bash
+POST /api/generate/audio
+{
+  "userId": "user-id",
+  "bookId": "book-id",
+  "chapterNumbers": [1, 2, 3], // optional, omit for full book
+  "voice": "alloy", // optional
+  "speed": 1.0, // optional
+  "model": "tts-1" // optional: "tts-1" or "tts-1-hd"
+}
+```
+
+## Cost Optimization Tips
+
+### 1. Use AI Gateway Caching
+- Enable caching in AI Gateway settings
+- Duplicate requests use cached responses
+- Significant cost savings on repeated generations
+
+### 2. Model Selection
+- Use GPT-4o-mini for outlines (faster, cheaper)
+- Use GPT-4o only for final chapter writing
+- Use TTS-1 instead of TTS-1-HD unless quality critical
+
+### 3. Batch Processing
+- Generate multiple chapters in sequence
+- Use chapter-by-chapter audio instead of full book
+- Implement progress tracking for long operations
+
+### 4. Rate Limiting
+- AI Gateway automatically handles rate limits
+- Implement user-level generation quotas
+- Add delays between sequential API calls
+
+## Environment Variables Reference
+
+```env
+# Required
+DATABASE_URL=postgresql://...              # Neon PostgreSQL
+OPENAI_API_KEY=sk-...                      # OpenAI API
+GOOGLE_AI_API_KEY=...                      # Google AI API
+
+# Optional
+GOOGLE_BOOKS_API_KEY=...                   # Google Books search
+AI_GATEWAY_URL=https://....vercel.app/v1   # Vercel AI Gateway
+BLOB_READ_WRITE_TOKEN=...                  # Auto-generated by Vercel
+
+# Auto-set
+NODE_ENV=development                        # Environment
+```
+
+## Testing the Setup
+
+### 1. Test Outline Generation
+```bash
+npm run dev
+
+# Navigate to Studio
+# Fill in book details
+# Click "Generate Outline"
+```
+
+### 2. Test Cover Generation
+```bash
+# After outline is generated
+# Cover generation should trigger automatically
+# Or call API endpoint directly
+```
+
+### 3. Test Audio Generation
+```bash
+# After book is generated
+# Go to Library
+# Click on book → "Generate Audiobook"
+```
+
+## Troubleshooting
+
+### "OPENAI_API_KEY not set"
+- Ensure `.env.local` exists in project root
+- Check key starts with `sk-`
+- Restart dev server after adding keys
+
+### "GOOGLE_AI_API_KEY not set"
+- Verify key is from AI Studio (not Cloud Console)
+- Enable Imagen API in Google Cloud
+- Wait a few minutes after creating key
+
+### "Failed to generate cover"
+- Check Google AI API quota
+- Verify Imagen 3 is enabled
+- Try different prompt/description
+
+### "Audio generation failed"
+- Check OpenAI account has TTS access
+- Verify billing is set up
+- Try smaller text chunks first
+
+### AI Gateway not working
+- Verify URL format: `https://....vercel.app/v1`
+- Check gateway has API keys configured
+- Test direct API calls first (remove AI_GATEWAY_URL)
+
+## Monitoring & Analytics
+
+With AI Gateway enabled, you can monitor:
+- Request volume and latency
+- Token usage and costs
+- Error rates and types
+- Cache hit rates
+- Model performance
+
+Access dashboard at: `vercel.com/[team]/ai-gateway`
+
+## Security Best Practices
+
+1. **Never commit API keys** to version control
+2. Use `.env.local` for local development
+3. Set environment variables in Vercel dashboard for production
+4. Rotate API keys regularly
+5. Set up spending limits in OpenAI dashboard
+6. Use AI Gateway for all production traffic
+7. Enable rate limiting per user
+8. Monitor for unusual activity
+
+## Next Steps
+
+1. ✅ Add API keys to `.env.local`
+2. ✅ Test outline generation
+3. ✅ Test book generation
+4. ✅ Set up AI Gateway (recommended)
+5. ✅ Test cover generation
+6. ✅ Test audio generation
+7. ✅ Deploy to Vercel
+8. ✅ Configure production environment variables
+
+## Support
+
+For issues or questions:
+- Check [OpenAI Status](https://status.openai.com)
+- Check [Google AI Status](https://status.cloud.google.com)
+- Check [Vercel Status](https://vercel-status.com)
+- Review API error messages in console
+- Check this documentation
+
+---
+
+**PowerWrite AI System** - Powered by OpenAI GPT-4, Google Imagen 3, and OpenAI TTS
