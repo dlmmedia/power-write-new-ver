@@ -77,6 +77,13 @@ export interface BookGenerationConfig {
 export class AIService {
   async generateBookOutline(config: BookGenerationConfig): Promise<BookOutline> {
     try {
+      console.log('Starting outline generation with config:', {
+        title: config.title,
+        genre: config.genre,
+        chapters: config.chapters,
+        length: config.length
+      });
+
       const numChapters = config.chapters || 10;
       const lengthMapping: Record<string, number> = {
         'short': 50000,
@@ -132,6 +139,8 @@ Return ONLY valid JSON in this format:
   ]
 }`;
 
+      console.log('Calling OpenAI API for outline generation...');
+      
       const result = await generateText({
         model: getTextModel('outline'), // Use GPT-4o-mini for fast structured outlines
         messages: [
@@ -146,6 +155,8 @@ Return ONLY valid JSON in this format:
         ],
         temperature: 0.8,
       });
+      
+      console.log('OpenAI API response received, parsing JSON...');
 
       // Clean the response - remove markdown code blocks if present
       let jsonText = result.text.trim();
@@ -156,11 +167,25 @@ Return ONLY valid JSON in this format:
       }
       
       const outline = JSON.parse(jsonText);
-      console.log('Generated outline:', outline.title);
+      console.log('Generated outline successfully:', outline.title);
       return outline;
     } catch (error) {
       console.error('Error generating book outline:', error);
-      throw new Error('Failed to generate book outline');
+      
+      // Provide more specific error messages
+      if (error instanceof Error) {
+        if (error.message.includes('API key')) {
+          throw new Error('Invalid or missing OpenAI API key. Please check your environment variables.');
+        }
+        if (error.message.includes('quota')) {
+          throw new Error('OpenAI API quota exceeded. Please check your usage limits.');
+        }
+        if (error.message.includes('JSON')) {
+          throw new Error('Failed to parse AI response as JSON. Please try again.');
+        }
+      }
+      
+      throw new Error(`Failed to generate book outline: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

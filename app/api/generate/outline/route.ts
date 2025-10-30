@@ -8,7 +8,18 @@ export const maxDuration = 300; // 5 minutes max duration for Vercel
 
 export async function POST(request: NextRequest) {
   try {
+    // Check for OpenAI API key first
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY is not configured');
+      return NextResponse.json(
+        { error: 'OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment variables.' },
+        { status: 500 }
+      );
+    }
+
     const body = await request.json();
+    console.log('Request body received:', { userId: body.userId, hasConfig: !!body.config });
+    
     const { userId, config, referenceBooks } = body as {
       userId: string;
       config: BookConfiguration;
@@ -23,7 +34,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!config.basicInfo.title || !config.basicInfo.author) {
+    if (!config.basicInfo?.title || !config.basicInfo?.author) {
+      console.error('Missing basicInfo fields:', config.basicInfo);
       return NextResponse.json(
         { error: 'Missing required fields: title, author' },
         { status: 400 }
@@ -69,8 +81,20 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error generating outline:', error);
+    
+    // Provide detailed error information
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('Error details:', { message: errorMessage, stack: errorStack });
+    
     return NextResponse.json(
-      { error: 'Failed to generate outline', details: error instanceof Error ? error.message : 'Unknown error' },
+      { 
+        success: false,
+        error: 'Failed to generate outline', 
+        details: errorMessage,
+        hint: errorMessage.includes('API key') ? 'Check your OpenAI API key configuration in Vercel environment variables' : undefined
+      },
       { status: 500 }
     );
   }
