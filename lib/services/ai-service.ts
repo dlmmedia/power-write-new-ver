@@ -145,7 +145,6 @@ Return ONLY valid JSON in this format:
           },
         ],
         temperature: 0.8,
-        maxTokens: 4000, // Limit output tokens for faster generation
       });
 
       // Clean the response - remove markdown code blocks if present
