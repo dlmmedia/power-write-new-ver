@@ -42,13 +42,20 @@ export function FeaturedSection({ books, onSelectBook, isBookSelected }: Feature
     return null;
   }
 
+  const backgroundImageUrl = currentBook.imageLinks?.extraLarge ?? currentBook.imageLinks?.large ?? null;
+  const coverImageUrl =
+    currentBook.imageLinks?.extraLarge ??
+    currentBook.imageLinks?.large ??
+    currentBook.imageLinks?.medium ??
+    null;
+
   return (
     <section className="relative h-[600px] overflow-hidden bg-black">
       {/* Background Image with Gradient Overlay */}
       <div className="absolute inset-0">
-        {currentBook.imageLinks?.extraLarge || currentBook.imageLinks?.large ? (
+        {backgroundImageUrl ? (
           <img
-            src={`/api/proxy-image?url=${encodeURIComponent(currentBook.imageLinks.extraLarge || currentBook.imageLinks.large)}`}
+            src={`/api/proxy-image?url=${encodeURIComponent(backgroundImageUrl)}`}
             alt={currentBook.title}
             className="w-full h-full object-cover opacity-30 blur-sm"
           />
@@ -129,11 +136,13 @@ export function FeaturedSection({ books, onSelectBook, isBookSelected }: Feature
           <div className="hidden lg:flex items-center justify-center">
             <div className="relative">
               <div className="absolute inset-0 bg-yellow-400 blur-3xl opacity-20 rounded-lg" />
-              <img
-                src={`/api/proxy-image?url=${encodeURIComponent(currentBook.imageLinks?.extraLarge || currentBook.imageLinks?.large || currentBook.imageLinks?.medium)}`}
-                alt={currentBook.title}
-                className="relative w-[400px] h-[600px] object-cover rounded-lg shadow-2xl shadow-black/50 transform hover:scale-105 transition-transform duration-300"
-              />
+              {coverImageUrl ? (
+                <img
+                  src={`/api/proxy-image?url=${encodeURIComponent(coverImageUrl)}`}
+                  alt={currentBook.title}
+                  className="relative w-[400px] h-[600px] object-cover rounded-lg shadow-2xl shadow-black/50 transform hover:scale-105 transition-transform duration-300"
+                />
+              ) : null}
             </div>
           </div>
         </div>
