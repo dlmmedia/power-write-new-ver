@@ -243,6 +243,13 @@ export async function duplicateBook(
   const { id, createdAt, updatedAt, ...bookData } = original;
   const newBook = await createBook({
     ...bookData,
+    // Ensure JSON fields conform to expected Insert types
+    outline: bookData.outline as any,
+    chapters: bookData.chapters as any,
+    config: bookData.config as any,
+    metadata: bookData.metadata as any,
+    sourceBookData: bookData.sourceBookData as any,
+    referenceBooks: bookData.referenceBooks as any,
     userId,
     title: `${bookData.title} (Copy)`,
     status: 'draft',
