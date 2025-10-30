@@ -27,14 +27,14 @@ export async function GET(request: NextRequest) {
         title: book.title,
         author: book.author,
         genre: book.genre,
-        subgenre: book.subgenre || '',
+        subgenre: '',
         status: book.status,
-        createdAt: book.createdAt.toISOString(),
+        createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
         metadata: {
           wordCount: metadata.wordCount || 0,
           chapters: metadata.chapters || 0,
           targetWordCount: metadata.targetWordCount || 0,
-          description: book.description || '',
+          description: book.summary || '',
         },
       };
     });
@@ -76,8 +76,7 @@ export async function POST(request: NextRequest) {
       title,
       author,
       genre: genre || 'General Fiction',
-      subgenre: subgenre || '',
-      description: description || '',
+      summary: description || '',
       status: 'in-progress',
       metadata: {
         wordCount: 0,

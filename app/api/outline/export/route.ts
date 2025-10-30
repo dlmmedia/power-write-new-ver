@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     console.log(`Exported outline "${outline.title}" as ${format}`);
 
     // Return the content with appropriate headers for download
-    return new NextResponse(content, {
+    return new NextResponse(new Uint8Array(content), {
       status: 200,
       headers: {
         'Content-Type': mimeType,

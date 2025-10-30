@@ -3,10 +3,10 @@ import { getBookWithChapters } from '@/lib/db/operations';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const bookId = params.id;
+    const { id: bookId } = await params;
 
     // Get book with all chapters from database
     const bookWithChapters = await getBookWithChapters(bookId);
@@ -25,14 +25,14 @@ export async function GET(
       title: bookWithChapters.title,
       author: bookWithChapters.author,
       genre: bookWithChapters.genre,
-      subgenre: bookWithChapters.subgenre || '',
+      subgenre: '',
       status: bookWithChapters.status,
-      createdAt: bookWithChapters.createdAt.toISOString(),
+      createdAt: bookWithChapters.createdAt?.toISOString() || new Date().toISOString(),
       metadata: {
         wordCount: metadata.wordCount || 0,
         chapters: bookWithChapters.chapters.length,
         targetWordCount: metadata.targetWordCount || 0,
-        description: bookWithChapters.description || '',
+        description: bookWithChapters.summary || '',
       },
       chapters: bookWithChapters.chapters.map(ch => ({
         id: ch.id,
@@ -40,7 +40,7 @@ export async function GET(
         title: ch.title,
         content: ch.content,
         wordCount: ch.wordCount || 0,
-        status: ch.status,
+        status: ch.isEdited ? 'edited' : 'draft',
       })),
     };
 
@@ -59,10 +59,11 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const bookId = parseInt(params.id, 10);
+    const { id } = await params;
+    const bookId = parseInt(id, 10);
     const updates = await request.json();
 
     const { updateBook } = await import('@/lib/db/operations');
@@ -90,10 +91,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const bookId = parseInt(params.id, 10);
+    const { id } = await params;
+    const bookId = parseInt(id, 10);
 
     const { deleteBook, getBook } = await import('@/lib/db/operations');
     const book = await getBook(bookId);

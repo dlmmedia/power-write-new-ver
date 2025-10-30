@@ -50,9 +50,9 @@ export async function POST(request: NextRequest) {
     // Prepare export data
     const exportData = {
       title: book.title,
-      author: book.author,
-      description: book.description || '',
-      genre: book.genre,
+      author: book.author || 'Unknown Author',
+      description: book.summary || '',
+      genre: book.genre || 'Unknown Genre',
       chapters: book.chapters
         .sort((a, b) => a.chapterNumber - b.chapterNumber)
         .map(ch => ({
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
 
     // Return the content with appropriate headers for download
     const contentBuffer = typeof content === 'string' ? Buffer.from(content) : content;
-    return new NextResponse(contentBuffer, {
+    return new NextResponse(new Uint8Array(contentBuffer), {
       status: 200,
       headers: {
         'Content-Type': mimeType,
