@@ -46,10 +46,11 @@ export class ExportServiceAdvanced {
               spacing: { after: 200 },
             }),
             new Paragraph({
-              text: `by ${book.author}`,
+              children: [
+                new TextRun({ text: `by ${book.author}`, italics: true }),
+              ],
               alignment: AlignmentType.CENTER,
               spacing: { after: 400 },
-              italics: true,
             }),
 
             // Description if available
@@ -191,10 +192,11 @@ export class ExportServiceAdvanced {
               spacing: { after: 200 },
             }),
             new Paragraph({
-              text: `by ${outline.author}`,
+              children: [
+                new TextRun({ text: `by ${outline.author}`, italics: true }),
+              ],
               alignment: AlignmentType.CENTER,
               spacing: { after: 400 },
-              italics: true,
             }),
 
             // Description
@@ -263,8 +265,12 @@ export class ExportServiceAdvanced {
                 spacing: { after: 100 },
               }),
               new Paragraph({
-                text: `Target word count: ${chapter.wordCount.toLocaleString()} words`,
-                italics: true,
+                children: [
+                  new TextRun({
+                    text: `Target word count: ${chapter.wordCount.toLocaleString()} words`,
+                    italics: true,
+                  }),
+                ],
                 spacing: { after: 300 },
               }),
             ]),
