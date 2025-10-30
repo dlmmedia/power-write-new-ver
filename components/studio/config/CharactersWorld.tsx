@@ -17,7 +17,9 @@ interface Character {
 
 export function CharactersWorld() {
   const { config, updateConfig } = useStudioStore();
-  const [characters, setCharacters] = useState<Character[]>(config.characters || []);
+  const [characters, setCharacters] = useState<Character[]>(
+    Array.isArray((config as any).characterList) ? ((config as any).characterList as Character[]) : []
+  );
   const [newCharacter, setNewCharacter] = useState<Partial<Character>>({
     name: '',
     role: 'supporting',
@@ -38,7 +40,7 @@ export function CharactersWorld() {
 
     const updated = [...characters, character];
     setCharacters(updated);
-    updateConfig({ characters: updated });
+    updateConfig({ characterList: updated });
 
     // Reset form
     setNewCharacter({
@@ -52,7 +54,7 @@ export function CharactersWorld() {
   const removeCharacter = (id: string) => {
     const updated = characters.filter((c) => c.id !== id);
     setCharacters(updated);
-    updateConfig({ characters: updated });
+    updateConfig({ characterList: updated });
   };
 
   const getRoleColor = (role: string) => {
