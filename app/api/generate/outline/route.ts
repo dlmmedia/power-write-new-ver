@@ -5,6 +5,7 @@ import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
 
 export const maxDuration = 300; // 5 minutes max duration for Vercel
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {

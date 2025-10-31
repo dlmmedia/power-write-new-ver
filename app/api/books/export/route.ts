@@ -68,42 +68,57 @@ export async function POST(request: NextRequest) {
     let filename: string;
 
     // Generate export based on format
-    switch (format) {
-      case 'txt':
-        content = ExportService.exportAsText(exportData);
-        mimeType = 'text/plain';
-        filename = `${baseFilename}.txt`;
-        break;
-      
-      case 'md':
-        content = ExportService.exportAsMarkdown(exportData);
-        mimeType = 'text/markdown';
-        filename = `${baseFilename}.md`;
-        break;
-      
-      case 'html':
-        content = ExportService.exportAsHTML(exportData);
-        mimeType = 'text/html';
-        filename = `${baseFilename}.html`;
-        break;
+    try {
+      switch (format) {
+        case 'txt':
+          content = ExportService.exportAsText(exportData);
+          mimeType = 'text/plain';
+          filename = `${baseFilename}.txt`;
+          break;
+        
+        case 'md':
+          content = ExportService.exportAsMarkdown(exportData);
+          mimeType = 'text/markdown';
+          filename = `${baseFilename}.md`;
+          break;
+        
+        case 'html':
+          content = ExportService.exportAsHTML(exportData);
+          mimeType = 'text/html';
+          filename = `${baseFilename}.html`;
+          break;
 
-      case 'pdf':
-        content = await ExportServiceAdvanced.exportBookAsPDF(exportData);
-        mimeType = 'application/pdf';
-        filename = `${baseFilename}.pdf`;
-        break;
+        case 'pdf':
+          console.log(`Generating PDF for book: ${book.title} with ${exportData.chapters.length} chapters`);
+          content = await ExportServiceAdvanced.exportBookAsPDF(exportData);
+          mimeType = 'application/pdf';
+          filename = `${baseFilename}.pdf`;
+          console.log(`PDF generated successfully, size: ${content.length} bytes`);
+          break;
 
-      case 'docx':
-        content = await ExportServiceAdvanced.exportBookAsDOCX(exportData);
-        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-        filename = `${baseFilename}.docx`;
-        break;
-      
-      default:
-        return NextResponse.json(
-          { error: 'Invalid format' },
-          { status: 400 }
-        );
+        case 'docx':
+          console.log(`Generating DOCX for book: ${book.title}`);
+          content = await ExportServiceAdvanced.exportBookAsDOCX(exportData);
+          mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+          filename = `${baseFilename}.docx`;
+          console.log(`DOCX generated successfully, size: ${content.length} bytes`);
+          break;
+        
+        default:
+          return NextResponse.json(
+            { error: 'Invalid format' },
+            { status: 400 }
+          );
+      }
+    } catch (exportError) {
+      console.error(`Error generating ${format} export:`, exportError);
+      return NextResponse.json(
+        { 
+          error: `Failed to generate ${format.toUpperCase()} export`, 
+          details: exportError instanceof Error ? exportError.message : 'Unknown error' 
+        },
+        { status: 500 }
+      );
     }
 
     console.log(`Exported book ${bookId} as ${format}`);

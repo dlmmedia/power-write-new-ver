@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserBooks, ensureDemoUser } from '@/lib/db/operations';
 
+export const runtime = 'nodejs';
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -46,8 +48,10 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching books:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const stack = error instanceof Error ? error.stack : undefined;
     return NextResponse.json(
-      { error: 'Failed to fetch books' },
+      { error: 'Failed to fetch books', details: message, stack },
       { status: 500 }
     );
   }
@@ -91,8 +95,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating book:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    const stack = error instanceof Error ? error.stack : undefined;
     return NextResponse.json(
-      { error: 'Failed to create book' },
+      { error: 'Failed to create book', details: message, stack },
       { status: 500 }
     );
   }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 
 interface BookListItem {
@@ -61,15 +62,15 @@ export default function LibraryPage() {
   const genres = ['all', ...Array.from(new Set(books.map((b) => b.genre)))];
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/')}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 ← Home
               </button>
@@ -79,9 +80,12 @@ export default function LibraryPage() {
               <h1 className="text-2xl font-bold">My Library</h1>
             </div>
 
-            <Button variant="primary" onClick={() => router.push('/studio')}>
-              + New Book
-            </Button>
+            <div className="flex items-center gap-3">
+              <ThemeToggleCompact />
+              <Button variant="primary" onClick={() => router.push('/studio')}>
+                + New Book
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -102,7 +106,7 @@ export default function LibraryPage() {
           <select
             value={filterGenre}
             onChange={(e) => setFilterGenre(e.target.value)}
-            className="bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
           >
             {genres.map((genre) => (
               <option key={genre} value={genre}>
@@ -114,7 +118,7 @@ export default function LibraryPage() {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
           >
             <option value="date">Sort by Date</option>
             <option value="title">Sort by Title</option>
@@ -124,27 +128,27 @@ export default function LibraryPage() {
 
         {/* Stats */}
         <div className="grid grid-cols-4 gap-4 mb-8">
-          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-400">{books.length}</div>
-            <div className="text-sm text-gray-400">Total Books</div>
+          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{books.length}</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Total Books</div>
           </div>
-          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-400">
+          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {books.filter((b) => b.status === 'completed').length}
             </div>
-            <div className="text-sm text-gray-400">Completed</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
           </div>
-          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-400">
+          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {books.reduce((sum, b) => sum + (b.metadata?.wordCount || 0), 0).toLocaleString()}
             </div>
-            <div className="text-sm text-gray-400">Total Words</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Total Words</div>
           </div>
-          <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-400">
+          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
+            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
               {books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)}
             </div>
-            <div className="text-sm text-gray-400">Total Chapters</div>
+            <div className="text-sm text-gray-600 dark:text-gray-400">Total Chapters</div>
           </div>
         </div>
 
@@ -152,16 +156,16 @@ export default function LibraryPage() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-900 rounded-lg p-6 border border-gray-800">
-                <div className="bg-gray-800 h-6 w-3/4 rounded mb-2" />
-                <div className="bg-gray-800 h-4 w-1/2 rounded mb-4" />
-                <div className="bg-gray-800 h-4 w-full rounded" />
+              <div key={i} className="animate-pulse bg-gray-100 dark:bg-gray-900 rounded-lg p-6 border border-gray-300 dark:border-gray-800">
+                <div className="bg-gray-300 dark:bg-gray-800 h-6 w-3/4 rounded mb-2" />
+                <div className="bg-gray-300 dark:bg-gray-800 h-4 w-1/2 rounded mb-4" />
+                <div className="bg-gray-300 dark:bg-gray-800 h-4 w-full rounded" />
               </div>
             ))}
           </div>
         ) : filteredAndSortedBooks.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-400 text-lg mb-4">
+            <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
               {searchQuery || filterGenre !== 'all' ? 'No books match your filters' : 'No books yet'}
             </p>
             <Button variant="primary" onClick={() => router.push('/studio')}>
@@ -173,7 +177,7 @@ export default function LibraryPage() {
             {filteredAndSortedBooks.map((book) => (
               <div
                 key={book.id}
-                className="bg-gray-900 rounded-lg p-6 border border-gray-800 hover:border-yellow-400 transition-colors cursor-pointer"
+                className="bg-gray-100 dark:bg-gray-900 rounded-lg p-6 border border-gray-300 dark:border-gray-800 hover:border-yellow-400 transition-colors cursor-pointer"
                 onClick={() => router.push(`/library/${book.id}`)}
               >
                 <div className="flex items-start justify-between mb-3">

@@ -1,3 +1,5 @@
+import jsPDF from 'jspdf';
+
 interface BookExport {
   title: string;
   author: string;
@@ -97,8 +99,8 @@ export class ExportService {
   }
 
   // Trigger download
-  static downloadFile(content: string, filename: string, mimeType: string) {
-    const blob = new Blob([content], { type: mimeType });
+  static downloadFile(content: string, filename: string, mimeType: string, blobOverride?: Blob) {
+    const blob = blobOverride || new Blob([content], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -109,11 +111,96 @@ export class ExportService {
     URL.revokeObjectURL(url);
   }
 
+  // Export as PDF
+  static exportAsPDF(book: BookExport): Blob {
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 20;
+    const maxWidth = pageWidth - (margin * 2);
+    let currentY = margin;
+
+    // Helper function to add text with page breaks
+    const addText = (text: string, fontSize: number, isBold: boolean = false, align: 'left' | 'center' = 'left') => {
+      doc.setFontSize(fontSize);
+      if (isBold) {
+        doc.setFont('helvetica', 'bold');
+      } else {
+        doc.setFont('helvetica', 'normal');
+      }
+
+      const lines = doc.splitTextToSize(text, maxWidth);
+      
+      for (const line of lines) {
+        if (currentY + fontSize / 2 > pageHeight - margin) {
+          doc.addPage();
+          currentY = margin;
+        }
+        
+        if (align === 'center') {
+          const textWidth = doc.getTextWidth(line);
+          doc.text(line, (pageWidth - textWidth) / 2, currentY);
+        } else {
+          doc.text(line, margin, currentY);
+        }
+        currentY += fontSize / 2 + 2;
+      }
+    };
+
+    // Title page
+    currentY = pageHeight / 3;
+    addText(book.title, 24, true, 'center');
+    currentY += 10;
+    addText(`by ${book.author}`, 16, false, 'center');
+    
+    // Add page break after title
+    doc.addPage();
+    currentY = margin;
+
+    // Chapters
+    book.chapters.forEach((chapter, index) => {
+      // Chapter title
+      if (index > 0) {
+        doc.addPage();
+        currentY = margin;
+      }
+      
+      addText(`Chapter ${chapter.number}: ${chapter.title}`, 18, true);
+      currentY += 5;
+      
+      // Add a separator line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, currentY, pageWidth - margin, currentY);
+      currentY += 10;
+      
+      // Chapter content
+      addText(chapter.content, 12, false);
+      currentY += 10;
+    });
+
+    return doc.output('blob');
+  }
+
   // Main export functions
-  static exportBook(book: BookExport, format: 'txt' | 'md' | 'html') {
+  static exportBook(book: BookExport, format: 'txt' | 'md' | 'html' | 'pdf') {
     const filename = `${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
     
     switch (format) {
+      case 'pdf':
+        const pdfBlob = this.exportAsPDF(book);
+        this.downloadFile(
+          '',
+          `${filename}.pdf`,
+          'application/pdf',
+          pdfBlob
+        );
+        break;
+      
       case 'txt':
         this.downloadFile(
           this.exportAsText(book),
