@@ -142,6 +142,25 @@ export class BookCacheService {
   }
 
   /**
+   * Get all cached books
+   */
+  async getAllCachedBooks(): Promise<BookResult[]> {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - this.CACHE_DURATION_DAYS);
+
+      const results = await db.query.cachedBooks.findMany({
+        where: gt(cachedBooks.updatedAt, cutoffDate),
+      });
+
+      return results.map(result => this.convertToBookResult(result));
+    } catch (error) {
+      console.error('Error getting all cached books:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get cache statistics
    */
   async getCacheStats() {
