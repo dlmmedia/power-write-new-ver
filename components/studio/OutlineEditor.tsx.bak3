@@ -15,7 +15,7 @@ export const OutlineEditor: React.FC = () => {
 
   if (!outline) {
     return (
-      <div className="text-center py-12 text-gray-600 dark:text-gray-400">
+      <div className="text-center py-12 text-gray-400">
         <p className="text-lg mb-2">No outline generated yet</p>
         <p className="text-sm">Click "Generate Outline" to create your book structure</p>
       </div>
@@ -148,21 +148,21 @@ export const OutlineEditor: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">{outline.title}</h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">by {outline.author}</p>
+          <p className="text-gray-400 text-sm mt-1">by {outline.author}</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative group">
             <Button variant="outline" size="sm">Export Outline ▼</Button>
-            <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg py-1 w-36 z-10">
+            <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-gray-900 border border-gray-700 rounded-lg shadow-lg py-1 w-36 z-10">
               <button
                 onClick={() => handleExportOutline('pdf')}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:bg-gray-800 transition-colors text-sm"
+                className="w-full text-left px-4 py-2 hover:bg-gray-800 transition-colors text-sm"
               >
                 Export as PDF
               </button>
               <button
                 onClick={() => handleExportOutline('docx')}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:bg-gray-800 transition-colors text-sm"
+                className="w-full text-left px-4 py-2 hover:bg-gray-800 transition-colors text-sm"
               >
                 Export as DOCX
               </button>
@@ -175,16 +175,16 @@ export const OutlineEditor: React.FC = () => {
 
       {/* Description */}
       {outline.description && (
-        <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+        <div className="bg-gray-800 rounded p-4 border border-gray-700">
           <h3 className="font-semibold mb-2">Description</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{outline.description}</p>
+          <p className="text-sm text-gray-300">{outline.description}</p>
         </div>
       )}
 
       {/* Themes & Characters */}
       <div className="grid grid-cols-2 gap-4">
         {outline.themes && outline.themes.length > 0 && (
-          <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+          <div className="bg-gray-800 rounded p-4 border border-gray-700">
             <h3 className="font-semibold mb-2">Themes</h3>
             <div className="flex flex-wrap gap-2">
               {outline.themes.map((theme, idx) => (
@@ -197,13 +197,13 @@ export const OutlineEditor: React.FC = () => {
         )}
 
         {outline.characters && outline.characters.length > 0 && (
-          <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+          <div className="bg-gray-800 rounded p-4 border border-gray-700">
             <h3 className="font-semibold mb-2">Characters</h3>
             <div className="space-y-2">
               {outline.characters.map((char, idx) => (
                 <div key={idx} className="text-sm">
                   <span className="font-semibold text-yellow-400">{char.name}</span>
-                  <span className="text-gray-600 dark:text-gray-400"> — {char.role}</span>
+                  <span className="text-gray-400"> — {char.role}</span>
                 </div>
               ))}
             </div>
@@ -224,7 +224,7 @@ export const OutlineEditor: React.FC = () => {
           {outline.chapters.map((chapter) => (
             <div
               key={chapter.number}
-              className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700 hover:border-yellow-400 transition-colors"
+              className="bg-gray-800 rounded p-4 border border-gray-700 hover:border-yellow-400 transition-colors"
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1">
@@ -233,11 +233,11 @@ export const OutlineEditor: React.FC = () => {
                       {chapter.number}
                     </Badge>
                     <h4 className="font-semibold">{chapter.title}</h4>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                    <span className="text-xs text-gray-400">
                       ~{chapter.wordCount.toLocaleString()} words
                     </span>
                   </div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300">{chapter.summary}</p>
+                  <p className="text-sm text-gray-300">{chapter.summary}</p>
                 </div>
 
                 {/* Actions */}
@@ -245,7 +245,7 @@ export const OutlineEditor: React.FC = () => {
                   <button
                     onClick={() => handleMoveChapter(chapter.number, 'up')}
                     disabled={chapter.number === 1}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-2 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move up"
                   >
                     ↑
@@ -253,21 +253,21 @@ export const OutlineEditor: React.FC = () => {
                   <button
                     onClick={() => handleMoveChapter(chapter.number, 'down')}
                     disabled={chapter.number === outline.chapters.length}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-2 text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move down"
                   >
                     ↓
                   </button>
                   <button
                     onClick={() => handleEditChapter(chapter)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-yellow-400"
+                    className="p-2 text-gray-400 hover:text-yellow-400"
                     title="Edit"
                   >
                     ✎
                   </button>
                   <button
                     onClick={() => handleDeleteChapter(chapter.number)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-400"
+                    className="p-2 text-gray-400 hover:text-red-400"
                     title="Delete"
                   >
                     ✕
@@ -300,7 +300,7 @@ export const OutlineEditor: React.FC = () => {
             />
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-gray-300 mb-1">
                 Chapter Summary
               </label>
               <textarea
@@ -309,7 +309,7 @@ export const OutlineEditor: React.FC = () => {
                   setEditingChapter({ ...editingChapter, summary: e.target.value })
                 }
                 rows={6}
-                className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full bg-gray-900 border border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
               />
             </div>
 

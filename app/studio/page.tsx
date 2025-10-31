@@ -16,6 +16,7 @@ import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
 import { getDemoUserId, canGenerateBook } from '@/lib/services/demo-account';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
+import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 
 type ConfigTab = 
   | 'basic' 
@@ -176,15 +177,15 @@ export default function StudioPage() {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/')}
-                className="text-gray-400 hover:text-white transition-colors"
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
                 ← Back
               </button>
@@ -195,6 +196,7 @@ export default function StudioPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <ThemeToggleCompact />
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
                 <Badge variant="info">
                   {selectedBooks.length + uploadedReferences.length} Reference{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
@@ -241,23 +243,23 @@ export default function StudioPage() {
 
       {/* Success Banner */}
       {showSuccessBanner && (
-        <div className="bg-green-900 border-b border-green-700">
+        <div className="bg-green-100 dark:bg-green-900 border-b border-green-300 dark:border-green-700">
           <div className="container mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <span className="text-2xl">✓</span>
                 <div>
-                  <p className="text-white font-semibold">
+                  <p className="text-green-900 dark:text-white font-semibold">
                     Configuration Auto-Populated Successfully!
                   </p>
-                  <p className="text-green-200 text-sm">
+                  <p className="text-green-800 dark:text-green-200 text-sm">
                     Generated sample title, description, genre, themes, and settings. You can now customize as needed.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowSuccessBanner(false)}
-                className="text-green-300 hover:text-white transition-colors"
+                className="text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-white transition-colors"
               >
                 ✕
               </button>
@@ -268,16 +270,16 @@ export default function StudioPage() {
 
       {/* Reference Book Selector */}
       {selectedBooks.length > 0 && (
-        <div className="bg-gray-900 border-b border-gray-800">
+        <div className="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center gap-4">
-              <label className="text-sm font-semibold text-gray-300">
+              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                 🎯 Auto-Populate From:
               </label>
               <select
                 value={selectedReferenceId}
                 onChange={(e) => setSelectedReferenceId(e.target.value)}
-                className="flex-1 max-w-md bg-gray-800 border border-gray-700 rounded px-4 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="flex-1 max-w-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
               >
                 <option value="">Select a reference book...</option>
                 {selectedBooks.map((book) => (
@@ -295,7 +297,7 @@ export default function StudioPage() {
                 ✨ Auto-Populate
               </Button>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">
               Select a reference book to automatically generate sample title, description, genre, themes, and settings based on its style.
             </p>
           </div>
@@ -307,8 +309,8 @@ export default function StudioPage() {
         <div className="grid grid-cols-12 gap-6">
           {/* Sidebar - Configuration Tabs */}
           <div className="col-span-3">
-            <div className="bg-gray-900 rounded-lg border border-gray-800 p-4">
-              <h2 className="text-lg font-semibold mb-4 text-yellow-400">Configuration</h2>
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+              <h2 className="text-lg font-semibold mb-4 text-yellow-600 dark:text-yellow-400">Configuration</h2>
               <nav className="space-y-1">
                 {tabs.map((tab) => (
                   <button
@@ -317,7 +319,7 @@ export default function StudioPage() {
                     className={`w-full text-left px-4 py-3 rounded transition-colors flex items-center gap-3 ${
                       activeTab === tab.id
                         ? 'bg-yellow-400 text-black font-semibold'
-                        : 'text-gray-300 hover:bg-gray-800'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
                     }`}
                   >
                     <span className="text-xl">{tab.icon}</span>
@@ -328,8 +330,8 @@ export default function StudioPage() {
 
               {/* Reference Materials */}
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
-                <div className="mt-6 pt-6 border-t border-gray-800">
-                  <h3 className="text-sm font-semibold mb-3 text-gray-400">Reference Materials</h3>
+                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+                  <h3 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400">Reference Materials</h3>
                   <div className="space-y-2">
                     {/* Selected Books */}
                     {selectedBooks.slice(0, 2).map((book) => (
@@ -340,8 +342,8 @@ export default function StudioPage() {
                           className="w-8 h-12 object-cover rounded"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-white truncate">{book.title}</p>
-                          <p className="text-xs text-gray-500 truncate">{book.authors[0]}</p>
+                          <p className="text-xs text-gray-900 dark:text-white truncate">{book.title}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-500 truncate">{book.authors[0]}</p>
                         </div>
                       </div>
                     ))}
@@ -356,8 +358,8 @@ export default function StudioPage() {
                           {ref.type === 'url' && '🔗'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-white truncate">{ref.name}</p>
-                          <p className="text-xs text-gray-500">{ref.type.toUpperCase()}</p>
+                          <p className="text-xs text-gray-900 dark:text-white truncate">{ref.name}</p>
+                          <p className="text-xs text-gray-600 dark:text-gray-500">{ref.type.toUpperCase()}</p>
                         </div>
                         <button
                           onClick={() => removeUploadedReference(ref.id)}
@@ -369,7 +371,7 @@ export default function StudioPage() {
                     ))}
                     
                     {(selectedBooks.length + uploadedReferences.length) > 4 && (
-                      <p className="text-xs text-gray-500">+{selectedBooks.length + uploadedReferences.length - 4} more</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-500">+{selectedBooks.length + uploadedReferences.length - 4} more</p>
                     )}
                   </div>
                 </div>
@@ -379,7 +381,7 @@ export default function StudioPage() {
 
           {/* Main Panel - Configuration Forms or Outline */}
           <div className="col-span-9">
-            <div className="bg-gray-900 rounded-lg border border-gray-800 p-6">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
               {viewMode === 'outline' ? (
                 <OutlineEditor />
               ) : (

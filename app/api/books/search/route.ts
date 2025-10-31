@@ -40,7 +40,14 @@ export async function GET(request: NextRequest) {
       googleResults = await googleBooksService.searchBooks(query);
     }
 
-    // Fetch from cached Goodreads books
+    // Cache the Google Books results for faster future lookups
+    if (googleResults.length > 0) {
+      bookCacheService.cacheBooks(googleResults).catch(err => 
+        console.error('[API] Error caching books:', err)
+      );
+    }
+
+    // Fetch from cached books database
     if (query) {
       console.log('[API] Searching cached books...');
       cachedResults = await bookCacheService.searchCachedBooks(query);

@@ -193,6 +193,7 @@ export default function BookDetailPage() {
       <BookReader
         bookTitle={book.title}
         author={book.author}
+        bookId={book.id}
         chapters={book.chapters}
         onClose={() => setIsReading(false)}
       />

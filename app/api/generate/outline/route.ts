@@ -3,6 +3,7 @@ import { aiService } from '@/lib/services/ai-service';
 import { ensureDemoUser } from '@/lib/db/operations';
 import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
+import { isNonFiction } from '@/lib/utils/book-type';
 
 export const maxDuration = 300; // 5 minutes max duration for Vercel
 export const runtime = 'nodejs';
@@ -21,10 +22,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     console.log('Request body received:', { userId: body.userId, hasConfig: !!body.config });
     
+    interface ReferenceBook {
+      title: string;
+      authors: string[];
+      categories?: string[];
+      genre?: string;
+    }
+    
     const { userId, config, referenceBooks } = body as {
       userId: string;
       config: BookConfiguration;
-      referenceBooks?: any[];
+      referenceBooks?: ReferenceBook[];
     };
 
     // Validate required fields
@@ -48,6 +56,12 @@ export async function POST(request: NextRequest) {
 
     console.log('Generating outline for:', config.basicInfo.title);
 
+    // Detect if it's non-fiction based on genre or reference books
+    const bookIsNonFiction = config.basicInfo.genre.toLowerCase().includes('non-fiction') ||
+                             (referenceBooks && referenceBooks.length > 0 && referenceBooks.some(b => isNonFiction(b)));
+
+    console.log(`Book type detected: ${bookIsNonFiction ? 'Non-Fiction' : 'Fiction'}`);
+
     // Prepare generation config with full studio settings
     const outline = await aiService.generateBookOutline({
       title: sanitizeTitle(config.basicInfo.title),
@@ -59,6 +73,7 @@ export async function POST(request: NextRequest) {
       chapters: config.content.numChapters,
       length: config.content.targetWordCount > 100000 ? 'long' : 
               config.content.targetWordCount > 70000 ? 'medium' : 'short',
+      isNonFiction: bookIsNonFiction,
       customInstructions: [
         `Writing Style: ${config.writingStyle.style}`,
         `Point of View: ${config.writingStyle.pov}`,
@@ -68,7 +83,7 @@ export async function POST(request: NextRequest) {
         `Narrative Structure: ${config.plot.narrativeStructure}`,
         `Pacing: ${config.plot.pacing}`,
         referenceBooks && referenceBooks.length > 0
-          ? `Reference Books: ${referenceBooks.map((b: any) => `"${b.title}" by ${b.authors.join(', ')}`).join(', ')}`
+          ? `Reference Books: ${referenceBooks.map(b => `\"${b.title}\" by ${b.authors.join(', ')}`).join(', ')}`
           : '',
         config.customInstructions || '',
       ].filter(Boolean).join('\n'),

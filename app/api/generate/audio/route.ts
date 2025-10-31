@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ttsService } from '@/lib/services/tts-service';
-import { ensureDemoUser, getBookWithChapters } from '@/lib/db/operations';
+import { ensureDemoUser, getBookWithChapters, getChapterByBookAndNumber, updateChapterAudio } from '@/lib/db/operations';
 
 export const maxDuration = 300; // 5 minutes for audio generation
 
@@ -68,6 +68,25 @@ export async function POST(request: NextRequest) {
       );
 
       console.log(`Generated audio for ${audioResults.length} chapters`);
+
+      // Save audio URLs to database
+      for (const audioResult of audioResults) {
+        const chapter = await getChapterByBookAndNumber(book.id, audioResult.chapterNumber);
+        if (chapter) {
+          await updateChapterAudio(
+            chapter.id,
+            audioResult.audioUrl,
+            audioResult.duration,
+            {
+              voice: ttsConfig.voice,
+              speed: ttsConfig.speed,
+              model: ttsConfig.model,
+              generatedAt: new Date().toISOString(),
+            }
+          );
+          console.log(`Saved audio URL for chapter ${audioResult.chapterNumber}`);
+        }
+      }
 
       return NextResponse.json({
         success: true,

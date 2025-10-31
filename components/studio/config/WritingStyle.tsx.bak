@@ -50,12 +50,12 @@ export const WritingStyle: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2">Writing Style & Tone</h2>
-        <p className="text-gray-600 dark:text-gray-400">Define how your book should be written</p>
+        <p className="text-gray-400">Define how your book should be written</p>
       </div>
 
       {/* Writing Style */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
           Writing Style
         </label>
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -73,7 +73,7 @@ export const WritingStyle: React.FC = () => {
               className={`px-4 py-3 rounded font-medium transition-colors text-left ${
                 config.writingStyle.style === style.value
                   ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
               <div className="font-semibold">{style.label}</div>
@@ -85,7 +85,7 @@ export const WritingStyle: React.FC = () => {
 
       {/* Tone */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
           Tone
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -103,7 +103,7 @@ export const WritingStyle: React.FC = () => {
               className={`px-4 py-3 rounded font-medium transition-colors ${
                 config.writingStyle.tone === tone.value
                   ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
               <div className="text-2xl mb-1">{tone.icon}</div>
@@ -115,7 +115,7 @@ export const WritingStyle: React.FC = () => {
 
       {/* Point of View */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
           Point of View (POV)
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -133,7 +133,7 @@ export const WritingStyle: React.FC = () => {
               className={`px-4 py-3 rounded font-medium transition-colors text-left ${
                 config.writingStyle.pov === pov.value
                   ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
               <div className="font-semibold">{pov.label}</div>
@@ -145,7 +145,7 @@ export const WritingStyle: React.FC = () => {
 
       {/* Tense */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
           Tense
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -163,7 +163,7 @@ export const WritingStyle: React.FC = () => {
               className={`px-4 py-3 rounded font-medium transition-colors text-left ${
                 config.writingStyle.tense === tense.value
                   ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
               <div className="font-semibold">{tense.label}</div>
@@ -175,7 +175,7 @@ export const WritingStyle: React.FC = () => {
 
       {/* Narrative Voice */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <label className="block text-sm font-medium text-gray-300 mb-3">
           Narrative Voice
         </label>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -193,7 +193,7 @@ export const WritingStyle: React.FC = () => {
               className={`px-4 py-3 rounded font-medium transition-colors text-left ${
                 config.writingStyle.narrativeVoice === voice.value
                   ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
               }`}
             >
               <div className="font-semibold">{voice.label}</div>
@@ -204,35 +204,35 @@ export const WritingStyle: React.FC = () => {
       </div>
 
       {/* Summary */}
-      <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+      <div className="bg-gray-800 rounded p-4 border border-gray-700">
         <h3 className="font-semibold mb-2">Style Summary</h3>
-        <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+        <div className="text-sm text-gray-300 space-y-1">
           <p>
-            <span className="text-gray-600 dark:text-gray-400">Style:</span>{' '}
+            <span className="text-gray-400">Style:</span>{' '}
             <span className="text-yellow-400 font-semibold capitalize">
               {config.writingStyle.style}
             </span>
           </p>
           <p>
-            <span className="text-gray-600 dark:text-gray-400">Tone:</span>{' '}
+            <span className="text-gray-400">Tone:</span>{' '}
             <span className="text-yellow-400 font-semibold capitalize">
               {config.writingStyle.tone}
             </span>
           </p>
           <p>
-            <span className="text-gray-600 dark:text-gray-400">POV:</span>{' '}
+            <span className="text-gray-400">POV:</span>{' '}
             <span className="text-yellow-400 font-semibold">
               {povOptions.find(p => p.value === config.writingStyle.pov)?.label}
             </span>
           </p>
           <p>
-            <span className="text-gray-600 dark:text-gray-400">Tense:</span>{' '}
+            <span className="text-gray-400">Tense:</span>{' '}
             <span className="text-yellow-400 font-semibold capitalize">
               {config.writingStyle.tense}
             </span>
           </p>
           <p>
-            <span className="text-gray-600 dark:text-gray-400">Voice:</span>{' '}
+            <span className="text-gray-400">Voice:</span>{' '}
             <span className="text-yellow-400 font-semibold capitalize">
               {config.writingStyle.narrativeVoice.replace('-', ' ')}
             </span>

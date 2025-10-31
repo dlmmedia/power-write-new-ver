@@ -149,13 +149,13 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
     <Modal isOpen={isOpen} onClose={onClose} title="Upload Reference Materials" size="lg">
       <div className="space-y-6">
         {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-800">
+        <div className="flex border-b border-gray-800">
           <button
             onClick={() => setActiveTab('file')}
             className={`px-4 py-2 font-medium ${
               activeTab === 'file'
                 ? 'border-b-2 border-yellow-400 text-yellow-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
             📄 Upload Files
@@ -165,7 +165,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
             className={`px-4 py-2 font-medium ${
               activeTab === 'url'
                 ? 'border-b-2 border-yellow-400 text-yellow-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
             🔗 Add URL
@@ -175,7 +175,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
             className={`px-4 py-2 font-medium ${
               activeTab === 'text'
                 ? 'border-b-2 border-yellow-400 text-yellow-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                : 'text-gray-400 hover:text-white'
             }`}
           >
             ✍️ Paste Text
@@ -187,11 +187,11 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
           {activeTab === 'file' && (
             <div>
               <div
-                className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center hover:border-yellow-400 transition-colors cursor-pointer"
+                className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center hover:border-yellow-400 transition-colors cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <div className="text-5xl mb-4">📁</div>
-                <p className="text-gray-700 dark:text-gray-300 mb-2">Click to upload or drag and drop</p>
+                <p className="text-gray-300 mb-2">Click to upload or drag and drop</p>
                 <p className="text-sm text-gray-500">PDF, TXT, or DOCX files (Max 10MB each)</p>
                 <input
                   ref={fileInputRef}
@@ -268,7 +268,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
               {uploads.map((ref) => (
                 <div
                   key={ref.id}
-                  className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg p-3 border border-gray-300 dark:border-gray-700"
+                  className="flex items-center justify-between bg-gray-800 rounded-lg p-3 border border-gray-700"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <span className="text-2xl">
@@ -298,7 +298,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
           <Button variant="ghost" onClick={onClose}>
             Cancel
           </Button>

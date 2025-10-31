@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
+import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 
 interface Chapter {
   id: number;
@@ -235,24 +236,25 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   const totalWords = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
 
   return (
-    <div className="fixed inset-0 bg-black z-50 overflow-hidden flex flex-col">
+    <div className="fixed inset-0 bg-white dark:bg-black z-50 overflow-hidden flex flex-col transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-black px-4 py-3 flex-shrink-0">
+      <header className="border-b border-yellow-600 bg-white dark:bg-black px-4 py-3 flex-shrink-0">
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-white transition-colors"
+              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
               ← {hasUnsavedChanges ? 'Close (Unsaved Changes)' : 'Close'}
             </button>
             <div>
-              <h1 className="font-bold text-lg">Editing: {bookTitle}</h1>
-              <p className="text-sm text-gray-400">by {author}</p>
+              <h1 className="font-bold text-lg text-gray-900 dark:text-white">Editing: {bookTitle}</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">by {author}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggleCompact />
             <Button
               variant={hasUnsavedChanges ? 'primary' : 'outline'}
               onClick={handleSave}
@@ -268,14 +270,14 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               )}
             </Button>
 
-            <div className="flex items-center gap-1 bg-gray-900 rounded px-2 py-1">
-              <span className="text-xs text-gray-400 mr-2">Font:</span>
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 rounded px-2 py-1">
+              <span className="text-xs text-gray-600 dark:text-gray-400 mr-2">Font:</span>
               {(['sm', 'base', 'lg', 'xl'] as const).map(size => (
                 <button
                   key={size}
                   onClick={() => setFontSize(size)}
                   className={`px-2 py-1 text-${size} rounded ${
-                    fontSize === size ? 'bg-yellow-400 text-black' : 'text-gray-400 hover:text-white'
+                    fontSize === size ? 'bg-yellow-400 text-black' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
                   A
@@ -285,7 +287,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
             <button
               onClick={() => setShowChapterList(!showChapterList)}
-              className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 px-3 py-2 rounded transition-colors"
+              className="flex items-center gap-2 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded transition-colors text-gray-900 dark:text-white"
             >
               <span className="text-sm">
                 Chapter {currentChapter.number} of {chapters.length}
@@ -301,10 +303,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
         {/* Chapter List Dropdown */}
         {showChapterList && (
-          <div className="absolute right-4 top-16 bg-gray-900 border border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto w-96 z-50">
+          <div className="absolute right-4 top-16 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto w-96 z-50">
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1 mb-2">
-                <h3 className="font-semibold text-sm text-gray-400">Chapters</h3>
+                <h3 className="font-semibold text-sm text-gray-600 dark:text-gray-400">Chapters</h3>
                 <Button variant="outline" size="sm" onClick={addChapter}>
                   + Add Chapter
                 </Button>
@@ -318,14 +320,14 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                 >
                   <button
                     onClick={() => goToChapter(index)}
-                    className="w-full text-left px-3 py-2 hover:bg-gray-800 transition-colors flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center justify-between text-gray-900 dark:text-white"
                   >
                     <div className="flex-1">
                       <div className="font-medium text-sm flex items-center gap-2">
                         Chapter {chapter.number}: {chapter.title}
                         {chapter.isEdited && <Badge variant="warning" size="sm">Edited</Badge>}
                       </div>
-                      <div className="text-xs text-gray-400 mt-1">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                         {chapter.wordCount.toLocaleString()} words
                       </div>
                     </div>
@@ -338,7 +340,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                       e.stopPropagation();
                       deleteChapter(index);
                     }}
-                    className="opacity-0 group-hover:opacity-100 absolute right-2 top-2 text-red-400 hover:text-red-300 text-xs px-2 py-1 bg-gray-800 rounded"
+                    className="opacity-0 group-hover:opacity-100 absolute right-2 top-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-800 rounded"
                   >
                     🗑 Delete
                   </button>
@@ -350,7 +352,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       </header>
 
       {/* Toolbar */}
-      <div className="border-b border-gray-800 bg-gray-900 px-4 py-2">
+      <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 px-4 py-2">
         <div className="container mx-auto flex items-center gap-2">
           <Button
             variant="outline"
@@ -376,7 +378,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           >
             <u>U</u>
           </Button>
-          <div className="w-px h-6 bg-gray-700 mx-2" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
           <Button
             variant="outline"
             size="sm"
@@ -406,7 +408,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             ---
           </Button>
           <div className="flex-1" />
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-gray-600 dark:text-gray-400">
             {currentChapter.wordCount.toLocaleString()} words in this chapter
           </span>
         </div>
@@ -417,7 +419,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
         <div className="container mx-auto max-w-5xl px-4 py-6">
           {/* Chapter Title */}
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2 text-gray-400">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-400">
               Chapter {currentChapter.number} Title
             </label>
             <Input
@@ -431,21 +433,21 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
           {/* Chapter Content */}
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2 text-gray-400">
+            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-400">
               Content
             </label>
             <textarea
               id="chapter-content"
               value={currentChapter.content}
               onChange={(e) => updateChapterContent(e.target.value)}
-              className={`w-full min-h-[600px] bg-gray-900 border border-gray-700 rounded-lg p-6 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
+              className={`w-full min-h-[600px] bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
               placeholder="Start writing your chapter..."
               style={{ fontFamily: 'Georgia, serif' }}
             />
           </div>
 
           {/* Navigation Buttons */}
-          <div className="flex items-center justify-between py-4 border-t border-gray-800">
+          <div className="flex items-center justify-between py-4 border-t border-gray-200 dark:border-gray-800">
             <Button
               variant="outline"
               onClick={() => {

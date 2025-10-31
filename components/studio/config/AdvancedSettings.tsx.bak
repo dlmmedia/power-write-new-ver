@@ -35,7 +35,7 @@ export function AdvancedSettings() {
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-bold mb-4">Advanced Settings</h3>
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+        <p className="text-gray-400 text-sm mb-6">
           Fine-tune generation parameters, content guidelines, and technical preferences.
         </p>
       </div>
@@ -58,7 +58,7 @@ export function AdvancedSettings() {
           })}
           className="w-full"
         />
-        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mt-1">
+        <div className="flex justify-between text-sm text-gray-400 mt-1">
           <span>Conservative (0.3)</span>
           <span className="text-yellow-400 font-semibold">{config.aiSettings?.temperature || 0.85}</span>
           <span>Very Creative (0.9)</span>
@@ -132,7 +132,7 @@ export function AdvancedSettings() {
       </div>
 
       {/* Content Filtering */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-3">
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 space-y-3">
         <h4 className="font-bold">Content Guidelines</h4>
         
         <label className="flex items-center gap-2 cursor-pointer">
@@ -145,7 +145,7 @@ export function AdvancedSettings() {
                 contentFiltering: e.target.checked,
               },
             })}
-            className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-yellow-400 focus:ring-yellow-500"
+            className="w-4 h-4 rounded border-gray-700 text-yellow-400 focus:ring-yellow-500"
           />
           <span className="text-sm">Enable content filtering</span>
         </label>
@@ -160,7 +160,7 @@ export function AdvancedSettings() {
                 factChecking: e.target.checked,
               },
             })}
-            className="w-4 h-4 rounded border-gray-300 dark:border-gray-700 text-yellow-400 focus:ring-yellow-500"
+            className="w-4 h-4 rounded border-gray-700 text-yellow-400 focus:ring-yellow-500"
           />
           <span className="text-sm">Enable fact-checking (for non-fiction)</span>
         </label>

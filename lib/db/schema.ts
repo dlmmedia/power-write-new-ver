@@ -75,6 +75,10 @@ export const bookChapters = pgTable("book_chapters", {
   content: text("content").notNull(),
   wordCount: integer("word_count").default(0),
   isEdited: boolean("is_edited").default(false),
+  // Audio fields
+  audioUrl: text("audio_url"),
+  audioDuration: integer("audio_duration"), // Duration in seconds
+  audioMetadata: jsonb("audio_metadata"), // { voice, speed, model, generatedAt, fileSize }
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

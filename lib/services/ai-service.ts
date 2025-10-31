@@ -67,6 +67,7 @@ export interface BookGenerationConfig {
   chapters: number;
   length: string;
   customInstructions?: string;
+  isNonFiction?: boolean;
   sourceBook?: {
     title: string;
     author: string;
@@ -98,7 +99,43 @@ export class AIService {
         ? `\n\nSource Book for Inspiration: "${config.sourceBook.title}" by ${config.sourceBook.author}\nDescription: ${config.sourceBook.description}\n\nNote: Create something entirely original inspired by this work, not a copy.`
         : '';
 
-      const prompt = `Create a ${config.genre} book outline with ${numChapters} chapters.
+      const isNonFiction = config.isNonFiction || false;
+
+      const prompt = isNonFiction
+        ? `Create a ${config.genre} NON-FICTION book outline with ${numChapters} chapters.
+
+Author: ${config.author}
+Genre: ${config.genre}
+Tone: ${config.tone}
+Audience: ${config.audience}
+Description: ${config.description}
+${sourceContext}
+${config.customInstructions ? `\nInstructions: ${config.customInstructions}` : ''}
+
+Generate a compelling non-fiction book outline with:
+- An engaging, informative title
+- ${numChapters} well-structured chapters (approximately ${wordsPerChapter} words each)
+- Brief chapter summaries (2-3 sentences each) focusing on key concepts and information
+- 3-5 key themes or main topics
+- NO characters (this is non-fiction)
+
+Return ONLY valid JSON in this format:
+{
+  "title": "book title",
+  "author": "${config.author}",
+  "genre": "${config.genre}",
+  "description": "compelling book description",
+  "chapters": [
+    {
+      "number": 1,
+      "title": "chapter title",
+      "summary": "brief chapter summary (2-3 sentences)",
+      "wordCount": ${wordsPerChapter}
+    }
+  ],
+  "themes": ["theme1", "theme2", "theme3"]
+}`
+        : `Create a ${config.genre} FICTION book outline with ${numChapters} chapters.
 
 Author: ${config.author}
 Genre: ${config.genre}
@@ -141,12 +178,16 @@ Return ONLY valid JSON in this format:
 
       console.log('Calling OpenAI API for outline generation...');
       
+      const systemPrompt = isNonFiction
+        ? 'You are an expert non-fiction author and educator. Generate informative, well-researched book outlines as valid JSON only. Focus on educational content, clear structure, and factual information.'
+        : 'You are an expert fiction author. Generate compelling story outlines as valid JSON only. Focus on character development, plot structure, and engaging narratives.';
+
       const result = await generateText({
         model: getTextModel('outline'), // Use GPT-4o-mini for fast structured outlines
         messages: [
           {
             role: 'system',
-            content: 'You are an expert book author. Generate book outlines as valid JSON only. Be concise.',
+            content: systemPrompt,
           },
           {
             role: 'user',
@@ -204,7 +245,29 @@ Return ONLY valid JSON in this format:
         ? `\n\nPrevious chapters summary:\n${previousChapters}\n\nMaintain continuity from previous chapters.`
         : '';
 
-      const prompt = `Write Chapter ${chapter.number} of "${outline.title}" by ${outline.author}.
+      const isNonFiction = !outline.characters || outline.characters.length === 0;
+
+      const prompt = isNonFiction
+        ? `Write Chapter ${chapter.number} of the NON-FICTION book "${outline.title}" by ${outline.author}.
+
+Chapter Details:
+- Title: ${chapter.title}
+- Summary: ${chapter.summary}
+- Target Word Count: ${chapter.wordCount} words
+- Genre: ${outline.genre}
+
+Themes: ${outline.themes?.join(', ') || 'General themes'}
+${contextPrompt}
+
+Write a complete, informative chapter targeting ${chapter.wordCount} words (minimum 1500 words). 
+- Create well-developed paragraphs (6-10 sentences each)
+- Include clear explanations, examples, and facts
+- Use double line breaks between paragraphs
+- NO markdown formatting
+- Write in plain text
+- Focus on educational and informative content
+- End with [END CHAPTER] on a new line`
+        : `Write Chapter ${chapter.number} of "${outline.title}" by ${outline.author}.
 
 Chapter Details:
 - Title: ${chapter.title}
@@ -224,12 +287,16 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
 - Write in plain text
 - End with [END CHAPTER] on a new line`;
 
+      const systemPrompt = isNonFiction
+        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.`
+        : `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.`;
+
       const result = await generateText({
-        model: getTextModel('chapter'), // Use Claude Sonnet 4 for best creative writing
+        model: getTextModel('chapter'),
         messages: [
           {
             role: 'system',
-            content: `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.`,
+            content: systemPrompt,
           },
           {
             role: 'user',

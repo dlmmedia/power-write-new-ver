@@ -174,6 +174,42 @@ export async function deleteBookChapters(bookId: number): Promise<void> {
   await db.delete(bookChapters).where(eq(bookChapters.bookId, bookId));
 }
 
+export async function updateChapterAudio(
+  chapterId: number,
+  audioUrl: string,
+  audioDuration: number,
+  audioMetadata?: any
+): Promise<BookChapter | null> {
+  const [chapter] = await db
+    .update(bookChapters)
+    .set({
+      audioUrl,
+      audioDuration,
+      audioMetadata,
+      updatedAt: new Date(),
+    })
+    .where(eq(bookChapters.id, chapterId))
+    .returning();
+  return chapter || null;
+}
+
+export async function getChapterByBookAndNumber(
+  bookId: number,
+  chapterNumber: number
+): Promise<BookChapter | null> {
+  const [chapter] = await db
+    .select()
+    .from(bookChapters)
+    .where(
+      and(
+        eq(bookChapters.bookId, bookId),
+        eq(bookChapters.chapterNumber, chapterNumber)
+      )
+    )
+    .limit(1);
+  return chapter || null;
+}
+
 // ============ REFERENCE BOOK OPERATIONS ============
 
 export async function createReferenceBook(

@@ -245,7 +245,7 @@ export const OutlineEditor: React.FC = () => {
                   <button
                     onClick={() => handleMoveChapter(chapter.number, 'up')}
                     disabled={chapter.number === 1}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move up"
                   >
                     ↑
@@ -253,7 +253,7 @@ export const OutlineEditor: React.FC = () => {
                   <button
                     onClick={() => handleMoveChapter(chapter.number, 'down')}
                     disabled={chapter.number === outline.chapters.length}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move down"
                   >
                     ↓

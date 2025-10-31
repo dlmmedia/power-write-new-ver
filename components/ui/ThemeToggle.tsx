@@ -81,7 +81,7 @@ export function ThemeToggleCompact() {
   return (
     <button
       onClick={toggleTheme}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 dark:bg-gray-700 hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors border border-gray-700 dark:border-gray-600"
+      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-gray-300 dark:border-gray-600"
       aria-label="Toggle theme"
     >
       {isDark ? (
@@ -100,7 +100,7 @@ export function ThemeToggleCompact() {
               d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
             />
           </svg>
-          <span className="text-sm text-white">Dark</span>
+          <span className="text-sm text-gray-900 dark:text-white">Dark</span>
         </>
       ) : (
         <>

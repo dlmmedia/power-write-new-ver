@@ -22,7 +22,7 @@ export const Tabs: React.FC<TabsProps> = ({
   className = ''
 }) => {
   return (
-    <div className={`border-b border-gray-800 ${className}`}>
+    <div className={`border-b border-gray-200 dark:border-gray-800 ${className}`}>
       <nav className="flex space-x-8">
         {tabs.map((tab) => (
           <button
@@ -30,8 +30,8 @@ export const Tabs: React.FC<TabsProps> = ({
             onClick={() => onChange(tab.id)}
             className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === tab.id
-                ? 'border-yellow-400 text-yellow-400'
-                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-300'
+                ? 'border-yellow-600 dark:border-yellow-400 text-yellow-600 dark:text-yellow-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-300 hover:border-gray-400 dark:hover:border-gray-300'
             }`}
           >
             {tab.icon && <span>{tab.icon}</span>}

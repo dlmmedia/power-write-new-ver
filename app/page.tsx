@@ -9,6 +9,7 @@ import { SelectedBooksPanel } from '@/components/books/SelectedBooksPanel';
 import { FeaturedSection } from '@/components/home/FeaturedSection';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 
 export default function Home() {
   const [books, setBooks] = useState<BookResult[]>([]);
@@ -73,22 +74,23 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-black text-white pb-32">
+    <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white pb-32 transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
               PW
             </div>
             <nav className="hidden md:flex space-x-6">
-              <a href="/" className="text-gray-300 hover:text-white">Browse Books</a>
-              <a href="/studio" className="text-gray-300 hover:text-white">Studio</a>
-              <a href="/library" className="text-gray-300 hover:text-white">Library</a>
-              <a href="/landing" className="text-gray-400 hover:text-white text-sm">About</a>
+              <a href="/" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Browse Books</a>
+              <a href="/studio" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Studio</a>
+              <a href="/library" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Library</a>
+              <a href="/landing" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">About</a>
             </nav>
           </div>
           <div className="flex items-center space-x-4">
+            <ThemeToggleCompact />
             <form onSubmit={handleSearch} className="flex items-center gap-2">
               <Input
                 type="search"
@@ -113,7 +115,7 @@ export default function Home() {
       />
 
       {/* Category Tabs */}
-      <section className="border-b border-gray-800">
+      <section className="border-b border-gray-200 dark:border-gray-800">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center py-4">
             <div className="flex space-x-8">
@@ -123,8 +125,8 @@ export default function Home() {
                   onClick={() => setActiveCategory(cat)}
                   className={`text-lg font-semibold capitalize ${
                     activeCategory === cat
-                      ? 'text-yellow-400 border-b-2 border-yellow-400 pb-1'
-                      : 'text-gray-400 hover:text-white'
+                      ? 'text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-600 dark:border-yellow-400 pb-1'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
                   {cat.replace('-', ' ')}
@@ -132,7 +134,7 @@ export default function Home() {
               ))}
             </div>
             {selectedBooks.length > 0 && (
-              <div className="text-sm text-gray-400">
+              <div className="text-sm text-gray-600 dark:text-gray-400">
                 {selectedBooks.length} book{selectedBooks.length !== 1 ? 's' : ''} selected
               </div>
             )}
@@ -168,14 +170,14 @@ export default function Home() {
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
               {[...Array(12)].map((_, i) => (
                 <div key={i} className="animate-pulse">
-                  <div className="bg-gray-800 aspect-[2/3] rounded-lg mb-2" />
-                  <div className="bg-gray-800 h-4 rounded mb-1" />
-                  <div className="bg-gray-800 h-3 w-2/3 rounded" />
+                  <div className="bg-gray-200 dark:bg-gray-800 aspect-[2/3] rounded-lg mb-2" />
+                  <div className="bg-gray-200 dark:bg-gray-800 h-4 rounded mb-1" />
+                  <div className="bg-gray-200 dark:bg-gray-800 h-3 w-2/3 rounded" />
                 </div>
               ))}
             </div>
           ) : books.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
+            <div className="text-center py-12 text-gray-600 dark:text-gray-400">
               <p>No books found</p>
             </div>
           ) : (
@@ -197,8 +199,8 @@ export default function Home() {
       <SelectedBooksPanel />
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-8 mt-12">
-        <div className="container mx-auto px-4 text-center text-gray-400">
+      <footer className="border-t border-gray-200 dark:border-gray-800 py-8 mt-12">
+        <div className="container mx-auto px-4 text-center text-gray-600 dark:text-gray-400">
           <p>© 2025 PowerWrite. Create amazing books with AI.</p>
         </div>
       </footer>

@@ -41,6 +41,9 @@ export async function GET(
         content: ch.content,
         wordCount: ch.wordCount || 0,
         status: ch.isEdited ? 'edited' : 'draft',
+        audioUrl: ch.audioUrl || null,
+        audioDuration: ch.audioDuration || null,
+        audioMetadata: ch.audioMetadata || null,
       })),
     };
 

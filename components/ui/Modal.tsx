@@ -56,7 +56,7 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black bg-opacity-75 transition-opacity"
+        className="fixed inset-0 bg-black dark:bg-black bg-opacity-50 dark:bg-opacity-75 transition-opacity"
         onClick={onClose}
       />
 
@@ -64,21 +64,21 @@ export const Modal: React.FC<ModalProps> = ({
       <div className="flex min-h-full items-center justify-center p-4">
         <div
           className={clsx(
-            'relative w-full bg-gray-900 rounded-lg shadow-xl border border-gray-800',
+            'relative w-full bg-white dark:bg-gray-900 rounded-lg shadow-xl border border-gray-200 dark:border-gray-800 transition-colors',
             sizeStyles[size]
           )}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
           {(title || showCloseButton) && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800">
               {title && (
-                <h3 className="text-xl font-semibold text-white">{title}</h3>
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h3>
               )}
               {showCloseButton && (
                 <button
                   onClick={onClose}
-                  className="text-gray-400 hover:text-white transition-colors"
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                 >
                   <svg
                     className="w-6 h-6"

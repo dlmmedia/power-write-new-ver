@@ -1,5 +1,6 @@
 import { SelectedBook } from '@/lib/types/book';
 import { BookConfiguration } from '@/lib/types/studio';
+import { isNonFiction } from '@/lib/utils/book-type';
 
 /**
  * Generate a sample book title inspired by the reference book
@@ -280,8 +281,10 @@ export function autoPopulateFromBook(
   const writingStyle = inferWritingStyle(referenceBook);
   const audience = inferAudience(referenceBook);
   const themes = extractThemes(referenceBook);
+  const bookIsNonFiction = isNonFiction(referenceBook);
   
-  return {
+  // Base configuration
+  const config: BookConfiguration = {
     ...currentConfig,
     basicInfo: {
       ...currentConfig.basicInfo,
@@ -325,4 +328,11 @@ export function autoPopulateFromBook(
       autoPopulated: true,
     },
   };
+  
+  // For non-fiction books, remove character configuration
+  if (bookIsNonFiction) {
+    config.characters = undefined;
+  }
+  
+  return config;
 }

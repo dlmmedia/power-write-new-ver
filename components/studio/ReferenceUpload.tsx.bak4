@@ -155,7 +155,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
             className={`px-4 py-2 font-medium ${
               activeTab === 'file'
                 ? 'border-b-2 border-yellow-400 text-yellow-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                : 'text-gray-600 dark:text-gray-400 hover:text-white'
             }`}
           >
             📄 Upload Files
@@ -165,7 +165,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
             className={`px-4 py-2 font-medium ${
               activeTab === 'url'
                 ? 'border-b-2 border-yellow-400 text-yellow-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                : 'text-gray-600 dark:text-gray-400 hover:text-white'
             }`}
           >
             🔗 Add URL
@@ -175,7 +175,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
             className={`px-4 py-2 font-medium ${
               activeTab === 'text'
                 ? 'border-b-2 border-yellow-400 text-yellow-400'
-                : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                : 'text-gray-600 dark:text-gray-400 hover:text-white'
             }`}
           >
             ✍️ Paste Text

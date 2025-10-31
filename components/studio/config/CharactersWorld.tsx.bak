@@ -79,13 +79,13 @@ export function CharactersWorld() {
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-bold mb-4">Characters & World-Building</h3>
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+        <p className="text-gray-400 text-sm mb-6">
           Define your characters, setting, and world details to create a rich narrative foundation.
         </p>
       </div>
 
       {/* Setting/World */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-4">
+      <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 space-y-4">
         <h4 className="font-bold text-lg">Setting & World</h4>
 
         <div>
@@ -141,7 +141,7 @@ export function CharactersWorld() {
 
       {/* Characters Section - Only show for fiction */}
       {!bookIsNonFiction && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 space-y-4">
           <h4 className="font-bold text-lg">Characters</h4>
 
         {/* Character List */}
@@ -150,7 +150,7 @@ export function CharactersWorld() {
             {characters.map((character) => (
               <div
                 key={character.id}
-                className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700"
+                className="bg-gray-800 rounded-lg p-4 border border-gray-700"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -167,7 +167,7 @@ export function CharactersWorld() {
                   </button>
                 </div>
                 {character.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{character.description}</p>
+                  <p className="text-sm text-gray-400 mb-2">{character.description}</p>
                 )}
                 {character.traits && (
                   <p className="text-xs text-gray-500">
@@ -180,8 +180,8 @@ export function CharactersWorld() {
         )}
 
         {/* Add Character Form */}
-        <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-4 space-y-3">
-          <h5 className="font-medium text-sm text-gray-600 dark:text-gray-400">Add Character</h5>
+        <div className="border border-gray-700 rounded-lg p-4 space-y-3">
+          <h5 className="font-medium text-sm text-gray-400">Add Character</h5>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -200,7 +200,7 @@ export function CharactersWorld() {
                 id="char-role"
                 value={newCharacter.role || 'supporting'}
                 onChange={(e) => setNewCharacter({ ...newCharacter, role: e.target.value as Character['role'] })}
-                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
               >
                 <option value="protagonist">Protagonist</option>
                 <option value="antagonist">Antagonist</option>
@@ -254,7 +254,7 @@ export function CharactersWorld() {
             <div className="text-2xl">📚</div>
             <div>
               <h4 className="font-bold text-blue-400 mb-2">Non-Fiction Mode</h4>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+              <p className="text-sm text-gray-300">
                 Character development is disabled for non-fiction books. Focus on factual content, research, and informative chapters instead.
               </p>
             </div>
@@ -304,17 +304,17 @@ export function CharactersWorld() {
 
       {/* Summary */}
       {(characters.length > 0 || config.setting?.locationDetails) && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+        <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
           <h4 className="font-medium text-yellow-400 mb-2">Story Foundation Summary</h4>
-          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+          <div className="text-sm text-gray-300 space-y-1">
             {config.setting?.locationDetails && (
-              <p>🌍 <span className="text-gray-600 dark:text-gray-400">Setting:</span> {config.setting.locationDetails}</p>
+              <p>🌍 <span className="text-gray-400">Setting:</span> {config.setting.locationDetails}</p>
             )}
             {characters.length > 0 && (
-              <p>👥 <span className="text-gray-600 dark:text-gray-400">Characters:</span> {characters.length} defined</p>
+              <p>👥 <span className="text-gray-400">Characters:</span> {characters.length} defined</p>
             )}
             {config.themes?.primary && config.themes.primary.length > 0 && (
-              <p>💭 <span className="text-gray-600 dark:text-gray-400">Themes:</span> {config.themes.primary.length} specified</p>
+              <p>💭 <span className="text-gray-400">Themes:</span> {config.themes.primary.length} specified</p>
             )}
           </div>
         </div>
