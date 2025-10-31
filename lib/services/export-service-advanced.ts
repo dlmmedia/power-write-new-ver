@@ -131,7 +131,7 @@ export class ExportServiceAdvanced {
         });
 
         // Collect data chunks
-        doc.on('data', (chunk) => chunks.push(chunk));
+        doc.on('data', (chunk: Buffer) => chunks.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(chunks)));
         doc.on('error', (err) => {
           console.error('PDFKit error:', err);
