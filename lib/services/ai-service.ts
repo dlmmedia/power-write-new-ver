@@ -380,6 +380,11 @@ Write a complete chapter with well-developed paragraphs. Use double line breaks 
         throw new Error('OPENAI_API_KEY is required for image generation');
       }
 
+      // Validate blob token
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is required for image storage. Set it in Vercel project settings.');
+      }
+
       // Create a detailed, professional book cover prompt
       const prompt = `A professional book cover for "${title}" by ${author}. Genre: ${genre}. ${description.substring(0, 200)}. Style: ${style}, premium publishing quality, eye-catching design, portrait orientation.`;
       
@@ -417,11 +422,34 @@ Write a complete chapter with well-developed paragraphs. Use double line breaks 
         throw new Error('No images generated');
       }
 
-      // Return the image URL
-      const imageUrl = data.data[0].url;
+      // Get the temporary DALL-E URL
+      const temporaryUrl = data.data[0].url;
+      console.log('DALL-E image generated, downloading and uploading to blob storage...');
+
+      // Download the image from DALL-E
+      const imageResponse = await fetch(temporaryUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download image from DALL-E: ${imageResponse.status}`);
+      }
+
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      const contentType = imageResponse.headers.get('content-type') || 'image/png';
+
+      // Upload to Vercel Blob storage for permanent access
+      const { put } = await import('@vercel/blob');
+      const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '-').toLowerCase().substring(0, 50);
+      const filename = `covers/${sanitizedTitle}-${Date.now()}.png`;
       
-      console.log('Cover generated successfully with DALL-E 3');
-      return imageUrl;
+      console.log(`Uploading cover image to blob storage: ${filename}`);
+      
+      const blob = await put(filename, imageBuffer, {
+        access: 'public',
+        contentType: contentType,
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+      });
+
+      console.log('Cover uploaded successfully to blob storage:', blob.url);
+      return blob.url;
     } catch (error) {
       console.error('Error generating cover:', error);
       throw new Error(`Failed to generate cover image: ${error instanceof Error ? error.message : 'Unknown error'}`);
