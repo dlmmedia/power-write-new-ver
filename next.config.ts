@@ -5,6 +5,9 @@ const nextConfig: NextConfig = {
   // Fix workspace root detection
   outputFileTracingRoot: path.join(__dirname),
   
+  // Configure Turbopack (empty config to silence warning, webpack still used for build)
+  turbopack: {},
+  
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Handle pdfkit and its dependencies for server-side rendering
