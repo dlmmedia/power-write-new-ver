@@ -286,6 +286,7 @@ export async function duplicateBook(
     metadata: bookData.metadata as any,
     sourceBookData: bookData.sourceBookData as any,
     referenceBooks: bookData.referenceBooks as any,
+    coverMetadata: bookData.coverMetadata as InsertGeneratedBook['coverMetadata'],
     userId,
     title: `${bookData.title} (Copy)`,
     status: 'draft',
