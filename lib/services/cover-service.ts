@@ -167,7 +167,13 @@ export class CoverService {
     } as const;
 
     const scheme = colorScheme === 'custom' ? 'monochrome' : (colorScheme || 'monochrome');
-    const colors = customColors || colorSchemes[scheme as keyof typeof colorSchemes];
+    const normalizedCustomColors = customColors ? {
+      bg: customColors.primary,
+      overlay: customColors.secondary,
+      text: customColors.text,
+      accent: customColors.accent,
+    } : null;
+    const colors = normalizedCustomColors || colorSchemes[scheme as keyof typeof colorSchemes];
 
     // Font selections
     const fonts = {
