@@ -30,6 +30,7 @@ export default function LibraryPage() {
   const [filterGenre, setFilterGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
+  const [isRegeneratingAll, setIsRegeneratingAll] = useState(false);
 
   useEffect(() => {
     fetchBooks();
@@ -48,8 +49,8 @@ export default function LibraryPage() {
     }
   };
 
-  const handleGenerateCover = async (bookId: number, e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent navigation to book detail
+  const handleGenerateCover = async (bookId: number, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation(); // Prevent navigation to book detail
     
     setGeneratingCovers(prev => new Set(prev).add(bookId));
     
@@ -65,12 +66,14 @@ export default function LibraryPage() {
         setBooks(prev => prev.map(book => 
           book.id === bookId ? { ...book, coverUrl: data.coverUrl } : book
         ));
+        return true;
       } else {
-        alert('Failed to generate cover: ' + (data.error || 'Unknown error'));
+        console.error('Failed to generate cover:', data.error);
+        return false;
       }
     } catch (error) {
       console.error('Error generating cover:', error);
-      alert('Failed to generate cover');
+      return false;
     } finally {
       setGeneratingCovers(prev => {
         const newSet = new Set(prev);
@@ -78,6 +81,34 @@ export default function LibraryPage() {
         return newSet;
       });
     }
+  };
+
+  const handleRegenerateAllCovers = async () => {
+    const booksWithoutCovers = books.filter(book => !book.coverUrl || book.coverUrl.includes('oaidalleapiprodscus'));
+    
+    if (booksWithoutCovers.length === 0) {
+      alert('All books already have valid covers!');
+      return;
+    }
+
+    const confirmed = confirm(`Regenerate covers for ${booksWithoutCovers.length} book(s)? This may take a few minutes.`);
+    if (!confirmed) return;
+
+    setIsRegeneratingAll(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const book of booksWithoutCovers) {
+      const success = await handleGenerateCover(book.id);
+      if (success) successCount++;
+      else failCount++;
+      
+      // Small delay between requests to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+
+    setIsRegeneratingAll(false);
+    alert(`Cover regeneration complete!\n✓ Success: ${successCount}\n✗ Failed: ${failCount}`);
   };
 
   const filteredAndSortedBooks = books
@@ -116,6 +147,13 @@ export default function LibraryPage() {
 
             <div className="flex items-center gap-3">
               <ThemeToggleCompact />
+              <Button 
+                variant="secondary" 
+                onClick={handleRegenerateAllCovers}
+                disabled={isRegeneratingAll}
+              >
+                {isRegeneratingAll ? '🔄 Regenerating...' : '🎨 Fix Covers'}
+              </Button>
               <Button variant="primary" onClick={() => router.push('/studio')}>
                 + New Book
               </Button>

@@ -5,10 +5,11 @@ import { ensureDemoUser, getBookWithChapters, getChapterByBookAndNumber, updateC
 export const maxDuration = 300; // 5 minutes for audio generation
 
 export async function POST(request: NextRequest) {
+  console.log('[Audio API] Request received');
   try {
     // Check environment variables first
     if (!process.env.OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY is not configured');
+      console.error('[Audio API] OPENAI_API_KEY is not configured');
       return NextResponse.json(
         { 
           error: 'OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment variables.',
@@ -19,11 +20,20 @@ export async function POST(request: NextRequest) {
     }
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.warn('⚠️ BLOB_READ_WRITE_TOKEN is not set. Audio uploads may fail.');
-      // Don't fail immediately - @vercel/blob might auto-detect in Vercel deployments
+      console.error('[Audio API] BLOB_READ_WRITE_TOKEN is not configured');
+      return NextResponse.json(
+        { 
+          error: 'Audio storage is not configured',
+          details: 'BLOB_READ_WRITE_TOKEN environment variable is required for audio generation.',
+          hint: 'Add BLOB_READ_WRITE_TOKEN in your .env.local file or Vercel Project Settings > Environment Variables.'
+        },
+        { status: 503 }
+      );
     }
 
     const body = await request.json();
+    console.log('[Audio API] Request body:', { userId: body.userId, bookId: body.bookId, chapterNumbers: body.chapterNumbers, voice: body.voice });
+    
     const { userId, bookId, chapterNumbers, voice, speed, model } = body as {
       userId: string;
       bookId: string;
@@ -59,10 +69,11 @@ export async function POST(request: NextRequest) {
       model: model || 'tts-1', // Cost-effective by default
     };
 
-    console.log(`Generating audio for book: ${book.title}`);
+    console.log(`[Audio API] Generating audio for book: ${book.title} (${book.chapters.length} chapters)`);
 
     // If specific chapters requested
     if (chapterNumbers && chapterNumbers.length > 0) {
+      console.log(`[Audio API] Generating ${chapterNumbers.length} specific chapters:`, chapterNumbers);
       const chaptersToGenerate = book.chapters
         .filter(ch => chapterNumbers.includes(ch.chapterNumber))
         .map(ch => ({
@@ -84,7 +95,7 @@ export async function POST(request: NextRequest) {
         ttsConfig
       );
 
-      console.log(`Generated audio for ${audioResults.length} chapters`);
+      console.log(`[Audio API] Generated audio for ${audioResults.length} chapters`);
 
       // Save audio URLs to database
       for (const audioResult of audioResults) {
@@ -101,10 +112,11 @@ export async function POST(request: NextRequest) {
               generatedAt: new Date().toISOString(),
             }
           );
-          console.log(`Saved audio URL for chapter ${audioResult.chapterNumber}`);
+          console.log(`[Audio API] Saved audio URL for chapter ${audioResult.chapterNumber}`);
         }
       }
 
+      console.log(`[Audio API] Successfully completed chapter audio generation`);
       return NextResponse.json({
         success: true,
         type: 'chapters',
@@ -124,7 +136,7 @@ export async function POST(request: NextRequest) {
       book.title
     );
 
-    console.log(`Full audiobook generated: ${audioResult.audioUrl}`);
+    console.log(`[Audio API] Full audiobook generated: ${audioResult.audioUrl}`);
 
     return NextResponse.json({
       success: true,
@@ -134,8 +146,15 @@ export async function POST(request: NextRequest) {
       size: audioResult.size,
     });
   } catch (error) {
-    console.error('Error generating audio:', error);
+    console.error('[Audio API] Error generating audio:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error('[Audio API] Error details:', {
+      message: errorMessage,
+      stack: errorStack,
+      type: error instanceof Error ? error.constructor.name : typeof error
+    });
     
     // Provide helpful error messages for common issues
     let hint = '';
@@ -143,10 +162,13 @@ export async function POST(request: NextRequest) {
       hint = 'Blob storage error. Check that BLOB_READ_WRITE_TOKEN is set in Vercel environment variables.';
     } else if (errorMessage.includes('OPENAI') || errorMessage.includes('API key')) {
       hint = 'OpenAI API error. Verify OPENAI_API_KEY is correctly set and has TTS access.';
+    } else if (errorMessage.includes('fetch')) {
+      hint = 'Network error. Check your internet connection and API endpoints.';
     }
     
     return NextResponse.json(
       { 
+        success: false,
         error: 'Failed to generate audio', 
         details: errorMessage,
         hint: hint || undefined

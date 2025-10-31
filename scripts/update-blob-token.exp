@@ -1,0 +1,35 @@
+#!/usr/bin/expect -f
+
+set timeout 30
+set token "vercel_blob_rw_SlxPDoGc9J1gs1Tf_XeKagti3GPrJ8byvCdP3xBFsdTYvac"
+
+spawn npx vercel env update BLOB_READ_WRITE_TOKEN production
+
+expect {
+    "What's the new value" {
+        send "$token\r"
+        exp_continue
+    }
+    "new value" {
+        send "$token\r"
+        exp_continue
+    }
+    "Are you sure" {
+        send "y\r"
+        exp_continue
+    }
+    "are you sure" {
+        send "y\r"
+        exp_continue
+    }
+    "(y/N)" {
+        send "y\r"
+        exp_continue
+    }
+    timeout {
+        puts "Timeout waiting for prompt"
+        exit 1
+    }
+    eof
+}
+

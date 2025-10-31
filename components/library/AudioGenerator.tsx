@@ -93,33 +93,45 @@ export function AudioGenerator({
         ...(generationMode === 'chapters' && { chapterNumbers: selectedChapters }),
       };
 
+      console.log('[AudioGenerator] Starting audio generation:', requestBody);
+
       const response = await fetch('/api/generate/audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        const errorMessage = data.error || data.details || 'Failed to generate audio';
-        throw new Error(errorMessage);
+        const data = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
+        const errorMessage = data.error || data.details || `Server error: ${response.status}`;
+        const hint = data.hint ? `\n\nHint: ${data.hint}` : '';
+        throw new Error(errorMessage + hint);
+      }
+
+      const data = await response.json();
+      console.log('[AudioGenerator] API response:', data);
+
+      if (!data.success) {
+        throw new Error(data.error || data.details || 'API returned success:false');
       }
 
       if (data.type === 'full') {
+        console.log('[AudioGenerator] Full audiobook generated:', data.audioUrl);
         setFullAudioUrl(data.audioUrl);
         if (onAudioGenerated) {
           onAudioGenerated({ type: 'full', audioUrl: data.audioUrl });
         }
       } else if (data.type === 'chapters') {
+        console.log('[AudioGenerator] Chapter audio generated:', data.chapters?.length, 'chapters');
         setGeneratedAudios(data.chapters);
         if (onAudioGenerated) {
           onAudioGenerated({ type: 'chapters', chapters: data.chapters });
         }
       }
     } catch (error) {
-      console.error('Audio generation error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to generate audio');
+      console.error('[AudioGenerator] Audio generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate audio';
+      alert(`Audio Generation Failed\n\n${errorMessage}`);
     } finally {
       setIsGenerating(false);
     }

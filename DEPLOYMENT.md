@@ -84,12 +84,14 @@ Go to: **Project Settings** → **Environment Variables**
 | `AI_GATEWAY_API_KEY` | Your Vercel AI Gateway key (if using Option A) | Production, Preview, Development |
 | `AI_GATEWAY_URL` | `https://ai-gateway.vercel.sh/v1` (if using Option A) | Production, Preview, Development |
 | `OPENAI_API_KEY` | Your OpenAI API key (if using Option B) | Production, Preview, Development |
+| `BLOB_READ_WRITE_TOKEN` | Vercel Blob storage token (for audio/covers) | Production, Preview, Development |
 
 #### Optional Variables:
 
 | Variable | Value | Environment |
 |----------|-------|-------------|
 | `GOOGLE_BOOKS_API_KEY` | Your Google Books API key | Production, Preview, Development |
+| `EDGE_CONFIG` | Vercel Edge Config URL (if using Edge Config) | Production, Preview, Development |
 
 **Tips**:
 - Check the **"Sensitive"** box for all API keys
@@ -138,11 +140,13 @@ Error: Function execution timed out
 #### Environment Variable Not Found
 ```
 Error: OPENAI_API_KEY is not defined
+Error: BLOB_READ_WRITE_TOKEN is not configured
 ```
 **Fix**: 
 1. Go to Project Settings → Environment Variables
 2. Ensure variable is set for the correct environment
 3. Redeploy the project
+4. See `BLOB_TOKEN_SETUP.md` for blob token configuration details
 
 ---
 
@@ -342,6 +346,8 @@ npm run lint
 ### Environment Variables Quick Copy
 
 See `.env.production.example` for a complete template you can copy to Vercel.
+
+**Important**: For blob storage configuration, see `BLOB_TOKEN_SETUP.md` for detailed instructions on setting up `BLOB_READ_WRITE_TOKEN`.
 
 ---
 

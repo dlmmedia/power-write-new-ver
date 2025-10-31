@@ -3,6 +3,7 @@ import { aiService } from '@/lib/services/ai-service';
 import { db } from '@/lib/db';
 import { generatedBooks } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
+import { put } from '@vercel/blob';
 
 export const maxDuration = 60;
 
@@ -38,7 +39,7 @@ export async function POST(
     console.log(`Generating cover for book ${bookId}: ${book.title}`);
 
     // Generate cover
-    const coverUrl = await aiService.generateCoverImage(
+    const tempUrl = await aiService.generateCoverImage(
       book.title,
       book.author || 'Unknown Author',
       book.genre || 'Fiction',
@@ -46,11 +47,40 @@ export async function POST(
       'vivid'
     );
 
-    // Update book with cover URL
+    // Download the image from OpenAI's temporary URL
+    const imageResponse = await fetch(tempUrl);
+    if (!imageResponse.ok) {
+      throw new Error('Failed to download generated image');
+    }
+    
+    const imageBuffer = await imageResponse.arrayBuffer();
+    const buffer = Buffer.from(imageBuffer);
+    
+    // Upload to Vercel Blob Storage
+    const sanitizedTitle = book.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100);
+    
+    const filename = `book-covers/${sanitizedTitle}-${bookId}.png`;
+    
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload cover image.');
+    }
+    
+    console.log(`Uploading cover to Vercel Blob: ${filename}`);
+    const blob = await put(filename, buffer, {
+      access: 'public',
+      contentType: 'image/png',
+      token: process.env.BLOB_READ_WRITE_TOKEN,
+    });
+
+    // Update book with permanent blob URL
     await db
       .update(generatedBooks)
       .set({ 
-        coverUrl: coverUrl,
+        coverUrl: blob.url,
         updatedAt: new Date()
       })
       .where(eq(generatedBooks.id, bookId));
@@ -59,7 +89,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      coverUrl: coverUrl
+      coverUrl: blob.url
     });
 
   } catch (error) {

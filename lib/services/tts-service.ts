@@ -26,13 +26,14 @@ export class TTSService {
       throw new Error('OPENAI_API_KEY is required for TTS');
     }
     
-    // Validate BLOB token is available
+    // Validate BLOB token is available (but don't throw - will check at upload time)
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      throw new Error('BLOB_READ_WRITE_TOKEN is required for audio storage. Set it in Vercel project settings.');
+      console.warn('⚠️ BLOB_READ_WRITE_TOKEN is not configured. Audio generation will fail until configured.');
+    } else {
+      console.log('✓ Blob storage configured');
     }
     
     console.log('✓ TTS using OpenAI API');
-    console.log('✓ Blob storage configured');
     this.apiKey = process.env.OPENAI_API_KEY;
     this.apiUrl = 'https://api.openai.com/v1/audio/speech';
   }
