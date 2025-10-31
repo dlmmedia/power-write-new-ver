@@ -6,6 +6,23 @@ export const maxDuration = 300; // 5 minutes for audio generation
 
 export async function POST(request: NextRequest) {
   try {
+    // Check environment variables first
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY is not configured');
+      return NextResponse.json(
+        { 
+          error: 'OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment variables.',
+          hint: 'For Vercel deployments, add OPENAI_API_KEY in Project Settings > Environment Variables'
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.warn('⚠️ BLOB_READ_WRITE_TOKEN is not set. Audio uploads may fail.');
+      // Don't fail immediately - @vercel/blob might auto-detect in Vercel deployments
+    }
+
     const body = await request.json();
     const { userId, bookId, chapterNumbers, voice, speed, model } = body as {
       userId: string;
@@ -118,10 +135,21 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error generating audio:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    // Provide helpful error messages for common issues
+    let hint = '';
+    if (errorMessage.includes('BLOB') || errorMessage.includes('blob')) {
+      hint = 'Blob storage error. Check that BLOB_READ_WRITE_TOKEN is set in Vercel environment variables.';
+    } else if (errorMessage.includes('OPENAI') || errorMessage.includes('API key')) {
+      hint = 'OpenAI API error. Verify OPENAI_API_KEY is correctly set and has TTS access.';
+    }
+    
     return NextResponse.json(
       { 
         error: 'Failed to generate audio', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        details: errorMessage,
+        hint: hint || undefined
       },
       { status: 500 }
     );

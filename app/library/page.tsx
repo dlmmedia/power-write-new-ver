@@ -14,6 +14,7 @@ interface BookListItem {
   author: string;
   genre: string;
   status: string;
+  coverUrl?: string;
   createdAt: string;
   metadata: {
     wordCount: number;
@@ -28,6 +29,7 @@ export default function LibraryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
+  const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     fetchBooks();
@@ -43,6 +45,38 @@ export default function LibraryPage() {
       console.error('Error fetching books:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGenerateCover = async (bookId: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent navigation to book detail
+    
+    setGeneratingCovers(prev => new Set(prev).add(bookId));
+    
+    try {
+      const response = await fetch(`/api/books/${bookId}/cover`, {
+        method: 'POST',
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.coverUrl) {
+        // Update book in local state
+        setBooks(prev => prev.map(book => 
+          book.id === bookId ? { ...book, coverUrl: data.coverUrl } : book
+        ));
+      } else {
+        alert('Failed to generate cover: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Error generating cover:', error);
+      alert('Failed to generate cover');
+    } finally {
+      setGeneratingCovers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(bookId);
+        return newSet;
+      });
     }
   };
 
@@ -173,41 +207,80 @@ export default function LibraryPage() {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredAndSortedBooks.map((book) => (
               <div
                 key={book.id}
-                className="bg-gray-100 dark:bg-gray-900 rounded-lg p-6 border border-gray-300 dark:border-gray-800 hover:border-yellow-400 transition-colors cursor-pointer"
+                className="bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-800 hover:border-yellow-400 transition-all hover:shadow-xl cursor-pointer group"
                 onClick={() => router.push(`/library/${book.id}`)}
               >
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-bold text-lg line-clamp-2">{book.title}</h3>
-                  <Badge 
-                    variant={book.status === 'completed' ? 'success' : 'default'}
-                    size="sm"
-                  >
-                    {book.status}
-                  </Badge>
+                {/* Cover Image */}
+                <div className="relative w-full aspect-[2/3] bg-gray-800 overflow-hidden">
+                  {book.coverUrl ? (
+                    <img
+                      src={book.coverUrl}
+                      alt={`${book.title} cover`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 relative">
+                      <div className="text-center px-4">
+                        <h3 className="font-bold text-lg text-white mb-2 line-clamp-3">{book.title}</h3>
+                        <p className="text-sm text-gray-400 mb-4">by {book.author}</p>
+                        {/* Generate Cover Button */}
+                        <button
+                          onClick={(e) => handleGenerateCover(book.id, e)}
+                          disabled={generatingCovers.has(book.id)}
+                          className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {generatingCovers.has(book.id) ? (
+                            <span className="flex items-center gap-2">
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                              </svg>
+                              Generating...
+                            </span>
+                          ) : (
+                            '🎨 Generate Cover'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {/* Status badge overlay */}
+                  <div className="absolute top-2 right-2">
+                    <Badge 
+                      variant={book.status === 'completed' ? 'success' : 'default'}
+                      size="sm"
+                    >
+                      {book.status}
+                    </Badge>
+                  </div>
                 </div>
 
-                <p className="text-sm text-gray-400 mb-1">by {book.author}</p>
-                <p className="text-xs text-gray-500 mb-4">{book.genre}</p>
+                {/* Book Info */}
+                <div className="p-4">
+                  <h3 className="font-bold text-base line-clamp-2 mb-1">{book.title}</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">by {book.author}</p>
+                  <p className="text-xs text-gray-500 mb-3">{book.genre}</p>
 
-                <div className="flex items-center gap-4 text-sm">
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-400">📖</span>
-                    <span className="text-gray-400">{book.metadata?.chapters || 0} chapters</span>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1">
+                      <span className="text-yellow-400">📖</span>
+                      <span className="text-gray-400">{book.metadata?.chapters || 0} chapters</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-yellow-400">📝</span>
+                      <span className="text-gray-400">
+                        {(book.metadata?.wordCount || 0).toLocaleString()} words
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-yellow-400">📝</span>
-                    <span className="text-gray-400">
-                      {(book.metadata?.wordCount || 0).toLocaleString()} words
-                    </span>
-                  </div>
-                </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-800 text-xs text-gray-500">
-                  {new Date(book.createdAt).toLocaleDateString()}
+                  <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-800 text-xs text-gray-500">
+                    {new Date(book.createdAt).toLocaleDateString()}
+                  </div>
                 </div>
               </div>
             ))}

@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
         genre: book.genre,
         subgenre: '',
         status: book.status,
+        coverUrl: book.coverUrl || undefined,
         createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
         metadata: {
           wordCount: metadata.wordCount || 0,

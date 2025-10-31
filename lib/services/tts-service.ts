@@ -96,6 +96,13 @@ export class TTSService {
         ? `audiobooks/${this.sanitizeFilename(bookTitle)}-full.mp3`
         : `audiobooks/book-${Date.now()}.mp3`;
       
+      // Upload to Vercel Blob
+      // @vercel/blob automatically detects BLOB_READ_WRITE_TOKEN from environment
+      // In Vercel deployments, the token is automatically available
+      if (!process.env.BLOB_READ_WRITE_TOKEN && process.env.NODE_ENV === 'production') {
+        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not found in production. Blob operations may fail.');
+      }
+      
       const blob = await put(filename, combinedBuffer, {
         access: 'public',
         contentType: 'audio/mpeg',
@@ -172,7 +179,13 @@ export class TTSService {
       const combinedBuffer = Buffer.concat(audioBuffers);
 
       // Upload to Vercel Blob
+      // @vercel/blob automatically detects BLOB_READ_WRITE_TOKEN from environment
+      // In Vercel deployments, the token is automatically available
       const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}.mp3`;
+      if (!process.env.BLOB_READ_WRITE_TOKEN && process.env.NODE_ENV === 'production') {
+        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not found in production. Blob operations may fail.');
+      }
+      
       const blob = await put(filename, combinedBuffer, {
         access: 'public',
         contentType: 'audio/mpeg',

@@ -3,6 +3,7 @@ import jsPDF from 'jspdf';
 interface BookExport {
   title: string;
   author: string;
+  coverUrl?: string; // URL to cover image
   chapters: Array<{
     number: number;
     title: string;
@@ -112,7 +113,7 @@ export class ExportService {
   }
 
   // Export as PDF
-  static exportAsPDF(book: BookExport): Blob {
+  static async exportAsPDF(book: BookExport): Promise<Blob> {
     const doc = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -124,6 +125,28 @@ export class ExportService {
     const margin = 20;
     const maxWidth = pageWidth - (margin * 2);
     let currentY = margin;
+
+    // Add cover page if cover URL is provided
+    if (book.coverUrl) {
+      try {
+        console.log('Adding cover page to PDF...');
+        
+        // Add cover image to fill the entire first page
+        // Use A4 dimensions: 210mm x 297mm
+        const coverWidth = pageWidth;
+        const coverHeight = pageHeight;
+        
+        // Try to load and add the cover image
+        await this.addImageToPDF(doc, book.coverUrl, 0, 0, coverWidth, coverHeight);
+        
+        // Add a new page after the cover
+        doc.addPage();
+        currentY = margin;
+      } catch (error) {
+        console.error('Failed to add cover to PDF:', error);
+        // Continue without cover if it fails
+      }
+    }
 
     // Helper function to add text with page breaks
     const addText = (text: string, fontSize: number, isBold: boolean = false, align: 'left' | 'center' = 'left') => {
@@ -152,15 +175,17 @@ export class ExportService {
       }
     };
 
-    // Title page
-    currentY = pageHeight / 3;
-    addText(book.title, 24, true, 'center');
-    currentY += 10;
-    addText(`by ${book.author}`, 16, false, 'center');
-    
-    // Add page break after title
-    doc.addPage();
-    currentY = margin;
+    // Only add title page if no cover was added
+    if (!book.coverUrl) {
+      currentY = pageHeight / 3;
+      addText(book.title, 24, true, 'center');
+      currentY += 10;
+      addText(`by ${book.author}`, 16, false, 'center');
+      
+      // Add page break after title
+      doc.addPage();
+      currentY = margin;
+    }
 
     // Chapters
     book.chapters.forEach((chapter, index) => {
@@ -186,13 +211,53 @@ export class ExportService {
     return doc.output('blob');
   }
 
+  // Helper to add image to PDF (handles cross-origin and data URLs)
+  private static async addImageToPDF(
+    doc: jsPDF,
+    imageUrl: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      img.onload = () => {
+        try {
+          // Determine image format
+          const format = imageUrl.includes('.png') || imageUrl.includes('data:image/png') ? 'PNG' : 'JPEG';
+          
+          // Add image to PDF
+          doc.addImage(img, format, x, y, width, height, undefined, 'FAST');
+          resolve();
+        } catch (error) {
+          reject(error);
+        }
+      };
+      
+      img.onerror = () => {
+        reject(new Error('Failed to load cover image'));
+      };
+      
+      // Handle both URLs and data URLs
+      if (imageUrl.startsWith('data:')) {
+        img.src = imageUrl;
+      } else {
+        // For external URLs, we might need a proxy or CORS-enabled source
+        img.src = imageUrl;
+      }
+    });
+  }
+
   // Main export functions
-  static exportBook(book: BookExport, format: 'txt' | 'md' | 'html' | 'pdf') {
+  static async exportBook(book: BookExport, format: 'txt' | 'md' | 'html' | 'pdf') {
     const filename = `${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
     
     switch (format) {
       case 'pdf':
-        const pdfBlob = this.exportAsPDF(book);
+        const pdfBlob = await this.exportAsPDF(book);
         this.downloadFile(
           '',
           `${filename}.pdf`,

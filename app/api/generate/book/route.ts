@@ -51,6 +51,23 @@ export async function POST(request: NextRequest) {
       lastModified: new Date(),
     };
 
+    // Generate cover image automatically
+    let coverUrl: string | undefined;
+    try {
+      console.log('Generating cover image...');
+      coverUrl = await aiService.generateCoverImage(
+        outline.title,
+        outline.author,
+        outline.genre,
+        outline.description,
+        'vivid'
+      );
+      console.log('Cover generated successfully');
+    } catch (coverError) {
+      console.error('Failed to generate cover, continuing without:', coverError);
+      // Continue without cover - not critical
+    }
+
     // Save to database
     const book = await createBook({
       userId,
@@ -61,6 +78,7 @@ export async function POST(request: NextRequest) {
       outline: outline as any,
       config: config as any,
       metadata: metadata as any,
+      coverUrl: coverUrl,
       status: 'completed',
     });
 
