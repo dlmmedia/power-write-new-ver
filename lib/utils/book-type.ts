@@ -2,9 +2,17 @@ import { BookResult } from '../services/google-books';
 import { SelectedBook } from '../types/book';
 
 /**
+ * Type for books that can be checked for non-fiction status
+ */
+type BookWithCategories = {
+  categories?: string[];
+  genre?: string;
+};
+
+/**
  * Determine if a book is non-fiction based on its categories and genre
  */
-export function isNonFiction(book: BookResult | SelectedBook): boolean {
+export function isNonFiction(book: BookResult | SelectedBook | BookWithCategories): boolean {
   const categories = book.categories || [];
   const genre = 'genre' in book ? book.genre : undefined;
   
@@ -99,14 +107,14 @@ export function isNonFiction(book: BookResult | SelectedBook): boolean {
 /**
  * Get a descriptive book type label
  */
-export function getBookType(book: BookResult | SelectedBook): 'Fiction' | 'Non-Fiction' {
+export function getBookType(book: BookResult | SelectedBook | BookWithCategories): 'Fiction' | 'Non-Fiction' {
   return isNonFiction(book) ? 'Non-Fiction' : 'Fiction';
 }
 
 /**
  * Get detailed book type information
  */
-export function getBookTypeInfo(book: BookResult | SelectedBook): {
+export function getBookTypeInfo(book: BookResult | SelectedBook | BookWithCategories): {
   isNonFiction: boolean;
   type: 'Fiction' | 'Non-Fiction';
   primaryCategory?: string;
