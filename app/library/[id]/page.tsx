@@ -286,125 +286,259 @@ export default function BookDetailPage() {
         <div className="mt-6">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Book Info Card */}
-              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-3xl font-bold mb-2">{book.title}</h2>
-                    <p className="text-gray-600 dark:text-gray-400">by {book.author}</p>
-                  </div>
-                  <Badge variant={book.status === 'completed' ? 'success' : 'default'}>
-                    {book.status}
-                  </Badge>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400 text-sm">Genre:</span>
-                    <p className="font-medium">{book.genre}</p>
-                  </div>
-                  {book.subgenre && (
-                    <div>
-                      <span className="text-gray-600 dark:text-gray-400 text-sm">Subgenre:</span>
-                      <p className="font-medium">{book.subgenre}</p>
+              {/* Hero Section with Book Info */}
+              <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-600/5 dark:from-yellow-400/5 dark:to-yellow-600/10 rounded-xl border border-yellow-400/20 dark:border-yellow-600/30 p-8">
+                <div className="flex flex-col lg:flex-row gap-8">
+                  {/* Book Cover Mock */}
+                  <div className="flex-shrink-0">
+                    <div className="w-48 h-72 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-2xl flex items-center justify-center text-black font-bold text-6xl relative overflow-hidden">
+                      <div className="absolute inset-0 bg-black/5 backdrop-blur-sm"></div>
+                      <span className="relative z-10">📖</span>
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/20 p-4 text-xs text-center">
+                        {book.title.substring(0, 30)}{book.title.length > 30 ? '...' : ''}
+                      </div>
                     </div>
-                  )}
-                  <div>
-                    <span className="text-gray-600 dark:text-gray-400 text-sm">Created:</span>
-                    <p className="font-medium">{new Date(book.createdAt).toLocaleDateString()}</p>
+                  </div>
+
+                  {/* Book Details */}
+                  <div className="flex-1 space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h2 className="text-4xl font-bold mb-2">{book.title}</h2>
+                        <p className="text-xl text-gray-600 dark:text-gray-400 mb-1">by {book.author}</p>
+                        <div className="flex items-center gap-3 mt-3">
+                          <Badge variant={book.status === 'completed' ? 'success' : 'default'} size="lg">
+                            {book.status}
+                          </Badge>
+                          <span className="text-sm text-gray-500 dark:text-gray-400">
+                            Created {new Date(book.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{book.metadata.chapters}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Chapters</div>
+                      </div>
+                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                          {book.metadata.wordCount.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Words</div>
+                      </div>
+                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{book.genre}</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Genre</div>
+                      </div>
+                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
+                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                          ~{Math.ceil(book.metadata.wordCount / 200)}
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Min Read</div>
+                      </div>
+                    </div>
+
+                    {book.metadata.description && (
+                      <div className="mt-6 p-4 bg-white/30 dark:bg-black/10 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <h4 className="font-semibold mb-2 text-sm text-gray-700 dark:text-gray-300">Synopsis</h4>
+                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{book.metadata.description}</p>
+                      </div>
+                    )}
+
+                    {book.chapters && book.chapters.length > 0 && (
+                      <div className="flex gap-3 mt-6">
+                        <Button variant="primary" size="lg" onClick={() => setIsReading(true)} className="flex-1">
+                          📖 Start Reading
+                        </Button>
+                        <Button variant="outline" size="lg" onClick={() => setIsEditing(true)}>
+                          ✏️ Edit
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
-
-                {book.metadata.description && (
-                  <div className="mt-4">
-                    <span className="text-gray-600 dark:text-gray-400 text-sm">Description:</span>
-                    <p className="mt-1 text-gray-700 dark:text-gray-300">{book.metadata.description}</p>
-                  </div>
-                )}
               </div>
 
               {/* Progress Card */}
               <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                <h3 className="text-xl font-bold mb-4">Writing Progress</h3>
+                <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                  <span className="text-yellow-600 dark:text-yellow-400">📊</span>
+                  Writing Progress
+                </h3>
                 
-                <div className="mb-6">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="text-gray-600 dark:text-gray-400">Word Count</span>
-                    <span className="font-medium">
-                      {book.metadata.wordCount.toLocaleString()} / {book.metadata.targetWordCount.toLocaleString()}
+                <div className="mb-8">
+                  <div className="flex justify-between text-sm mb-3">
+                    <span className="text-gray-600 dark:text-gray-400 font-medium">Word Count Progress</span>
+                    <span className="font-bold text-gray-900 dark:text-white">
+                      {book.metadata.wordCount.toLocaleString()} / {book.metadata.targetWordCount.toLocaleString()} words
                     </span>
                   </div>
-                  <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-3">
+                  <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-4 shadow-inner">
                     <div
-                      className="bg-yellow-500 dark:bg-yellow-400 h-3 rounded-full transition-all"
+                      className="bg-gradient-to-r from-yellow-400 to-yellow-600 h-4 rounded-full transition-all duration-500 shadow-md relative overflow-hidden"
                       style={{ width: `${Math.min(progress, 100)}%` }}
-                    />
+                    >
+                      <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                    </div>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">{progress.toFixed(1)}% complete</p>
+                  <div className="flex justify-between mt-2">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{progress.toFixed(1)}% complete</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      {(book.metadata.targetWordCount - book.metadata.wordCount).toLocaleString()} words remaining
+                    </p>
+                  </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="bg-gray-200 dark:bg-gray-800 rounded p-4">
-                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{book.metadata.chapters}</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Chapters</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{book.metadata.chapters}</div>
+                    <div className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-1">Total Chapters</div>
                   </div>
-                  <div className="bg-gray-200 dark:bg-gray-800 rounded p-4">
-                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
+                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
                       {book.chapters?.filter((c) => c.status === 'completed').length || 0}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
+                    <div className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">Completed</div>
                   </div>
-                  <div className="bg-gray-200 dark:bg-gray-800 rounded p-4">
-                    <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                      {Math.round(book.metadata.wordCount / (book.metadata.chapters || 1))}
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                      {Math.round(book.metadata.wordCount / (book.metadata.chapters || 1)).toLocaleString()}
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">Avg Words/Chapter</div>
+                    <div className="text-xs text-purple-600/80 dark:text-purple-400/80 mt-1">Avg Words/Ch</div>
+                  </div>
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
+                    <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
+                      {Math.ceil(book.metadata.wordCount / 200)}
+                    </div>
+                    <div className="text-xs text-orange-600/80 dark:text-orange-400/80 mt-1">Min Read</div>
                   </div>
                 </div>
               </div>
+
+              {/* Recent Chapters Preview */}
+              {book.chapters && book.chapters.length > 0 && (
+                <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-2xl font-bold flex items-center gap-2">
+                      <span className="text-yellow-600 dark:text-yellow-400">📚</span>
+                      Chapter Preview
+                    </h3>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('chapters')}>
+                      View All →
+                    </Button>
+                  </div>
+                  <div className="space-y-3">
+                    {book.chapters.slice(0, 3).map((chapter) => (
+                      <div
+                        key={chapter.id}
+                        className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all cursor-pointer"
+                        onClick={() => setIsReading(true)}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <span className="text-yellow-600 dark:text-yellow-400 font-bold text-lg">Ch. {chapter.number}</span>
+                            <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
+                          </div>
+                          <Badge variant={chapter.status === 'completed' ? 'success' : 'default'} size="sm">
+                            {chapter.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                          {chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read
+                        </p>
+                        {chapter.content && (
+                          <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 italic">
+                            {chapter.content.substring(0, 200)}...
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'chapters' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold">Chapters</h3>
+                <div>
+                  <h3 className="text-2xl font-bold flex items-center gap-2">
+                    <span className="text-yellow-600 dark:text-yellow-400">📚</span>
+                    All Chapters
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                    {book.chapters?.length || 0} chapters • {book.metadata.wordCount.toLocaleString()} total words
+                  </p>
+                </div>
                 {book.chapters && book.chapters.length > 0 && (
-                  <Button variant="primary" onClick={() => setIsReading(true)}>
-                    📖 Start Reading
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setIsEditing(true)}>
+                      ✏️ Edit
+                    </Button>
+                    <Button variant="primary" onClick={() => setIsReading(true)}>
+                      📖 Start Reading
+                    </Button>
+                  </div>
                 )}
               </div>
 
               {book.chapters && book.chapters.length > 0 ? (
                 <div className="space-y-3">
-                  {book.chapters.map((chapter) => (
+                  {book.chapters.map((chapter, idx) => (
                     <div
                       key={chapter.id}
-                      className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4 hover:border-yellow-400 transition-colors"
+                      className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-5 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all cursor-pointer group"
+                      onClick={() => setIsReading(true)}
                     >
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-start justify-between">
                         <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-1">
-                            <span className="text-gray-600 dark:text-gray-500 text-sm">Chapter {chapter.number}</span>
-                            <h4 className="font-bold">{chapter.title}</h4>
-                            <Badge variant={chapter.status === 'completed' ? 'success' : 'default'} size="sm">
-                              {chapter.status}
-                            </Badge>
+                          <div className="flex items-center gap-3 mb-2">
+                            <div className="bg-yellow-400 dark:bg-yellow-500 text-black font-bold rounded-full w-10 h-10 flex items-center justify-center text-sm">
+                              {chapter.number}
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors">
+                                {chapter.title}
+                              </h4>
+                              <div className="flex items-center gap-4 mt-1">
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  {chapter.wordCount.toLocaleString()} words
+                                </span>
+                                <span className="text-sm text-gray-600 dark:text-gray-400">
+                                  ~{Math.ceil(chapter.wordCount / 200)} min read
+                                </span>
+                                <Badge variant={chapter.status === 'completed' ? 'success' : 'default'} size="sm">
+                                  {chapter.status}
+                                </Badge>
+                              </div>
+                            </div>
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read</p>
                           {chapter.content && (
-                            <p className="text-sm text-gray-600 dark:text-gray-500 mt-2 line-clamp-2">{chapter.content.substring(0, 150)}...</p>
+                            <div className="mt-3 pl-13">
+                              <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed italic">
+                                "{chapter.content.substring(0, 250).trim()}..."
+                              </p>
+                            </div>
                           )}
+                        </div>
+                        <div className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="text-yellow-600 dark:text-yellow-400 text-2xl">→</div>
                         </div>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800">
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">No chapters yet</p>
-                  <Button variant="primary">Generate Book</Button>
+                <div className="text-center py-16 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-xl border border-gray-300 dark:border-gray-800">
+                  <div className="text-6xl mb-4">📝</div>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-6">No chapters yet</p>
+                  <p className="text-gray-500 dark:text-gray-500 text-sm mb-6 max-w-md mx-auto">
+                    Generate your book in the Studio to create chapters that will appear here.
+                  </p>
+                  <Button variant="primary" onClick={() => router.push('/studio')}>Go to Studio</Button>
                 </div>
               )}
             </div>

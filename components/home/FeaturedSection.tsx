@@ -42,12 +42,9 @@ export function FeaturedSection({ books, onSelectBook, isBookSelected }: Feature
     return null;
   }
 
-  const backgroundImageUrl = currentBook.imageLinks?.extraLarge ?? currentBook.imageLinks?.large ?? null;
-  const coverImageUrl =
-    currentBook.imageLinks?.extraLarge ??
-    currentBook.imageLinks?.large ??
-    currentBook.imageLinks?.medium ??
-    null;
+  // Use highest quality images for featured section
+  const backgroundImageUrl = currentBook.imageLinks?.extraLarge ?? currentBook.imageLinks?.large ?? currentBook.imageLinks?.medium ?? null;
+  const coverImageUrl = currentBook.imageLinks?.extraLarge ?? currentBook.imageLinks?.large ?? currentBook.imageLinks?.medium ?? null;
 
   return (
     <section className="relative h-[600px] overflow-hidden bg-black">

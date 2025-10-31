@@ -20,11 +20,11 @@ export const BookCard: React.FC<BookCardProps> = ({
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
 
-  // Get best available image URL
+  // Get best available image URL - prefer higher quality
   const getImageUrl = () => {
     if (!book.imageLinks) return null;
-    // Prefer higher quality images
-    return book.imageLinks.medium || book.imageLinks.small || book.imageLinks.thumbnail;
+    // Prefer higher quality images - use large or extraLarge for better quality
+    return book.imageLinks.large || book.imageLinks.extraLarge || book.imageLinks.medium || book.imageLinks.small || book.imageLinks.thumbnail;
   };
 
   const imageUrl = getImageUrl();
@@ -62,7 +62,7 @@ export const BookCard: React.FC<BookCardProps> = ({
             
             {/* Actual Image */}
             <img
-              src={imageUrl}
+              src={`/api/proxy-image?url=${encodeURIComponent(imageUrl)}`}
               alt={book.title}
               className={`w-full h-full object-cover transition-all duration-300 ${
                 imageLoaded ? 'opacity-100 group-hover:scale-105' : 'opacity-0'

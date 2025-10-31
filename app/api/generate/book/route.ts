@@ -90,12 +90,42 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error generating book:', error);
+    
+    // Extract meaningful error message
+    let errorMessage = 'Failed to generate book';
+    let errorDetails = 'Unknown error';
+    
+    if (error instanceof Error) {
+      errorDetails = error.message;
+      
+      // Provide user-friendly messages for common errors
+      if (error.message.includes('quota')) {
+        errorMessage = 'OpenAI API quota exceeded';
+        errorDetails = 'Please check your OpenAI billing and usage limits.';
+      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
+        errorMessage = 'Rate limit exceeded';
+        errorDetails = 'Too many requests. Please wait a few minutes and try again.';
+      } else if (error.message.includes('API key')) {
+        errorMessage = 'API key error';
+        errorDetails = 'Invalid or missing OpenAI API key.';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Generation timeout';
+        errorDetails = 'Book generation took too long. Try generating fewer chapters.';
+      }
+    }
+    
     return NextResponse.json(
       { 
-        error: 'Failed to generate book', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        success: false,
+        error: errorMessage, 
+        details: errorDetails
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
   }
 }

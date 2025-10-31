@@ -82,7 +82,17 @@ export default function StudioPage() {
         }),
       });
 
-      const data = await response.json();
+      // Handle non-JSON responses (e.g., middleware errors)
+      let data;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
+      }
+
       if (data.success && data.book) {
         alert(
           `Book generated successfully!\n\n` +
@@ -94,7 +104,9 @@ export default function StudioPage() {
         // Redirect to library or book detail
         router.push(`/library`);
       } else {
-        alert('Failed to generate book: ' + (data.error || 'Unknown error'));
+        const errorMsg = data.error || 'Unknown error';
+        const errorDetails = data.details ? `\n\n${data.details}` : '';
+        alert(`Failed to generate book: ${errorMsg}${errorDetails}`);
       }
     } catch (error) {
       console.error('Error generating book:', error);
