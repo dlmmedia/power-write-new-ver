@@ -26,7 +26,13 @@ export class TTSService {
       throw new Error('OPENAI_API_KEY is required for TTS');
     }
     
+    // Validate BLOB token is available
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error('BLOB_READ_WRITE_TOKEN is required for audio storage. Set it in Vercel project settings.');
+    }
+    
     console.log('✓ TTS using OpenAI API');
+    console.log('✓ Blob storage configured');
     this.apiKey = process.env.OPENAI_API_KEY;
     this.apiUrl = 'https://api.openai.com/v1/audio/speech';
   }
@@ -96,16 +102,16 @@ export class TTSService {
         ? `audiobooks/${this.sanitizeFilename(bookTitle)}-full.mp3`
         : `audiobooks/book-${Date.now()}.mp3`;
       
-      // Upload to Vercel Blob
-      // @vercel/blob automatically detects BLOB_READ_WRITE_TOKEN from environment
-      // In Vercel deployments, the token is automatically available
-      if (!process.env.BLOB_READ_WRITE_TOKEN && process.env.NODE_ENV === 'production') {
-        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not found in production. Blob operations may fail.');
+      // Validate blob token before upload
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload audio file.');
       }
       
+      console.log(`Uploading to Vercel Blob: ${filename}`);
       const blob = await put(filename, combinedBuffer, {
         access: 'public',
         contentType: 'audio/mpeg',
+        token: process.env.BLOB_READ_WRITE_TOKEN,
       });
 
       // Estimate duration (rough: 150 words per minute, 5 chars per word)
@@ -179,16 +185,18 @@ export class TTSService {
       const combinedBuffer = Buffer.concat(audioBuffers);
 
       // Upload to Vercel Blob
-      // @vercel/blob automatically detects BLOB_READ_WRITE_TOKEN from environment
-      // In Vercel deployments, the token is automatically available
       const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}.mp3`;
-      if (!process.env.BLOB_READ_WRITE_TOKEN && process.env.NODE_ENV === 'production') {
-        console.warn('⚠️ BLOB_READ_WRITE_TOKEN not found in production. Blob operations may fail.');
+      
+      // Validate blob token before upload
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload audio file.');
       }
       
+      console.log(`Uploading chapter ${chapterNumber} to Vercel Blob: ${filename}`);
       const blob = await put(filename, combinedBuffer, {
         access: 'public',
         contentType: 'audio/mpeg',
+        token: process.env.BLOB_READ_WRITE_TOKEN,
       });
 
       const estimatedDuration = Math.ceil((chapterText.length / 5) / 150 * 60);

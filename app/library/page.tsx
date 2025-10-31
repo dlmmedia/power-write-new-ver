@@ -216,7 +216,7 @@ export default function LibraryPage() {
               >
                 {/* Cover Image */}
                 <div className="relative w-full aspect-[2/3] bg-gray-800 overflow-hidden">
-                  {book.coverUrl ? (
+                  {book.coverUrl && book.coverUrl.trim() !== '' ? (
                     <img
                       src={book.coverUrl}
                       alt={`${book.title} cover`}
