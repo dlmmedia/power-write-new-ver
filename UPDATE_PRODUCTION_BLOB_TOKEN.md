@@ -53,3 +53,5 @@ After updating, you can verify the change worked by:
 Direct link to environment variables:
 **https://vercel.com/team_XLS4r1tfJ0Myv7zfinX8fJmo/power-write-new-ver/settings/environment-variables**
 
+
+

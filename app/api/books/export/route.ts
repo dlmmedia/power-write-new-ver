@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       author: book.author || 'Unknown Author',
       description: book.summary || '',
       genre: book.genre || 'Unknown Genre',
+      coverUrl: book.coverUrl || undefined, // Include cover image URL if available
       chapters: book.chapters
         .sort((a, b) => a.chapterNumber - b.chapterNumber)
         .map(ch => ({

@@ -27,6 +27,7 @@ export async function GET(
       genre: bookWithChapters.genre,
       subgenre: '',
       status: bookWithChapters.status,
+      coverUrl: bookWithChapters.coverUrl || undefined, // Include cover URL
       createdAt: bookWithChapters.createdAt?.toISOString() || new Date().toISOString(),
       metadata: {
         wordCount: metadata.wordCount || 0,

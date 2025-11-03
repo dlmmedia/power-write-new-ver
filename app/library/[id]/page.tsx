@@ -28,6 +28,7 @@ interface BookDetail {
   subgenre: string;
   status: string;
   createdAt: string;
+  coverUrl?: string; // Add cover URL to interface
   metadata: {
     wordCount: number;
     chapters: number;
@@ -290,15 +291,23 @@ export default function BookDetailPage() {
               {/* Hero Section with Book Info */}
               <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-600/5 dark:from-yellow-400/5 dark:to-yellow-600/10 rounded-xl border border-yellow-400/20 dark:border-yellow-600/30 p-8">
                 <div className="flex flex-col lg:flex-row gap-8">
-                  {/* Book Cover Mock */}
+                  {/* Book Cover */}
                   <div className="flex-shrink-0">
-                    <div className="w-48 h-72 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-2xl flex items-center justify-center text-black font-bold text-6xl relative overflow-hidden">
-                      <div className="absolute inset-0 bg-black/5 backdrop-blur-sm"></div>
-                      <span className="relative z-10">📖</span>
-                      <div className="absolute bottom-0 left-0 right-0 bg-black/20 p-4 text-xs text-center">
-                        {book.title.substring(0, 30)}{book.title.length > 30 ? '...' : ''}
+                    {book.coverUrl ? (
+                      <img
+                        src={book.coverUrl}
+                        alt={`${book.title} cover`}
+                        className="w-48 h-72 object-cover rounded-lg shadow-2xl"
+                      />
+                    ) : (
+                      <div className="w-48 h-72 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-2xl flex items-center justify-center text-black font-bold text-6xl relative overflow-hidden">
+                        <div className="absolute inset-0 bg-black/5 backdrop-blur-sm"></div>
+                        <span className="relative z-10">📖</span>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/20 p-4 text-xs text-center">
+                          {book.title.substring(0, 30)}{book.title.length > 30 ? '...' : ''}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Book Details */}

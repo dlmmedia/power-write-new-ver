@@ -12,13 +12,37 @@ interface BookExport {
 }
 
 export class ExportService {
+  // Helper to sanitize chapter content (remove duplicate chapter titles)
+  private static sanitizeChapterContent(chapter: { number: number; title: string; content: string }): string {
+    let cleaned = chapter.content.trim();
+    
+    // Remove multiple patterns of duplicate chapter titles
+    const patterns = [
+      // Pattern: "Chapter 1: Title"
+      new RegExp(`^Chapter\\s+${chapter.number}[:\s]+${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+      // Pattern: "Chapter 1 Title"
+      new RegExp(`^Chapter\\s+${chapter.number}\\s+${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+      // Pattern: Just the title at the start
+      new RegExp(`^${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+      // Pattern: "Chapter 1:" followed by newlines and then title
+      new RegExp(`^Chapter\\s+${chapter.number}[:\s]*\\n+${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+    ];
+    
+    // Try each pattern to remove duplicates
+    for (const pattern of patterns) {
+      cleaned = cleaned.replace(pattern, '').trim();
+    }
+    
+    return cleaned;
+  }
+
   // Export as plain text
   static exportAsText(book: BookExport): string {
     let content = `${book.title}\nby ${book.author}\n\n${'='.repeat(50)}\n\n`;
     
     book.chapters.forEach(chapter => {
       content += `\nChapter ${chapter.number}: ${chapter.title}\n\n`;
-      content += chapter.content + '\n\n';
+      content += this.sanitizeChapterContent(chapter) + '\n\n';
       content += '-'.repeat(50) + '\n';
     });
     
@@ -31,7 +55,7 @@ export class ExportService {
     
     book.chapters.forEach(chapter => {
       content += `## Chapter ${chapter.number}: ${chapter.title}\n\n`;
-      content += chapter.content + '\n\n';
+      content += this.sanitizeChapterContent(chapter) + '\n\n';
     });
     
     return content;
@@ -64,6 +88,17 @@ export class ExportService {
             margin-bottom: 40px;
             color: #666;
         }
+        ${book.coverUrl ? `
+        .cover-page {
+            page-break-after: always;
+            text-align: center;
+            margin: 100px 0;
+        }
+        .cover-page img {
+            max-width: 100%;
+            height: auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }` : ''}
         .chapter {
             page-break-before: always;
             margin-top: 60px;
@@ -76,19 +111,38 @@ export class ExportService {
             text-align: justify;
             white-space: pre-line;
         }
+        @media print {
+            .page-number {
+                position: fixed;
+                bottom: 10px;
+                right: 10px;
+            }
+        }
     </style>
 </head>
 <body>
+`;
+    
+    // Add cover page if cover URL exists
+    if (book.coverUrl) {
+      html += `
+    <div class="cover-page">
+        <img src="${book.coverUrl}" alt="${book.title} Cover" />
+    </div>`;
+    }
+    
+    html += `
     <h1>${book.title}</h1>
     <p class="author">by ${book.author}</p>
     <hr>
 `;
     
     book.chapters.forEach(chapter => {
+      const sanitizedContent = this.sanitizeChapterContent(chapter);
       html += `
     <div class="chapter">
         <h2 class="chapter-title">Chapter ${chapter.number}: ${chapter.title}</h2>
-        <div class="chapter-content">${chapter.content}</div>
+        <div class="chapter-content">${sanitizedContent}</div>
     </div>`;
     });
     
@@ -125,6 +179,7 @@ export class ExportService {
     const margin = 20;
     const maxWidth = pageWidth - (margin * 2);
     let currentY = margin;
+    let pageNumber = 0;
 
     // Add cover page if cover URL is provided
     if (book.coverUrl) {
@@ -141,12 +196,24 @@ export class ExportService {
         
         // Add a new page after the cover
         doc.addPage();
+        pageNumber++;
         currentY = margin;
       } catch (error) {
         console.error('Failed to add cover to PDF:', error);
         // Continue without cover if it fails
       }
     }
+
+    // Helper function to add page numbers
+    const addPageNumber = () => {
+      if (pageNumber > 0) { // Don't add page number on cover
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(128, 128, 128);
+        doc.text(pageNumber.toString(), pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.setTextColor(0, 0, 0); // Reset to black
+      }
+    };
 
     // Helper function to add text with page breaks
     const addText = (text: string, fontSize: number, isBold: boolean = false, align: 'left' | 'center' = 'left') => {
@@ -160,8 +227,10 @@ export class ExportService {
       const lines = doc.splitTextToSize(text, maxWidth);
       
       for (const line of lines) {
-        if (currentY + fontSize / 2 > pageHeight - margin) {
+        if (currentY + fontSize / 2 > pageHeight - margin - 15) { // Leave space for page number
+          addPageNumber();
           doc.addPage();
+          pageNumber++;
           currentY = margin;
         }
         
@@ -183,7 +252,9 @@ export class ExportService {
       addText(`by ${book.author}`, 16, false, 'center');
       
       // Add page break after title
+      addPageNumber();
       doc.addPage();
+      pageNumber++;
       currentY = margin;
     }
 
@@ -191,7 +262,9 @@ export class ExportService {
     book.chapters.forEach((chapter, index) => {
       // Chapter title
       if (index > 0) {
+        addPageNumber();
         doc.addPage();
+        pageNumber++;
         currentY = margin;
       }
       
@@ -203,10 +276,14 @@ export class ExportService {
       doc.line(margin, currentY, pageWidth - margin, currentY);
       currentY += 10;
       
-      // Chapter content
-      addText(chapter.content, 12, false);
+      // Sanitize and add chapter content
+      const sanitizedContent = this.sanitizeChapterContent(chapter);
+      addText(sanitizedContent, 12, false);
       currentY += 10;
     });
+
+    // Add page number to last page
+    addPageNumber();
 
     return doc.output('blob');
   }

@@ -4,6 +4,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Page
 interface BookExport {
   title: string;
   author: string;
+  coverUrl?: string; // URL to cover image
   chapters: Array<{
     number: number;
     title: string;
@@ -310,13 +311,48 @@ export class ExportServiceAdvanced {
 
         // === COVER PAGE ===
         doc.addPage();
-        const coverY = doc.page.height / 2 - 100;
-        doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
-          align: 'center',
-          width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
-        });
-        doc.moveDown(2);
-        doc.fontSize(24).font('Helvetica').text(`by ${book.author}`, { align: 'center' });
+        
+        // If cover image URL is provided, try to load and display it
+        if (book.coverUrl) {
+          try {
+            // Try to fetch and add the cover image
+            const https = require('https');
+            const http = require('http');
+            const protocol = book.coverUrl.startsWith('https') ? https : http;
+            
+            // For now, we'll add a text-based cover with a note
+            // Full image fetching would require additional setup
+            const coverY = doc.page.height / 2 - 100;
+            doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
+              align: 'center',
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+            });
+            doc.moveDown(2);
+            doc.fontSize(24).font('Helvetica').text(`by ${book.author}`, { align: 'center' });
+            
+            // Note: For full cover image support in PDFKit, additional image processing would be needed
+            console.log('Cover image URL provided:', book.coverUrl);
+          } catch (error) {
+            console.error('Error adding cover image to PDFKit:', error);
+            // Fall back to text cover
+            const coverY = doc.page.height / 2 - 100;
+            doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
+              align: 'center',
+              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+            });
+            doc.moveDown(2);
+            doc.fontSize(24).font('Helvetica').text(`by ${book.author}`, { align: 'center' });
+          }
+        } else {
+          // Text-based cover page
+          const coverY = doc.page.height / 2 - 100;
+          doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
+            align: 'center',
+            width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+          });
+          doc.moveDown(2);
+          doc.fontSize(24).font('Helvetica').text(`by ${book.author}`, { align: 'center' });
+        }
 
         // === TITLE PAGE ===
         doc.addPage();
