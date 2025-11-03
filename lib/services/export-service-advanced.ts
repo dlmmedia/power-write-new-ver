@@ -198,21 +198,36 @@ export class ExportServiceAdvanced {
 
             // === CHAPTERS ===
             ...book.chapters.flatMap((chapter, index) => {
-              // Remove duplicate chapter title from content with multiple patterns
+              // Remove duplicate chapter title from content with multiple patterns (more aggressive)
+              const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
               const patterns = [
                 // Pattern: "Chapter 1: Title"
-                new RegExp(`^Chapter\\s+${chapter.number}[:\s]+${chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
-                // Pattern: "Chapter 1 Title"
-                new RegExp(`^Chapter\\s+${chapter.number}\\s+${chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
-                // Pattern: Just the title at the start
-                new RegExp(`^${chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
+                new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+${escapedTitle}[\\s\\.]*`, 'i'),
+                // Pattern: "Chapter 1 - Title"
+                new RegExp(`^Chapter\\s+${chapter.number}\\s*[-–—]\\s*${escapedTitle}[\\s\\.]*`, 'i'),
+                // Pattern: "Chapter 1 Title" 
+                new RegExp(`^Chapter\\s+${chapter.number}\\s+${escapedTitle}[\\s\\.]*`, 'i'),
+                // Pattern: Just "Chapter 1:"
+                new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+`, 'i'),
+                // Pattern: Just the title at the start (with optional colon/period)
+                new RegExp(`^${escapedTitle}[:\\s\\.]*`, 'i'),
+                // Pattern: Title repeated after newlines
+                new RegExp(`\\n+${escapedTitle}[\\s\\.]*`, 'gi'),
               ];
               
-              const paragraphs = chapter.content.split('\n\n').map(para => {
+              const paragraphs = chapter.content.split('\n\n').map((para, pIndex) => {
                 let cleaned = para.trim();
-                // Try each pattern to remove duplicates
+                // Apply all patterns to remove duplicates
                 for (const pattern of patterns) {
                   cleaned = cleaned.replace(pattern, '').trim();
+                }
+                // Also remove if the first paragraph is ONLY the chapter title (case insensitive)
+                if (pIndex === 0) {
+                  const titleLower = chapter.title.toLowerCase().trim();
+                  const paraLower = cleaned.toLowerCase().trim();
+                  if (paraLower === titleLower || paraLower === `chapter ${chapter.number}` || paraLower === `chapter ${chapter.number}:`) {
+                    cleaned = '';
+                  }
                 }
                 return cleaned;
               }).filter(p => p);
@@ -262,20 +277,63 @@ export class ExportServiceAdvanced {
   }
 
   /**
+   * Helper to add page number to current page
+   */
+  private static addPageNumberToPDF(doc: any, pageNum: number, skipPageNumber: boolean = false) {
+    if (skipPageNumber) return;
+    
+    const pageHeight = doc.page.height;
+    const pageWidth = doc.page.width;
+    const yPos = pageHeight - 30;
+    
+    doc.fontSize(10)
+       .fillColor('black')
+       .font('Helvetica')
+       .text(
+         pageNum.toString(),
+         72,
+         yPos,
+         { 
+           align: 'center',
+           width: pageWidth - 144,
+           lineBreak: false
+         }
+       );
+  }
+
+  /**
+   * Helper to fetch image as base64 for PDFKit
+   */
+  private static async fetchImageAsBuffer(url: string): Promise<Buffer> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      console.error('Error fetching image:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Export book as PDF with professional formatting
    */
   static async exportBookAsPDF(book: BookExport): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
       try {
         // Dynamic import for pdfkit to avoid Next.js issues
         // eslint-disable-next-line @typescript-eslint/no-require-imports
         const PDFDocument = require('pdfkit');
         
         const chunks: Buffer[] = [];
+        let currentPageNumber = 0;
+        
         const doc = new PDFDocument({
           size: 'A4',
           margins: { top: 72, bottom: 72, left: 72, right: 72 },
-          bufferPages: true,
           autoFirstPage: false,
           info: {
             Title: book.title,
@@ -287,21 +345,7 @@ export class ExportServiceAdvanced {
         // Collect data chunks
         doc.on('data', (chunk: Buffer) => chunks.push(chunk));
         doc.on('end', () => {
-          // Add page numbers to all pages except cover (start from page 1 = title page)
-          const range = doc.bufferedPageRange();
-          for (let i = 1; i < range.count; i++) {
-            doc.switchToPage(i);
-            const pageNum = i; // Page 1 is title page, 2 is legal, 3 is TOC, 4+ are chapters
-            doc.fontSize(10).font('Helvetica').text(
-              pageNum.toString(),
-              0,
-              doc.page.height - 50,
-              { 
-                align: 'center', 
-                width: doc.page.width,
-              }
-            );
-          }
+          console.log(`PDF generation complete. Total pages: ${currentPageNumber}`);
           resolve(Buffer.concat(chunks));
         });
         doc.on('error', (err: Error) => {
@@ -311,31 +355,30 @@ export class ExportServiceAdvanced {
 
         // === COVER PAGE ===
         doc.addPage();
+        // Cover page never gets a page number
         
         // If cover image URL is provided, try to load and display it
         if (book.coverUrl) {
           try {
-            // Try to fetch and add the cover image
-            const https = require('https');
-            const http = require('http');
-            const protocol = book.coverUrl.startsWith('https') ? https : http;
+            console.log('Fetching cover image from:', book.coverUrl);
+            const imageBuffer = await this.fetchImageAsBuffer(book.coverUrl);
             
-            // For now, we'll add a text-based cover with a note
-            // Full image fetching would require additional setup
-            const coverY = doc.page.height / 2 - 100;
-            doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
+            // Add image to cover - fit to page with some margin
+            const pageWidth = doc.page.width;
+            const pageHeight = doc.page.height;
+            const margin = 50;
+            
+            // Center the image on the page
+            doc.image(imageBuffer, margin, margin, {
+              fit: [pageWidth - (margin * 2), pageHeight - (margin * 2)],
               align: 'center',
-              width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+              valign: 'center',
             });
-            doc.moveDown(2);
-            doc.fontSize(24).font('Helvetica').text(`by ${book.author}`, { align: 'center' });
             
-            // Note: For full cover image support in PDFKit, additional image processing would be needed
-            console.log('Cover image URL provided:', book.coverUrl);
+            console.log('Cover image added successfully');
           } catch (error) {
             console.error('Error adding cover image to PDFKit:', error);
             // Fall back to text cover
-            const coverY = doc.page.height / 2 - 100;
             doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
               align: 'center',
               width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
@@ -345,7 +388,6 @@ export class ExportServiceAdvanced {
           }
         } else {
           // Text-based cover page
-          const coverY = doc.page.height / 2 - 100;
           doc.fontSize(40).font('Helvetica-Bold').text(book.title, {
             align: 'center',
             width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
@@ -356,6 +398,7 @@ export class ExportServiceAdvanced {
 
         // === TITLE PAGE ===
         doc.addPage();
+        currentPageNumber++;
         const titleY = doc.page.height / 3;
         doc.y = titleY;
         doc.fontSize(32).font('Helvetica-Bold').text(book.title, {
@@ -373,9 +416,13 @@ export class ExportServiceAdvanced {
             lineGap: 4,
           });
         }
+        
+        // Add page number to title page
+        this.addPageNumberToPDF(doc, currentPageNumber);
 
         // === LEGAL/COPYRIGHT PAGE ===
         doc.addPage();
+        currentPageNumber++;
         doc.fontSize(11).font('Helvetica-Bold').text(book.title, { align: 'center' });
         doc.moveDown(0.5);
         doc.fontSize(10).font('Helvetica').text(`by ${book.author}`, { align: 'center' });
@@ -409,94 +456,28 @@ export class ExportServiceAdvanced {
           'PowerWrite is a product of Dynamic Labs Media.',
           { align: 'center' }
         );
+        
+        // Add page number to legal page
+        this.addPageNumberToPDF(doc, currentPageNumber);
 
         // === TABLE OF CONTENTS ===
-        const tocPageIndex = doc.bufferedPageRange().count; // Save TOC page number for later update
         doc.addPage();
+        currentPageNumber++;
         doc.fontSize(24).font('Helvetica-Bold').text('Table of Contents', { align: 'center' });
         doc.moveDown(2);
         
-        // Store TOC Y position to come back and update page numbers later
-        const tocStartY = doc.y;
-        const tocPageNumber = doc.bufferedPageRange().count - 1;
-        
-        // Calculate page numbers - will be accurate after content is generated
-        // For now, create placeholder entries
+        // Pre-calculate chapter page numbers
+        // TOC is page currentPageNumber, chapters start after that
+        const firstChapterPage = currentPageNumber + 1;
         const tocEntries: Array<{ number: number; title: string; page: number }> = [];
         
-        // Reserve space for TOC entries
-        book.chapters.forEach((chapter) => {
-          tocEntries.push({ number: chapter.number, title: chapter.title, page: 0 }); // Placeholder
-          doc.moveDown(0.8); // Reserve space
-        });
-        
-        // Store chapter page mappings for TOC
-        const chapterPageMap: Map<number, number> = new Map();
-
-        // === CHAPTERS ===
-        book.chapters.forEach((chapter) => {
-          doc.addPage();
+        // Each chapter starts on a new page
+        book.chapters.forEach((chapter, index) => {
+          const chapterPage = firstChapterPage + index;
+          tocEntries.push({ number: chapter.number, title: chapter.title, page: chapterPage });
           
-          // Record the actual page number for this chapter (for TOC)
-          const chapterPageNum = doc.bufferedPageRange().count - 1;
-          chapterPageMap.set(chapter.number, chapterPageNum);
-
-          // Chapter title (only once)
-          doc.fontSize(20).font('Helvetica-Bold').text(`Chapter ${chapter.number}`, {
-            underline: false,
-          });
-          doc.fontSize(18).font('Helvetica-Bold').text(chapter.title, {
-            underline: false,
-          });
-          doc.moveDown(2);
-
-          // Chapter content - handle paragraphs and remove duplicate titles
-          const paragraphs = chapter.content.split(/\n\n+/).filter(p => p.trim());
-          
-          paragraphs.forEach((para, pIndex) => {
-            // Clean the paragraph
-            let cleanPara = para.trim().replace(/\n/g, ' ');
-            
-            // Remove multiple patterns of duplicate chapter titles
-            const patterns = [
-              // Pattern: "Chapter 1: Title"
-              new RegExp(`^Chapter\\s+${chapter.number}[:\s]+${chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
-              // Pattern: "Chapter 1 Title"
-              new RegExp(`^Chapter\\s+${chapter.number}\\s+${chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
-              // Pattern: Just the title at the start
-              new RegExp(`^${chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'),
-            ];
-            
-            // Try each pattern
-            for (const pattern of patterns) {
-              cleanPara = cleanPara.replace(pattern, '').trim();
-            }
-            
-            // Skip if paragraph is now empty
-            if (!cleanPara) return;
-            
-            doc.fontSize(11).font('Helvetica').text(cleanPara, {
-              align: 'justify',
-              indent: 20,
-              lineGap: 4,
-            });
-            
-            if (pIndex < paragraphs.length - 1) {
-              doc.moveDown(0.8);
-            }
-          });
-        });
-
-        // Now go back and fill in the TOC with actual page numbers
-        doc.switchToPage(tocPageNumber);
-        doc.y = tocStartY;
-        
-        tocEntries.forEach((entry, idx) => {
-          const actualPage = chapterPageMap.get(entry.number) || 0;
-          tocEntries[idx].page = actualPage;
-          
-          const entryText = `Chapter ${entry.number}: ${entry.title}`;
-          const pageText = `${actualPage}`;
+          const entryText = `Chapter ${chapter.number}: ${chapter.title}`;
+          const pageText = `${chapterPage}`;
           const maxWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
           
           // Save current Y position
@@ -536,6 +517,84 @@ export class ExportServiceAdvanced {
           
           doc.moveDown(0.8);
         });
+        
+        // Add page number to TOC
+        this.addPageNumberToPDF(doc, currentPageNumber);
+
+        // === CHAPTERS ===
+        book.chapters.forEach((chapter, chapterIndex) => {
+          doc.addPage();
+          currentPageNumber++;
+          
+          // Record this chapter's page number
+          tocEntries[chapterIndex].page = currentPageNumber;
+
+          // Chapter title (only once)
+          doc.fontSize(20).font('Helvetica-Bold').text(`Chapter ${chapter.number}`, {
+            underline: false,
+          });
+          doc.fontSize(18).font('Helvetica-Bold').text(chapter.title, {
+            underline: false,
+          });
+          doc.moveDown(2);
+
+          // Chapter content - handle paragraphs and remove duplicate titles
+          const paragraphs = chapter.content.split(/\n\n+/).filter(p => p.trim());
+          
+          paragraphs.forEach((para, pIndex) => {
+            // Clean the paragraph
+            let cleanPara = para.trim().replace(/\n/g, ' ');
+            
+            // Remove multiple patterns of duplicate chapter titles (more aggressive)
+            const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const patterns = [
+              // Pattern: "Chapter 1: Title"
+              new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+${escapedTitle}[\\s\\.]*`, 'i'),
+              // Pattern: "Chapter 1 - Title"
+              new RegExp(`^Chapter\\s+${chapter.number}\\s*[-–—]\\s*${escapedTitle}[\\s\\.]*`, 'i'),
+              // Pattern: "Chapter 1 Title" 
+              new RegExp(`^Chapter\\s+${chapter.number}\\s+${escapedTitle}[\\s\\.]*`, 'i'),
+              // Pattern: Just "Chapter 1:"
+              new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+`, 'i'),
+              // Pattern: Just the title at the start (with optional colon/period)
+              new RegExp(`^${escapedTitle}[:\\s\\.]*`, 'i'),
+              // Pattern: Title repeated after newlines
+              new RegExp(`\\n+${escapedTitle}[\\s\\.]*`, 'gi'),
+            ];
+            
+            // Apply all patterns to remove duplicates
+            for (const pattern of patterns) {
+              cleanPara = cleanPara.replace(pattern, '').trim();
+            }
+            
+            // Also remove if the first paragraph is ONLY the chapter title (case insensitive)
+            if (pIndex === 0) {
+              const titleLower = chapter.title.toLowerCase().trim();
+              const paraLower = cleanPara.toLowerCase().trim();
+              if (paraLower === titleLower || paraLower === `chapter ${chapter.number}` || paraLower === `chapter ${chapter.number}:`) {
+                cleanPara = '';
+              }
+            }
+            
+            // Skip if paragraph is now empty
+            if (!cleanPara) return;
+            
+            doc.fontSize(11).font('Helvetica').text(cleanPara, {
+              align: 'justify',
+              indent: 20,
+              lineGap: 4,
+            });
+            
+            if (pIndex < paragraphs.length - 1) {
+              doc.moveDown(0.8);
+            }
+          });
+          
+          // Add page number to this chapter page
+          this.addPageNumberToPDF(doc, currentPageNumber);
+        });
+
+        console.log(`Generated ${currentPageNumber} total pages. Creating TOC entries...`);
         
         // Finalize the PDF
         doc.end();

@@ -16,21 +16,35 @@ export class ExportService {
   private static sanitizeChapterContent(chapter: { number: number; title: string; content: string }): string {
     let cleaned = chapter.content.trim();
     
-    // Remove multiple patterns of duplicate chapter titles
+    // Remove multiple patterns of duplicate chapter titles (more aggressive)
+    const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
     const patterns = [
       // Pattern: "Chapter 1: Title"
-      new RegExp(`^Chapter\\s+${chapter.number}[:\s]+${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+      new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+${escapedTitle}[\\s\\.]*`, 'i'),
+      // Pattern: "Chapter 1 - Title"
+      new RegExp(`^Chapter\\s+${chapter.number}\\s*[-–—]\\s*${escapedTitle}[\\s\\.]*`, 'i'),
       // Pattern: "Chapter 1 Title"
-      new RegExp(`^Chapter\\s+${chapter.number}\\s+${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
-      // Pattern: Just the title at the start
-      new RegExp(`^${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+      new RegExp(`^Chapter\\s+${chapter.number}\\s+${escapedTitle}[\\s\\.]*`, 'i'),
+      // Pattern: Just "Chapter 1:"
+      new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+`, 'i'),
+      // Pattern: Just the title at the start (with optional colon/period)
+      new RegExp(`^${escapedTitle}[:\\s\\.]*`, 'i'),
       // Pattern: "Chapter 1:" followed by newlines and then title
-      new RegExp(`^Chapter\\s+${chapter.number}[:\s]*\\n+${chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}\\s*`, 'i'),
+      new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]*\\n+${escapedTitle}[\\s\\.]*`, 'i'),
+      // Pattern: Title repeated after newlines
+      new RegExp(`\\n+${escapedTitle}[\\s\\.]*`, 'gi'),
     ];
     
-    // Try each pattern to remove duplicates
+    // Apply all patterns to remove duplicates
     for (const pattern of patterns) {
       cleaned = cleaned.replace(pattern, '').trim();
+    }
+    
+    // Also check if content is ONLY the chapter title (case insensitive)
+    const titleLower = chapter.title.toLowerCase().trim();
+    const cleanedLower = cleaned.toLowerCase().trim();
+    if (cleanedLower === titleLower || cleanedLower === `chapter ${chapter.number}` || cleanedLower === `chapter ${chapter.number}:`) {
+      cleaned = '';
     }
     
     return cleaned;
