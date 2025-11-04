@@ -2,6 +2,9 @@
   "functions": {
     "app/api/generate/**/*.ts": {
       "maxDuration": 300
+    },
+    "app/api/books/export/route.ts": {
+      "maxDuration": 60
     }
   }
 }

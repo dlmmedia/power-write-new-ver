@@ -62,6 +62,25 @@ export async function POST(request: NextRequest) {
 
     console.log(`Book type detected: ${bookIsNonFiction ? 'Non-Fiction' : 'Fiction'}`);
 
+    // Extract custom characters from config
+    const customCharacters = (config as any).characterList || [];
+    const charactersInstruction = customCharacters.length > 0
+      ? `Custom Characters:\n${customCharacters.map((c: any) => 
+          `- ${c.name} (${c.role}): ${c.description || 'No description'}${c.traits ? ` | Traits: ${c.traits}` : ''}`
+        ).join('\n')}`
+      : '';
+
+    // Map word count to length category
+    const getLength = (wordCount: number): string => {
+      if (wordCount <= 10000) return 'micro';
+      if (wordCount <= 20000) return 'novella';
+      if (wordCount <= 40000) return 'short-novel';
+      if (wordCount <= 60000) return 'short';
+      if (wordCount <= 90000) return 'medium';
+      if (wordCount <= 130000) return 'long';
+      return 'epic';
+    };
+
     // Prepare generation config with full studio settings
     const outline = await aiService.generateBookOutline({
       title: sanitizeTitle(config.basicInfo.title),
@@ -71,9 +90,9 @@ export async function POST(request: NextRequest) {
       audience: config.audience.targetAudience,
       description: config.content.description,
       chapters: config.content.numChapters,
-      length: config.content.targetWordCount > 100000 ? 'long' : 
-              config.content.targetWordCount > 70000 ? 'medium' : 'short',
+      length: getLength(config.content.targetWordCount),
       isNonFiction: bookIsNonFiction,
+      customCharacters: customCharacters,
       customInstructions: [
         `Writing Style: ${config.writingStyle.style}`,
         `Point of View: ${config.writingStyle.pov}`,
@@ -82,6 +101,7 @@ export async function POST(request: NextRequest) {
         `Book Structure: ${config.content.bookStructure}`,
         `Narrative Structure: ${config.plot.narrativeStructure}`,
         `Pacing: ${config.plot.pacing}`,
+        charactersInstruction,
         referenceBooks && referenceBooks.length > 0
           ? `Reference Books: ${referenceBooks.map(b => `\"${b.title}\" by ${b.authors.join(', ')}`).join(', ')}`
           : '',

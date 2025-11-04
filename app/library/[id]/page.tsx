@@ -50,6 +50,8 @@ export default function BookDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     if (bookId) {
@@ -71,8 +73,13 @@ export default function BookDetailPage() {
   };
 
   const handleExport = async (format: 'pdf' | 'docx' | 'txt' | 'md' | 'html') => {
+    if (!book) return;
+    
+    setIsExporting(true);
+    setShowExportMenu(false);
+    
     try {
-      if (!book) return;
+      console.log(`Starting export as ${format.toUpperCase()}...`);
       
       const response = await fetch('/api/books/export', {
         method: 'POST',
@@ -85,6 +92,8 @@ export default function BookDetailPage() {
       });
 
       if (response.ok) {
+        console.log(`Export successful, downloading ${format} file...`);
+        
         // Download the file
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -93,15 +102,45 @@ export default function BookDetailPage() {
         a.download = `${book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${format}`;
         document.body.appendChild(a);
         a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 100);
+        
+        alert(`✓ Successfully exported as ${format.toUpperCase()}`);
       } else {
-        const data = await response.json();
-        alert('Export failed: ' + (data.error || 'Unknown error'));
+        // Log response details for debugging
+        console.error('Export failed with status:', response.status, response.statusText);
+        const contentType = response.headers.get('content-type');
+        console.error('Response content-type:', contentType);
+        
+        let errorMessage = 'Unknown error';
+        try {
+          const text = await response.text();
+          console.error('Response text:', text);
+          
+          // Try to parse as JSON
+          if (contentType?.includes('application/json')) {
+            const data = JSON.parse(text);
+            errorMessage = data.error || data.details || 'Unknown error';
+            console.error('Parsed error data:', data);
+          } else {
+            errorMessage = text || 'Server returned non-JSON response';
+          }
+        } catch (parseError) {
+          console.error('Error parsing response:', parseError);
+          errorMessage = 'Failed to parse error response';
+        }
+        
+        alert(`Export failed: ${errorMessage}\n\nPlease check the console for more details.`);
       }
     } catch (error) {
       console.error('Export error:', error);
-      alert('Failed to export book');
+      alert(`Failed to export book as ${format.toUpperCase()}.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check your connection and try again.`);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -232,40 +271,69 @@ export default function BookDetailPage() {
                   </Button>
                 </>
               )}
-              <div className="relative group">
-                <Button variant="outline">Export ▼</Button>
-                <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg py-1 w-40 z-10">
-                  <button
-                    onClick={() => handleExport('pdf')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
-                  >
-                    Export as PDF
-                  </button>
-                  <button
-                    onClick={() => handleExport('docx')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
-                  >
-                    Export as DOCX
-                  </button>
-                  <button
-                    onClick={() => handleExport('html')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
-                  >
-                    Export as HTML
-                  </button>
-                  <button
-                    onClick={() => handleExport('md')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
-                  >
-                    Export as Markdown
-                  </button>
-                  <button
-                    onClick={() => handleExport('txt')}
-                    className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
-                  >
-                    Export as TXT
-                  </button>
-                </div>
+              <div className="relative">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <>
+                      <span className="animate-spin mr-2">⏳</span>
+                      Exporting...
+                    </>
+                  ) : (
+                    <>Export ▼</>
+                  )}
+                </Button>
+                
+                {showExportMenu && (
+                  <>
+                    {/* Backdrop to close menu */}
+                    <div 
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowExportMenu(false)}
+                    />
+                    
+                    {/* Export menu */}
+                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl py-1 w-48 z-20">
+                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
+                        Export As
+                      </div>
+                      <button
+                        onClick={() => handleExport('pdf')}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
+                      >
+                        📄 PDF Document
+                      </button>
+                      <button
+                        onClick={() => handleExport('docx')}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
+                      >
+                        📝 Word (DOCX)
+                      </button>
+                      <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                      <button
+                        onClick={() => handleExport('html')}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white"
+                      >
+                        🌐 HTML
+                      </button>
+                      <button
+                        onClick={() => handleExport('md')}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white"
+                      >
+                        📋 Markdown
+                      </button>
+                      <button
+                        onClick={() => handleExport('txt')}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white"
+                      >
+                        📃 Plain Text
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -408,9 +476,9 @@ export default function BookDetailPage() {
                   </div>
                   <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
                     <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                      {book.chapters?.filter((c) => c.status === 'completed').length || 0}
+                      {book.chapters?.filter((c) => c.content && c.content.length > 100).length || 0}
                     </div>
-                    <div className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">Completed</div>
+                    <div className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">Generated</div>
                   </div>
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
                     <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">

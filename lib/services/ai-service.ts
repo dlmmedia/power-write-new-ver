@@ -68,6 +68,13 @@ export interface BookGenerationConfig {
   length: string;
   customInstructions?: string;
   isNonFiction?: boolean;
+  customCharacters?: Array<{
+    id: string;
+    name: string;
+    role: string;
+    description: string;
+    traits: string;
+  }>;
   sourceBook?: {
     title: string;
     author: string;
@@ -87,9 +94,13 @@ export class AIService {
 
       const numChapters = config.chapters || 10;
       const lengthMapping: Record<string, number> = {
-        'short': 50000,
-        'medium': 80000,
-        'long': 120000,
+        'micro': 10000,      // Micro/flash fiction
+        'novella': 20000,    // Novella
+        'short-novel': 30000,  // Short novel
+        'short': 50000,      // Short novel
+        'medium': 80000,     // Standard novel
+        'long': 120000,      // Long novel
+        'epic': 150000,      // Epic novel
       };
       
       const targetWords = lengthMapping[config.length] || 80000;
@@ -101,6 +112,20 @@ export class AIService {
 
       const isNonFiction = config.isNonFiction || false;
 
+      // Build character context if custom characters are provided
+      const hasCustomCharacters = config.customCharacters && config.customCharacters.length > 0;
+      const characterContext = hasCustomCharacters
+        ? `\n\nIMPORTANT - Use these EXACT characters in the outline:\n${config.customCharacters!.map(c => 
+            `- ${c.name} (${c.role}): ${c.description}${c.traits ? ` | Key traits: ${c.traits}` : ''}`
+          ).join('\n')}\n\nDo NOT create new main characters. Use the characters listed above.`
+        : '';
+
+      // Determine if we should use custom title or let AI generate one
+      const hasCustomTitle = config.title && config.title.trim().length > 0;
+      const titleInstruction = hasCustomTitle
+        ? `\n\nIMPORTANT - Use this EXACT title: "${config.title}"\nDo NOT create a different title.`
+        : '';
+
       const prompt = isNonFiction
         ? `Create a ${config.genre} NON-FICTION book outline with ${numChapters} chapters.
 
@@ -110,10 +135,11 @@ Tone: ${config.tone}
 Audience: ${config.audience}
 Description: ${config.description}
 ${sourceContext}
+${titleInstruction}
 ${config.customInstructions ? `\nInstructions: ${config.customInstructions}` : ''}
 
 Generate a compelling non-fiction book outline with:
-- An engaging, informative title
+${hasCustomTitle ? `- Use the exact title provided above: "${config.title}"` : '- An engaging, informative title'}
 - ${numChapters} well-structured chapters (approximately ${wordsPerChapter} words each)
 - Brief chapter summaries (2-3 sentences each) focusing on key concepts and information
 - 3-5 key themes or main topics
@@ -121,7 +147,7 @@ Generate a compelling non-fiction book outline with:
 
 Return ONLY valid JSON in this format:
 {
-  "title": "book title",
+  "title": ${hasCustomTitle ? `"${config.title}"` : '"book title"'},
   "author": "${config.author}",
   "genre": "${config.genre}",
   "description": "compelling book description",
@@ -143,18 +169,20 @@ Tone: ${config.tone}
 Audience: ${config.audience}
 Description: ${config.description}
 ${sourceContext}
+${titleInstruction}
+${characterContext}
 ${config.customInstructions ? `\nInstructions: ${config.customInstructions}` : ''}
 
 Generate a compelling book outline with:
-- An engaging title
+${hasCustomTitle ? `- Use the exact title provided above: "${config.title}"` : '- An engaging title'}
 - ${numChapters} well-structured chapters (approximately ${wordsPerChapter} words each)
 - Brief chapter summaries (2-3 sentences each)
 - 3-5 key themes
-- Main characters (name, role, brief description)
+${hasCustomCharacters ? '- Use the EXACT characters provided above (do not create new main characters)' : '- Main characters (name, role, brief description)'}
 
 Return ONLY valid JSON in this format:
 {
-  "title": "book title",
+  "title": ${hasCustomTitle ? `"${config.title}"` : '"book title"'},
   "author": "${config.author}",
   "genre": "${config.genre}",
   "description": "compelling book description",
@@ -208,6 +236,23 @@ Return ONLY valid JSON in this format:
       }
       
       const outline = JSON.parse(jsonText);
+      
+      // If custom title was provided, ensure it's in the outline
+      if (hasCustomTitle) {
+        outline.title = config.title;
+        console.log('Custom title applied to outline:', outline.title);
+      }
+      
+      // If custom characters were provided, ensure they're in the outline
+      if (hasCustomCharacters && !isNonFiction) {
+        outline.characters = config.customCharacters!.map(c => ({
+          name: c.name,
+          role: c.role,
+          description: c.description + (c.traits ? ` | Key traits: ${c.traits}` : '')
+        }));
+        console.log('Custom characters applied to outline:', outline.characters.length);
+      }
+      
       console.log('Generated outline successfully:', outline.title);
       return outline;
     } catch (error) {
@@ -275,13 +320,16 @@ Chapter Details:
 - Target Word Count: ${chapter.wordCount} words
 - Genre: ${outline.genre}
 
-Characters: ${outline.characters?.map(c => `${c.name} (${c.role})`).join(', ') || 'None specified'}
+Characters:
+${outline.characters?.map(c => `- ${c.name} (${c.role}): ${c.description}`).join('\n') || 'None specified'}
+
 Themes: ${outline.themes?.join(', ') || 'General themes'}
 ${contextPrompt}
 
 Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum 1500 words). 
 - Create well-developed paragraphs (6-10 sentences each)
 - Include vivid descriptions and engaging dialogue
+- Develop the characters listed above with depth and authenticity
 - Use double line breaks between paragraphs
 - NO markdown formatting
 - Write in plain text
@@ -337,22 +385,26 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
       ? `\n\nPrevious chapters summary:\n${previousChapters}\n\nMaintain continuity.`
       : '';
 
+    const charactersInfo = outline.characters && outline.characters.length > 0
+      ? `\n\nCharacters:\n${outline.characters.map(c => `- ${c.name} (${c.role}): ${c.description}`).join('\n')}\n`
+      : '';
+
     const prompt = `Write Chapter ${chapter.number} of "${outline.title}".
 
 Chapter: ${chapter.title}
 Summary: ${chapter.summary}
 Target: ${chapter.wordCount} words
-
+${charactersInfo}
 ${contextPrompt}
 
-Write a complete chapter with well-developed paragraphs. Use double line breaks between paragraphs. NO markdown.`;
+Write a complete chapter with well-developed paragraphs. Develop the characters with depth and authenticity. Use double line breaks between paragraphs. NO markdown.`;
 
     const result = streamText({
       model: getTextModel('chapter'), // Use GPT-4o for streaming
       messages: [
         {
           role: 'system',
-          content: `You are a master novelist. Write compelling chapters with rich detail.`,
+          content: `You are a master novelist. Write compelling chapters with rich detail and character development.`,
         },
         {
           role: 'user',

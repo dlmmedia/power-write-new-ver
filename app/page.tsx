@@ -6,7 +6,6 @@ import { useBookStore } from '@/lib/store/book-store';
 import { convertToSelectedBook } from '@/lib/utils/book-helpers';
 import { BookCard } from '@/components/books/BookCard';
 import { SelectedBooksPanel } from '@/components/books/SelectedBooksPanel';
-import { FeaturedSection } from '@/components/home/FeaturedSection';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
@@ -15,6 +14,7 @@ export default function Home() {
   const [books, setBooks] = useState<BookResult[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchInput, setSearchInput] = useState('');
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   
   const { 
     selectedBooks, 
@@ -24,6 +24,35 @@ export default function Home() {
     activeCategory,
     setActiveCategory 
   } = useBookStore();
+
+  // Comprehensive list of categories
+  const categories = [
+    { id: 'bestsellers', label: '🏆 Bestsellers', popular: true },
+    { id: 'new-releases', label: '🆕 New Releases', popular: true },
+    { id: 'fiction', label: '📚 Fiction', popular: true },
+    { id: 'non-fiction', label: '📖 Non-Fiction', popular: true },
+    { id: 'mystery', label: '🔍 Mystery & Thriller' },
+    { id: 'romance', label: '💕 Romance' },
+    { id: 'science-fiction', label: '🚀 Science Fiction' },
+    { id: 'fantasy', label: '🧙 Fantasy' },
+    { id: 'horror', label: '👻 Horror' },
+    { id: 'biography', label: '👤 Biography' },
+    { id: 'history', label: '🏛️ History' },
+    { id: 'self-help', label: '💪 Self-Help' },
+    { id: 'business', label: '💼 Business' },
+    { id: 'technology', label: '💻 Technology' },
+    { id: 'science', label: '🔬 Science' },
+    { id: 'cooking', label: '🍳 Cooking' },
+    { id: 'travel', label: '✈️ Travel' },
+    { id: 'poetry', label: '📝 Poetry' },
+    { id: 'young-adult', label: '🎓 Young Adult' },
+    { id: 'children', label: '👶 Children' },
+    { id: 'graphic-novels', label: '🎨 Graphic Novels' },
+    { id: 'health', label: '🏥 Health & Wellness' },
+    { id: 'philosophy', label: '🤔 Philosophy' },
+    { id: 'religion', label: '🕊️ Religion & Spirituality' },
+    { id: 'true-crime', label: '🔪 True Crime' },
+  ];
 
   useEffect(() => {
     fetchBooks(activeCategory);
@@ -36,11 +65,31 @@ export default function Home() {
       const response = await fetch(`/api/books/search?category=${category}`);
       const data = await response.json();
       console.log('Books received:', data.books?.length || 0);
-      if (data.books && data.books.length > 0) {
-        console.log('First book:', data.books[0].title);
-        console.log('First book images:', data.books[0].imageLinks);
+      
+      // Filter out books without images
+      const booksWithImages = (data.books || []).filter((book: BookResult) => {
+        const hasImage = book.imageLinks && (
+          book.imageLinks.thumbnail || 
+          book.imageLinks.small || 
+          book.imageLinks.medium || 
+          book.imageLinks.large || 
+          book.imageLinks.extraLarge
+        );
+        
+        if (!hasImage) {
+          console.log(`Filtered out book without image: ${book.title}`);
+        }
+        
+        return hasImage;
+      });
+      
+      console.log(`Books with images: ${booksWithImages.length} out of ${data.books?.length || 0}`);
+      if (booksWithImages.length > 0) {
+        console.log('First book:', booksWithImages[0].title);
+        console.log('First book images:', booksWithImages[0].imageLinks);
       }
-      setBooks(data.books || []);
+      
+      setBooks(booksWithImages);
     } catch (error) {
       console.error('Error fetching books:', error);
     } finally {
@@ -56,7 +105,21 @@ export default function Home() {
     try {
       const response = await fetch(`/api/books/search?q=${encodeURIComponent(searchInput)}`);
       const data = await response.json();
-      setBooks(data.books || []);
+      
+      // Filter out books without images
+      const booksWithImages = (data.books || []).filter((book: BookResult) => {
+        const hasImage = book.imageLinks && (
+          book.imageLinks.thumbnail || 
+          book.imageLinks.small || 
+          book.imageLinks.medium || 
+          book.imageLinks.large || 
+          book.imageLinks.extraLarge
+        );
+        return hasImage;
+      });
+      
+      console.log(`Search results with images: ${booksWithImages.length} out of ${data.books?.length || 0}`);
+      setBooks(booksWithImages);
       setActiveCategory('search');
     } catch (error) {
       console.error('Error searching books:', error);
@@ -107,32 +170,97 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Featured Books Section */}
-      <FeaturedSection 
-        books={books}
-        onSelectBook={handleToggleSelect}
-        isBookSelected={isBookSelected}
-      />
-
       {/* Category Tabs */}
       <section className="border-b border-gray-200 dark:border-gray-800">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center py-4">
-            <div className="flex space-x-8">
-              {['bestsellers', 'new-releases', 'fiction', 'non-fiction'].map((cat) => (
+            <div className="flex items-center gap-4">
+              {/* Quick access popular categories */}
+              <div className="hidden md:flex space-x-6">
+                {categories.filter(c => c.popular).map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`text-lg font-semibold ${
+                      activeCategory === cat.id
+                        ? 'text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-600 dark:border-yellow-400 pb-1'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Dropdown for all categories */}
+              <div className="relative">
                 <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat)}
-                  className={`text-lg font-semibold capitalize ${
-                    activeCategory === cat
-                      ? 'text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-600 dark:border-yellow-400 pb-1'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
+                  onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition-colors text-gray-900 dark:text-white font-medium"
                 >
-                  {cat.replace('-', ' ')}
+                  <span>All Categories</span>
+                  <span className="text-xs">{showCategoryDropdown ? '▲' : '▼'}</span>
                 </button>
-              ))}
+                
+                {showCategoryDropdown && (
+                  <>
+                    {/* Backdrop to close dropdown when clicking outside */}
+                    <div 
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowCategoryDropdown(false)}
+                    />
+                    
+                    {/* Dropdown menu */}
+                    <div className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl w-80 max-h-96 overflow-y-auto z-20">
+                      <div className="p-2">
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Popular Categories
+                        </div>
+                        {categories.filter(c => c.popular).map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              setActiveCategory(cat.id);
+                              setShowCategoryDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                              activeCategory === cat.id
+                                ? 'bg-yellow-400/10 border-l-2 border-yellow-400 text-yellow-600 dark:text-yellow-400 font-medium'
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                        
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
+                        
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          More Categories
+                        </div>
+                        {categories.filter(c => !c.popular).map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              setActiveCategory(cat.id);
+                              setShowCategoryDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                              activeCategory === cat.id
+                                ? 'bg-yellow-400/10 border-l-2 border-yellow-400 text-yellow-600 dark:text-yellow-400 font-medium'
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
+            
             {selectedBooks.length > 0 && (
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 {selectedBooks.length} book{selectedBooks.length !== 1 ? 's' : ''} selected
@@ -146,8 +274,10 @@ export default function Home() {
       <section className="py-12">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold capitalize">
-              {activeCategory === 'search' ? 'Search Results' : activeCategory.replace('-', ' ')}
+            <h2 className="text-3xl font-bold">
+              {activeCategory === 'search' 
+                ? 'Search Results' 
+                : categories.find(c => c.id === activeCategory)?.label || activeCategory.replace('-', ' ')}
             </h2>
             {selectedBooks.length > 0 && (
               <Button

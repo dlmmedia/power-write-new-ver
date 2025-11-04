@@ -3,6 +3,10 @@ import { getBookWithChapters, ensureDemoUser } from '@/lib/db/operations';
 import { ExportService } from '@/lib/services/export-service';
 import { ExportServiceAdvanced } from '@/lib/services/export-service-advanced';
 
+// Configure route for longer execution time and Node.js runtime
+export const runtime = 'nodejs';
+export const maxDuration = 60; // 60 seconds for export generation
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -90,11 +94,16 @@ export async function POST(request: NextRequest) {
           break;
 
         case 'pdf':
-          console.log(`Generating PDF for book: ${book.title} with ${exportData.chapters.length} chapters`);
-          content = await ExportServiceAdvanced.exportBookAsPDF(exportData);
-          mimeType = 'application/pdf';
-          filename = `${baseFilename}.pdf`;
-          console.log(`PDF generated successfully, size: ${content.length} bytes`);
+          try {
+            console.log(`Generating PDF for book: ${book.title} with ${exportData.chapters.length} chapters`);
+            content = await ExportServiceAdvanced.exportBookAsPDF(exportData);
+            mimeType = 'application/pdf';
+            filename = `${baseFilename}.pdf`;
+            console.log(`PDF generated successfully, size: ${content.length} bytes`);
+          } catch (pdfError) {
+            console.error('PDF generation error details:', pdfError);
+            throw new Error(`PDF generation failed: ${pdfError instanceof Error ? pdfError.message : 'Unknown error'}`);
+          }
           break;
 
         case 'docx':
@@ -113,12 +122,25 @@ export async function POST(request: NextRequest) {
       }
     } catch (exportError) {
       console.error(`Error generating ${format} export:`, exportError);
-      return NextResponse.json(
+      console.error('Export error stack:', exportError instanceof Error ? exportError.stack : 'No stack');
+      
+      const errorResponse = { 
+        error: `Failed to generate ${format.toUpperCase()} export`, 
+        details: exportError instanceof Error ? exportError.message : 'Unknown error',
+        format,
+        timestamp: new Date().toISOString()
+      };
+      
+      console.error('Sending export error response:', JSON.stringify(errorResponse));
+      
+      return new NextResponse(
+        JSON.stringify(errorResponse),
         { 
-          error: `Failed to generate ${format.toUpperCase()} export`, 
-          details: exportError instanceof Error ? exportError.message : 'Unknown error' 
-        },
-        { status: 500 }
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        }
       );
     }
 
@@ -136,12 +158,25 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error exporting book:', error);
-    return NextResponse.json(
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorResponse = { 
+      error: 'Failed to export book', 
+      details: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+    
+    console.error('Returning error response:', JSON.stringify(errorResponse));
+    
+    return new NextResponse(
+      JSON.stringify(errorResponse),
       { 
-        error: 'Failed to export book', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
-      },
-      { status: 500 }
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }
     );
   }
 }

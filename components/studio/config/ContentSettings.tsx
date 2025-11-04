@@ -43,12 +43,14 @@ export const ContentSettings: React.FC = () => {
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Target Word Count
           </label>
-          <div className="grid grid-cols-4 gap-3 mb-3">
+          <div className="grid grid-cols-3 gap-3 mb-3">
             {[
-              { label: 'Short', value: 50000 },
-              { label: 'Medium', value: 80000 },
-              { label: 'Long', value: 120000 },
-              { label: 'Epic', value: 150000 },
+              { label: 'Flash', value: 10000, desc: 'Brief guide' },
+              { label: 'Novella', value: 20000, desc: 'Short read' },
+              { label: 'Short', value: 30000, desc: 'Quick book' },
+              { label: 'Standard', value: 50000, desc: 'Full book' },
+              { label: 'Medium', value: 80000, desc: 'Detailed' },
+              { label: 'Long', value: 120000, desc: 'Comprehensive' },
             ].map((option) => (
               <button
                 key={option.value}
@@ -60,14 +62,15 @@ export const ContentSettings: React.FC = () => {
                     },
                   })
                 }
-                className={`px-4 py-2 rounded font-medium transition-colors ${
+                className={`px-3 py-2 rounded font-medium transition-colors text-left ${
                   config.content.targetWordCount === option.value
                     ? 'bg-yellow-400 text-black'
                     : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-700'
                 }`}
               >
-                {option.label}
-                <div className="text-xs mt-1">{option.value.toLocaleString()}</div>
+                <div className="font-semibold">{option.label}</div>
+                <div className="text-xs">{option.value.toLocaleString()}</div>
+                <div className="text-xs opacity-70">{option.desc}</div>
               </button>
             ))}
           </div>

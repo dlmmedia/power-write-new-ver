@@ -21,6 +21,11 @@ const nextConfig: NextConfig = {
       if (Array.isArray(config.externals)) {
         config.externals.push('pdfkit', 'canvas');
       }
+      
+      // Handle @react-pdf/renderer for server-side
+      config.externals.push({
+        '@react-pdf/renderer': '@react-pdf/renderer'
+      });
     }
     
     return config;
