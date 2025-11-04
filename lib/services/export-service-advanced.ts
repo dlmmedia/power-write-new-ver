@@ -152,7 +152,7 @@ export class ExportServiceAdvanced {
           alignment: AlignmentType.CENTER,
           children: [
             new ImageRun({
-              data: coverImageBuffer,
+              data: coverImageBuffer as any,
               transformation: {
                 width: 400,
                 height: 600,
