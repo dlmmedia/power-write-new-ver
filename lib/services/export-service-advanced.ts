@@ -401,7 +401,7 @@ export class ExportServiceAdvanced {
       
       // Generate PDF blob
       console.log('Generating PDF blob...');
-      const pdfBlob = await pdf(doc).toBlob();
+      const pdfBlob = await pdf(doc as any).toBlob();
       
       // Convert blob to buffer
       console.log('Converting to buffer...');
