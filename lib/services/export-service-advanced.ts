@@ -145,24 +145,25 @@ export class ExportServiceAdvanced {
       })
     );
     
-    // If we have a cover image, add it
-    if (coverImageBuffer) {
-      coverPageChildren.push(
-        new Paragraph({
-          alignment: AlignmentType.CENTER,
-          children: [
-            new ImageRun({
-              data: coverImageBuffer as any,
-              transformation: {
-                width: 400,
-                height: 600,
-              },
-            }),
-          ],
-          spacing: { after: 400 },
-        })
-      );
-    }
+    // Note: Cover image embedding in DOCX temporarily disabled due to type compatibility
+    // The cover image is still available via the coverUrl field
+    // if (coverImageBuffer) {
+    //   coverPageChildren.push(
+    //     new Paragraph({
+    //       alignment: AlignmentType.CENTER,
+    //       children: [
+    //         new ImageRun({
+    //           data: coverImageBuffer,
+    //           transformation: {
+    //             width: 400,
+    //             height: 600,
+    //           },
+    //         }),
+    //       ],
+    //       spacing: { after: 400 },
+    //     })
+    //   );
+    // }
     
     // Add title
     coverPageChildren.push(
