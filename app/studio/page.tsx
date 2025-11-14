@@ -11,18 +11,21 @@ import { ContentSettings } from '@/components/studio/config/ContentSettings';
 import { WritingStyle } from '@/components/studio/config/WritingStyle';
 import { StylePreferences } from '@/components/studio/config/StylePreferences';
 import { CharactersWorld } from '@/components/studio/config/CharactersWorld';
+import { BibliographySettings } from '@/components/studio/config/BibliographySettings';
 import { AdvancedSettings } from '@/components/studio/config/AdvancedSettings';
 import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
 import { getDemoUserId, canGenerateBook } from '@/lib/services/demo-account';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
+import { Logo } from '@/components/ui/Logo';
 
 type ConfigTab = 
   | 'basic' 
   | 'content' 
   | 'style' 
   | 'characters' 
+  | 'bibliography'
   | 'advanced';
 
 export default function StudioPage() {
@@ -48,6 +51,7 @@ export default function StudioPage() {
     { id: 'content' as ConfigTab, label: 'Content Settings', icon: '📖' },
     { id: 'style' as ConfigTab, label: 'Style Preferences', icon: '✍️' },
     { id: 'characters' as ConfigTab, label: 'Characters & World', icon: '🌍' },
+    { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: '📚' },
     { id: 'advanced' as ConfigTab, label: 'Advanced Settings', icon: '⚙️' },
   ];
 
@@ -181,7 +185,8 @@ export default function StudioPage() {
       {/* Header */}
       <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          {/* Desktop Header */}
+          <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/')}
@@ -189,9 +194,7 @@ export default function StudioPage() {
               >
                 ← Back
               </button>
-              <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
-                PW
-              </div>
+              <Logo size="md" />
               <h1 className="text-2xl font-bold">Book Studio</h1>
             </div>
 
@@ -236,6 +239,46 @@ export default function StudioPage() {
               >
                 Generate Book
               </Button>
+            </div>
+          </div>
+
+          {/* Mobile Header */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.push('/')}
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                >
+                  ← Back
+                </button>
+                <Logo size="sm" />
+              </div>
+              <ThemeToggleCompact />
+            </div>
+            <h1 className="text-lg font-bold mb-3">Book Studio</h1>
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
+                <Badge variant="info" size="sm">
+                  {selectedBooks.length + uploadedReferences.length} Ref{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
+                </Badge>
+              )}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowUploadModal(true)}
+              >
+                📎 Upload
+              </Button>
+              {outline && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setViewMode(viewMode === 'config' ? 'outline' : 'config')}
+                >
+                  {viewMode === 'config' ? 'Outline' : 'Config'}
+                </Button>
+              )}
             </div>
           </div>
         </div>
@@ -305,10 +348,30 @@ export default function StudioPage() {
       )}
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-12 gap-6">
-          {/* Sidebar - Configuration Tabs */}
-          <div className="col-span-3">
+      <div className="container mx-auto px-4 py-4 md:py-8">
+        {/* Mobile Tab Navigation (Horizontal Scroll) */}
+        <div className="md:hidden mb-4 overflow-x-auto">
+          <div className="flex gap-2 pb-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-shrink-0 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'bg-yellow-400 text-black font-semibold'
+                    : 'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                <span>{tab.icon}</span>
+                <span className="text-sm">{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+          {/* Sidebar - Configuration Tabs (Desktop Only) */}
+          <div className="hidden md:block md:col-span-3">
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
               <h2 className="text-lg font-semibold mb-4 text-yellow-600 dark:text-yellow-400">Configuration</h2>
               <nav className="space-y-1">
@@ -380,8 +443,8 @@ export default function StudioPage() {
           </div>
 
           {/* Main Panel - Configuration Forms or Outline */}
-          <div className="col-span-9">
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
+          <div className="col-span-1 md:col-span-9">
+            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 md:p-6">
               {viewMode === 'outline' ? (
                 <OutlineEditor />
               ) : (
@@ -390,11 +453,36 @@ export default function StudioPage() {
                   {activeTab === 'content' && <ContentSettings />}
                   {activeTab === 'style' && <StylePreferences />}
                   {activeTab === 'characters' && <CharactersWorld />}
+                  {activeTab === 'bibliography' && <BibliographySettings />}
                   {activeTab === 'advanced' && <AdvancedSettings />}
                 </>
               )}
             </div>
           </div>
+        </div>
+
+        {/* Mobile Floating Action Buttons */}
+        <div className="md:hidden fixed bottom-20 right-4 flex flex-col gap-3 z-20">
+          <Button
+            variant="outline"
+            size="md"
+            onClick={handleGenerateOutline}
+            isLoading={isGenerating}
+            disabled={!config.basicInfo?.title || !config.basicInfo?.author}
+            className="shadow-lg"
+          >
+            {outline ? 'Regenerate' : 'Generate'} Outline
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            onClick={handleGenerateBook}
+            isLoading={isGenerating}
+            disabled={!outline}
+            className="shadow-lg"
+          >
+            Generate Book
+          </Button>
         </div>
       </div>
 

@@ -1,4 +1,6 @@
 import jsPDF from 'jspdf';
+import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
+import { CitationService } from './citation-service';
 
 interface BookExport {
   title: string;
@@ -9,6 +11,11 @@ interface BookExport {
     title: string;
     content: string;
   }>;
+  bibliography?: {
+    config: BibliographyConfig;
+    references: Reference[];
+    chapterReferences?: ChapterReferences[];
+  };
 }
 
 export class ExportService {
@@ -294,7 +301,175 @@ export class ExportService {
       const sanitizedContent = this.sanitizeChapterContent(chapter);
       addText(sanitizedContent, 12, false);
       currentY += 10;
+
+      // Add chapter-end references if configured
+      if (book.bibliography?.config.enabled && 
+          book.bibliography.config.location.includes('endnote') &&
+          book.bibliography.chapterReferences) {
+        const bibliography = book.bibliography;
+        const chapterRefs = bibliography.chapterReferences?.find(
+          cr => cr.chapterNumber === chapter.number
+        );
+        
+        if (chapterRefs && chapterRefs.references.length > 0) {
+          currentY += 10;
+          addText(`Notes for Chapter ${chapter.number}`, 14, true);
+          currentY += 5;
+          
+          const sortedRefs = CitationService.sortReferences(
+            chapterRefs.references,
+            bibliography.config.sortBy,
+            bibliography.config.sortDirection
+          );
+          
+          sortedRefs.forEach((ref, refIndex) => {
+            const formatted = CitationService.formatReference(
+              ref,
+              bibliography.config.citationStyle,
+              refIndex + 1
+            );
+            // Remove HTML tags for PDF
+            const plainText = formatted.replace(/<[^>]*>/g, '');
+            addText(`${refIndex + 1}. ${plainText}`, 10, false);
+            currentY += 2;
+          });
+        }
+      }
     });
+
+    // Add comprehensive bibliography section at the end
+    if (book.bibliography?.config.enabled && 
+        book.bibliography.references.length > 0 &&
+        book.bibliography.config.location.includes('bibliography')) {
+      
+      // Store bibliography reference for type safety
+      const bibliography = book.bibliography;
+      
+      // Start new page for bibliography
+      addPageNumber();
+      doc.addPage();
+      pageNumber++;
+      currentY = margin;
+      
+      // Bibliography title
+      addText('Bibliography', 20, true, 'center');
+      currentY += 10;
+      
+      // Add separator line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, currentY, pageWidth - margin, currentY);
+      currentY += 10;
+      
+      // Sort references
+      const sortedReferences = CitationService.sortReferences(
+        bibliography.references,
+        bibliography.config.sortBy,
+        bibliography.config.sortDirection
+      );
+      
+      // Group by type if configured
+      if (bibliography.config.groupByType) {
+        const grouped: Record<string, Reference[]> = {};
+        sortedReferences.forEach(ref => {
+          const type = ref.type;
+          if (!grouped[type]) grouped[type] = [];
+          grouped[type].push(ref);
+        });
+        
+        Object.entries(grouped).forEach(([type, refs]) => {
+          // Type heading
+          const typeLabel = type.charAt(0).toUpperCase() + type.slice(1) + 's';
+          addText(typeLabel, 14, true);
+          currentY += 5;
+          
+          refs.forEach((ref, index) => {
+            const formatted = CitationService.formatReference(
+              ref,
+              bibliography.config.citationStyle,
+              index + 1
+            );
+            // Remove HTML tags for PDF
+            const plainText = formatted.replace(/<[^>]*>/g, '');
+            
+            // Add numbering if configured
+            let refText = plainText;
+            if (bibliography.config.numberingStyle === 'numeric') {
+              refText = `${index + 1}. ${plainText}`;
+            } else if (bibliography.config.numberingStyle === 'alphabetic') {
+              refText = `${String.fromCharCode(65 + index)}. ${plainText}`;
+            }
+            
+            // Apply hanging indent if configured
+            if (bibliography.config.hangingIndent) {
+              const lines = doc.splitTextToSize(refText, maxWidth - 10);
+              lines.forEach((line: string, lineIndex: number) => {
+                if (currentY + 10 > pageHeight - margin - 15) {
+                  addPageNumber();
+                  doc.addPage();
+                  pageNumber++;
+                  currentY = margin;
+                }
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(line, lineIndex === 0 ? margin : margin + 10, currentY);
+                currentY += 5;
+              });
+            } else {
+              addText(refText, 10, false);
+            }
+            currentY += 3;
+          });
+          
+          currentY += 5; // Space between groups
+        });
+      } else {
+        // Single list
+        sortedReferences.forEach((ref, index) => {
+          const formatted = CitationService.formatReference(
+            ref,
+            bibliography.config.citationStyle,
+            index + 1
+          );
+          // Remove HTML tags for PDF
+          const plainText = formatted.replace(/<[^>]*>/g, '');
+          
+          // Add numbering if configured
+          let refText = plainText;
+          if (bibliography.config.numberingStyle === 'numeric') {
+            refText = `${index + 1}. ${plainText}`;
+          } else if (bibliography.config.numberingStyle === 'alphabetic') {
+            refText = `${String.fromCharCode(65 + index)}. ${plainText}`;
+          }
+          
+          // Apply hanging indent if configured
+          if (bibliography.config.hangingIndent) {
+            const lines = doc.splitTextToSize(refText, maxWidth - 10);
+            lines.forEach((line: string, lineIndex: number) => {
+              if (currentY + 10 > pageHeight - margin - 15) {
+                addPageNumber();
+                doc.addPage();
+                pageNumber++;
+                currentY = margin;
+              }
+              doc.setFontSize(10);
+              doc.setFont('helvetica', 'normal');
+              doc.text(line, lineIndex === 0 ? margin : margin + 10, currentY);
+              currentY += 5;
+            });
+          } else {
+            addText(refText, 10, false);
+          }
+          currentY += 3;
+        });
+      }
+      
+      // Add citation style note
+      currentY += 10;
+      doc.setFontSize(9);
+      doc.setTextColor(128, 128, 128);
+      addText(`References formatted in ${bibliography.config.citationStyle} style.`, 9, false);
+      doc.setTextColor(0, 0, 0);
+    }
 
     // Add page number to last page
     addPageNumber();

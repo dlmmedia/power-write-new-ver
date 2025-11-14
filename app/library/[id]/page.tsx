@@ -8,8 +8,10 @@ import { Tabs } from '@/components/ui/Tabs';
 import { BookReader } from '@/components/library/BookReader';
 import { BookEditor } from '@/components/library/BookEditor';
 import { AudioGenerator } from '@/components/library/AudioGenerator';
+import { BibliographyManager } from '@/components/library/BibliographyManager';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
+import { Logo } from '@/components/ui/Logo';
 
 interface Chapter {
   id: number;
@@ -52,6 +54,10 @@ export default function BookDetailPage() {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [showBibliography, setShowBibliography] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   useEffect(() => {
     if (bookId) {
@@ -184,6 +190,114 @@ export default function BookDetailPage() {
     }
   };
 
+  const handleDeleteBook = async () => {
+    if (!book) return;
+
+    const confirmed = confirm(
+      `⚠️ Delete "${book.title}"?\n\n` +
+      'This action cannot be undone. All chapters, audio, and associated data will be permanently deleted.\n\n' +
+      'Are you sure you want to continue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert('✓ Book deleted successfully');
+        router.push('/library');
+      } else {
+        alert('Failed to delete book: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete book. Please try again.');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleArchiveBook = async () => {
+    if (!book) return;
+
+    const isArchived = book.status === 'archived';
+    const action = isArchived ? 'Unarchive' : 'Archive';
+    const newStatus = isArchived ? 'completed' : 'archived';
+
+    const confirmed = confirm(
+      `${action} "${book.title}"?\n\n` +
+      (isArchived 
+        ? 'This will restore the book to your active library.'
+        : 'This will move the book to your archived books. You can unarchive it later.') +
+      '\n\nContinue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsArchiving(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`✓ Book ${action.toLowerCase()}d successfully`);
+        // Refresh book data
+        await fetchBookDetail();
+      } else {
+        alert(`Failed to ${action.toLowerCase()} book: ` + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Archive error:', error);
+      alert(`Failed to ${action.toLowerCase()} book. Please try again.`);
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleDuplicateBook = async () => {
+    if (!book) return;
+
+    const confirmed = confirm(
+      `Duplicate "${book.title}"?\n\n` +
+      'This will create a copy of the book with all its chapters and content.\n\n' +
+      'Continue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsDuplicating(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: getDemoUserId() }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.book) {
+        alert('✓ Book duplicated successfully!');
+        // Navigate to the new book
+        router.push(`/library/${data.book.id}`);
+      } else {
+        alert('Failed to duplicate book: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Duplicate error:', error);
+      alert('Failed to duplicate book. Please try again.');
+    } finally {
+      setIsDuplicating(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white flex items-center justify-center">
@@ -253,9 +367,7 @@ export default function BookDetailPage() {
               >
                 ← Library
               </button>
-              <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
-                PW
-              </div>
+              <Logo size="md" />
               <h1 className="text-2xl font-bold">{book.title}</h1>
             </div>
 
@@ -263,6 +375,9 @@ export default function BookDetailPage() {
               <ThemeToggleCompact />
               {book.chapters && book.chapters.length > 0 && (
                 <>
+                  <Button variant="outline" onClick={() => setShowBibliography(true)}>
+                    📚 Bibliography
+                  </Button>
                   <Button variant="outline" onClick={() => setIsEditing(true)}>
                     ✏️ Edit
                   </Button>
@@ -650,16 +765,61 @@ export default function BookDetailPage() {
               
               <div className="space-y-6">
                 <div>
-                  <h4 className="font-medium mb-4">Danger Zone</h4>
+                  <h4 className="font-medium mb-4 text-gray-700 dark:text-gray-300">Danger Zone</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    These actions will affect your book. Please proceed with caution.
+                  </p>
                   <div className="space-y-3">
-                    <Button variant="outline" className="w-full justify-start">
-                      Duplicate Book
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={handleDuplicateBook}
+                      disabled={isDuplicating}
+                    >
+                      {isDuplicating ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          Duplicating...
+                        </>
+                      ) : (
+                        <>
+                          📋 Duplicate Book
+                        </>
+                      )}
                     </Button>
-                    <Button variant="outline" className="w-full justify-start">
-                      Archive Book
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start"
+                      onClick={handleArchiveBook}
+                      disabled={isArchiving}
+                    >
+                      {isArchiving ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          {book?.status === 'archived' ? 'Unarchiving...' : 'Archiving...'}
+                        </>
+                      ) : (
+                        <>
+                          {book?.status === 'archived' ? '📂 Unarchive Book' : '📦 Archive Book'}
+                        </>
+                      )}
                     </Button>
-                    <Button variant="outline" className="w-full justify-start text-red-400 border-red-900 hover:bg-red-900/20">
-                      Delete Book
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start text-red-600 dark:text-red-400 border-red-300 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={handleDeleteBook}
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <span className="animate-spin mr-2">⏳</span>
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          🗑️ Delete Book
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -668,6 +828,18 @@ export default function BookDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Bibliography Manager Modal */}
+      {showBibliography && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-auto">
+            <BibliographyManager
+              bookId={book.id}
+              onClose={() => setShowBibliography(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

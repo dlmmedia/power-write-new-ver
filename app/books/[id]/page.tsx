@@ -7,6 +7,7 @@ import { BookResult } from '@/lib/services/google-books';
 import { useBookStore } from '@/lib/store/book-store';
 import { convertToSelectedBook } from '@/lib/utils/book-helpers';
 import { Button } from '@/components/ui/Button';
+import { Logo } from '@/components/ui/Logo';
 
 export default function BookDetailPage() {
   const params = useParams();
@@ -85,9 +86,7 @@ export default function BookDetailPage() {
       <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
-            <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
-              PW
-            </div>
+            <Logo size="md" />
             <nav className="hidden md:flex space-x-6">
               <Link href="/" className="text-gray-300 hover:text-white">Browse Books</Link>
               <Link href="/studio" className="text-gray-300 hover:text-white">Studio</Link>

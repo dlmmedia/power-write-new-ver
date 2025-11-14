@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
+import { Logo } from '@/components/ui/Logo';
 
 interface BookListItem {
   id: number;
@@ -30,7 +31,6 @@ export default function LibraryPage() {
   const [filterGenre, setFilterGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
-  const [isRegeneratingAll, setIsRegeneratingAll] = useState(false);
 
   useEffect(() => {
     fetchBooks();
@@ -83,33 +83,6 @@ export default function LibraryPage() {
     }
   };
 
-  const handleRegenerateAllCovers = async () => {
-    const booksWithoutCovers = books.filter(book => !book.coverUrl || book.coverUrl.includes('oaidalleapiprodscus'));
-    
-    if (booksWithoutCovers.length === 0) {
-      alert('All books already have valid covers!');
-      return;
-    }
-
-    const confirmed = confirm(`Regenerate covers for ${booksWithoutCovers.length} book(s)? This may take a few minutes.`);
-    if (!confirmed) return;
-
-    setIsRegeneratingAll(true);
-    let successCount = 0;
-    let failCount = 0;
-
-    for (const book of booksWithoutCovers) {
-      const success = await handleGenerateCover(book.id);
-      if (success) successCount++;
-      else failCount++;
-      
-      // Small delay between requests to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    setIsRegeneratingAll(false);
-    alert(`Cover regeneration complete!\n✓ Success: ${successCount}\n✗ Failed: ${failCount}`);
-  };
 
   const filteredAndSortedBooks = books
     .filter((book) => {
@@ -131,7 +104,8 @@ export default function LibraryPage() {
       {/* Header */}
       <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
+          {/* Desktop Header */}
+          <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/')}
@@ -139,67 +113,82 @@ export default function LibraryPage() {
               >
                 ← Home
               </button>
-              <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
-                PW
-              </div>
+              <Logo size="md" />
               <h1 className="text-2xl font-bold">My Library</h1>
             </div>
 
             <div className="flex items-center gap-3">
               <ThemeToggleCompact />
-              <Button 
-                variant="secondary" 
-                onClick={handleRegenerateAllCovers}
-                disabled={isRegeneratingAll}
-              >
-                {isRegeneratingAll ? '🔄 Regenerating...' : '🎨 Fix Covers'}
-              </Button>
               <Button variant="primary" onClick={() => router.push('/studio')}>
                 + New Book
               </Button>
             </div>
           </div>
+
+          {/* Mobile Header */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => router.push('/')}
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                >
+                  ← Home
+                </button>
+                <Logo size="sm" />
+              </div>
+              <div className="flex items-center gap-2">
+                <ThemeToggleCompact />
+                <Button variant="primary" size="sm" onClick={() => router.push('/studio')}>
+                  + New
+                </Button>
+              </div>
+            </div>
+            <h1 className="text-lg font-bold mt-2">My Library</h1>
+          </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-4 md:py-8">
         {/* Filters & Search */}
-        <div className="flex items-center gap-4 mb-8">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 mb-6 md:mb-8">
           <div className="flex-1">
             <Input
               type="search"
-              placeholder="Search books by title or author..."
+              placeholder="Search books..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          <select
-            value={filterGenre}
-            onChange={(e) => setFilterGenre(e.target.value)}
-            className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-          >
-            {genres.map((genre) => (
-              <option key={genre} value={genre}>
-                {genre === 'all' ? 'All Genres' : genre}
-              </option>
-            ))}
-          </select>
+          <div className="flex gap-2">
+            <select
+              value={filterGenre}
+              onChange={(e) => setFilterGenre(e.target.value)}
+              className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              {genres.map((genre) => (
+                <option key={genre} value={genre}>
+                  {genre === 'all' ? 'All Genres' : genre}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value as any)}
-            className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="title">Sort by Title</option>
-            <option value="words">Sort by Word Count</option>
-          </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as any)}
+              className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="date">Date</option>
+              <option value="title">Title</option>
+              <option value="words">Words</option>
+            </select>
+          </div>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
           <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
             <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{books.length}</div>
             <div className="text-sm text-gray-600 dark:text-gray-400">Total Books</div>
@@ -226,9 +215,9 @@ export default function LibraryPage() {
 
         {/* Books Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-100 dark:bg-gray-900 rounded-lg p-6 border border-gray-300 dark:border-gray-800">
+              <div key={i} className="animate-pulse bg-gray-100 dark:bg-gray-900 rounded-lg p-4 md:p-6 border border-gray-300 dark:border-gray-800">
                 <div className="bg-gray-300 dark:bg-gray-800 h-6 w-3/4 rounded mb-2" />
                 <div className="bg-gray-300 dark:bg-gray-800 h-4 w-1/2 rounded mb-4" />
                 <div className="bg-gray-300 dark:bg-gray-800 h-4 w-full rounded" />
@@ -237,15 +226,15 @@ export default function LibraryPage() {
           </div>
         ) : filteredAndSortedBooks.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-600 dark:text-gray-400 text-lg mb-4">
+            <p className="text-gray-600 dark:text-gray-400 text-base md:text-lg mb-4">
               {searchQuery || filterGenre !== 'all' ? 'No books match your filters' : 'No books yet'}
             </p>
-            <Button variant="primary" onClick={() => router.push('/studio')}>
+            <Button variant="primary" size="md" onClick={() => router.push('/studio')}>
               Create Your First Book
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {filteredAndSortedBooks.map((book) => (
               <div
                 key={book.id}

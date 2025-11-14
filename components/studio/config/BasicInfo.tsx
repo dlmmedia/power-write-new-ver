@@ -58,7 +58,7 @@ export const BasicInfo: React.FC = () => {
                 },
               })
             }
-            className="w-full bg-white dark:bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors"
+            className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors"
           >
             {GENRE_OPTIONS.map((genre) => (
               <option key={genre} value={genre.toLowerCase()}>

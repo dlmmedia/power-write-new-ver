@@ -7,6 +7,7 @@ import { Testimonials } from '@/components/home/Testimonials';
 import { PricingSection } from '@/components/home/PricingSection';
 import { FAQSection } from '@/components/home/FAQSection';
 import { Button } from '@/components/ui/Button';
+import { Logo } from '@/components/ui/Logo';
 
 export default function LandingPage() {
   return (
@@ -15,9 +16,7 @@ export default function LandingPage() {
       <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
-            <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
-              PW
-            </div>
+            <Logo size="md" />
             <nav className="hidden md:flex space-x-6">
               <a href="#features" className="text-gray-300 hover:text-white">Features</a>
               <a href="#how-it-works" className="text-gray-300 hover:text-white">How It Works</a>

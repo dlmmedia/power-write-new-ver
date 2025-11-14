@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline - PowerWrite</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: #000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    
+    .container {
+      text-align: center;
+      max-width: 500px;
+    }
+    
+    .logo {
+      background: #fbbf24;
+      color: #000;
+      font-weight: bold;
+      font-size: 48px;
+      padding: 20px 30px;
+      display: inline-block;
+      margin-bottom: 30px;
+      border-radius: 8px;
+    }
+    
+    h1 {
+      font-size: 32px;
+      margin-bottom: 16px;
+      color: #fbbf24;
+    }
+    
+    p {
+      font-size: 18px;
+      color: #d1d5db;
+      margin-bottom: 12px;
+      line-height: 1.6;
+    }
+    
+    .icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+    }
+    
+    .button {
+      display: inline-block;
+      background: #fbbf24;
+      color: #000;
+      padding: 12px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 24px;
+      transition: background 0.2s;
+    }
+    
+    .button:hover {
+      background: #f59e0b;
+    }
+    
+    .features {
+      margin-top: 40px;
+      text-align: left;
+      background: #111827;
+      padding: 24px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+    }
+    
+    .features h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      color: #fbbf24;
+    }
+    
+    .features ul {
+      list-style: none;
+    }
+    
+    .features li {
+      padding: 8px 0;
+      color: #d1d5db;
+      font-size: 14px;
+    }
+    
+    .features li:before {
+      content: "✓ ";
+      color: #fbbf24;
+      font-weight: bold;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">PW</div>
+    <div class="icon">📡</div>
+    <h1>You're Offline</h1>
+    <p>It looks like you've lost your internet connection.</p>
+    <p>Don't worry! You can still read your recently viewed books.</p>
+    
+    <a href="/" class="button" onclick="window.location.reload(); return false;">Try Again</a>
+    
+    <div class="features">
+      <h2>What you can do offline:</h2>
+      <ul>
+        <li>Read your last 10 viewed books</li>
+        <li>Browse your cached library</li>
+        <li>View book details and chapters</li>
+        <li>Access the app interface</li>
+      </ul>
+    </div>
+    
+    <div class="features" style="margin-top: 20px;">
+      <h2>What requires internet:</h2>
+      <ul style="opacity: 0.7;">
+        <li>Generating new books</li>
+        <li>Creating outlines</li>
+        <li>Searching for reference books</li>
+        <li>Generating covers</li>
+      </ul>
+    </div>
+  </div>
+  
+  <script>
+    // Auto-retry when connection is restored
+    window.addEventListener('online', () => {
+      window.location.reload();
+    });
+  </script>
+</body>
+</html>
+

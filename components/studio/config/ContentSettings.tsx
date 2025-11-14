@@ -31,7 +31,7 @@ export const ContentSettings: React.FC = () => {
             }
             placeholder="Provide a detailed description of your book's story, themes, and key elements..."
             rows={6}
-            className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
           />
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
             500-1000 words recommended. This will guide the AI in generating your book.

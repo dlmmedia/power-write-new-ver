@@ -130,6 +130,65 @@ export const cachedBooks = pgTable("cached_books", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Bibliography references table
+export const bibliographyReferences = pgTable("bibliography_references", {
+  id: varchar("id").primaryKey(), // UUID format: ref_timestamp_random
+  bookId: integer("book_id").notNull().references(() => generatedBooks.id, { onDelete: "cascade" }),
+  type: varchar("type").notNull(), // book, journal, website, etc.
+  title: text("title").notNull(),
+  authors: jsonb("authors").notNull(), // Author[] array
+  year: integer("year"),
+  publisher: text("publisher"),
+  url: text("url"),
+  doi: text("doi"),
+  accessDate: varchar("access_date"),
+  // Type-specific fields stored as JSONB for flexibility
+  typeSpecificData: jsonb("type_specific_data"), // Contains fields specific to each reference type
+  notes: text("notes"),
+  tags: jsonb("tags"), // string[]
+  citationKey: varchar("citation_key"), // For BibTeX-style citations
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// In-text citations table
+export const citations = pgTable("citations", {
+  id: varchar("id").primaryKey(), // UUID format: cit_timestamp_random
+  referenceId: varchar("reference_id").notNull().references(() => bibliographyReferences.id, { onDelete: "cascade" }),
+  bookId: integer("book_id").notNull().references(() => generatedBooks.id, { onDelete: "cascade" }),
+  chapterId: integer("chapter_id").references(() => bookChapters.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(), // Character position in text
+  pageNumber: varchar("page_number"), // Specific page being cited
+  paragraph: text("paragraph"), // Specific paragraph
+  quotation: text("quotation"), // Direct quote if applicable
+  prefix: varchar("prefix"), // e.g., "see", "cf."
+  suffix: text("suffix"), // Additional context
+  suppressAuthor: boolean("suppress_author").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Bibliography configuration table
+export const bibliographyConfigs = pgTable("bibliography_configs", {
+  id: serial("id").primaryKey(),
+  bookId: integer("book_id").notNull().unique().references(() => generatedBooks.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").default(false),
+  citationStyle: varchar("citation_style").default("APA"), // APA, MLA, Chicago, etc.
+  location: jsonb("location").default(['bibliography']), // footnote, endnote, in-text, bibliography
+  sortBy: varchar("sort_by").default("author"), // author, date, title, type, appearance
+  sortDirection: varchar("sort_direction").default("asc"), // asc, desc
+  includeAnnotations: boolean("include_annotations").default(false),
+  includeAbstracts: boolean("include_abstracts").default(false),
+  hangingIndent: boolean("hanging_indent").default(true),
+  lineSpacing: varchar("line_spacing").default("single"), // single, 1.5, double
+  groupByType: boolean("group_by_type").default(false),
+  numberingStyle: varchar("numbering_style").default("none"), // none, numeric, alphabetic
+  showDOI: boolean("show_doi").default(true),
+  showURL: boolean("show_url").default(true),
+  showAccessDate: boolean("show_access_date").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   generatedBooks: many(generatedBooks),
@@ -143,13 +202,20 @@ export const generatedBooksRelations = relations(generatedBooks, ({ one, many })
     references: [users.id],
   }),
   chapters: many(bookChapters),
+  bibliographyReferences: many(bibliographyReferences),
+  citations: many(citations),
+  bibliographyConfig: one(bibliographyConfigs, {
+    fields: [generatedBooks.id],
+    references: [bibliographyConfigs.bookId],
+  }),
 }));
 
-export const bookChaptersRelations = relations(bookChapters, ({ one }) => ({
+export const bookChaptersRelations = relations(bookChapters, ({ one, many }) => ({
   book: one(generatedBooks, {
     fields: [bookChapters.bookId],
     references: [generatedBooks.id],
   }),
+  citations: many(citations),
 }));
 
 export const bookSearchesRelations = relations(bookSearches, ({ one }) => ({
@@ -163,6 +229,36 @@ export const referenceBooksRelations = relations(referenceBooks, ({ one }) => ({
   user: one(users, {
     fields: [referenceBooks.userId],
     references: [users.id],
+  }),
+}));
+
+export const bibliographyReferencesRelations = relations(bibliographyReferences, ({ one, many }) => ({
+  book: one(generatedBooks, {
+    fields: [bibliographyReferences.bookId],
+    references: [generatedBooks.id],
+  }),
+  citations: many(citations),
+}));
+
+export const citationsRelations = relations(citations, ({ one }) => ({
+  reference: one(bibliographyReferences, {
+    fields: [citations.referenceId],
+    references: [bibliographyReferences.id],
+  }),
+  book: one(generatedBooks, {
+    fields: [citations.bookId],
+    references: [generatedBooks.id],
+  }),
+  chapter: one(bookChapters, {
+    fields: [citations.chapterId],
+    references: [bookChapters.id],
+  }),
+}));
+
+export const bibliographyConfigsRelations = relations(bibliographyConfigs, ({ one }) => ({
+  book: one(generatedBooks, {
+    fields: [bibliographyConfigs.bookId],
+    references: [generatedBooks.id],
   }),
 }));
 
@@ -208,3 +304,24 @@ export const insertCachedBookSchema = createInsertSchema(cachedBooks).omit({
 });
 export type InsertCachedBook = z.infer<typeof insertCachedBookSchema>;
 export type CachedBook = typeof cachedBooks.$inferSelect;
+
+export const insertBibliographyReferenceSchema = createInsertSchema(bibliographyReferences).omit({
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBibliographyReference = z.infer<typeof insertBibliographyReferenceSchema>;
+export type BibliographyReference = typeof bibliographyReferences.$inferSelect;
+
+export const insertCitationSchema = createInsertSchema(citations).omit({
+  createdAt: true,
+});
+export type InsertCitation = z.infer<typeof insertCitationSchema>;
+export type Citation = typeof citations.$inferSelect;
+
+export const insertBibliographyConfigSchema = createInsertSchema(bibliographyConfigs).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertBibliographyConfig = z.infer<typeof insertBibliographyConfigSchema>;
+export type BibliographyConfigDB = typeof bibliographyConfigs.$inferSelect;

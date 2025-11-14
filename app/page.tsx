@@ -9,6 +9,7 @@ import { SelectedBooksPanel } from '@/components/books/SelectedBooksPanel';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
+import { Logo } from '@/components/ui/Logo';
 
 export default function Home() {
   const [books, setBooks] = useState<BookResult[]>([]);
@@ -137,32 +138,53 @@ export default function Home() {
   };
 
   return (
-    <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white pb-32 transition-colors">
+    <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white pb-32 md:pb-8 transition-colors">
       {/* Header */}
       <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-8">
-            <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl">
-              PW
+        <div className="container mx-auto px-4 py-4">
+          {/* Desktop Header */}
+          <div className="hidden md:flex items-center justify-between">
+            <div className="flex items-center space-x-8">
+              <Logo size="md" />
+              <nav className="flex space-x-6">
+                <a href="/" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Browse Books</a>
+                <a href="/studio" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Studio</a>
+                <a href="/library" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Library</a>
+                <a href="/landing" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">About</a>
+              </nav>
             </div>
-            <nav className="hidden md:flex space-x-6">
-              <a href="/" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Browse Books</a>
-              <a href="/studio" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Studio</a>
-              <a href="/library" className="text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">Library</a>
-              <a href="/landing" className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm">About</a>
-            </nav>
+            <div className="flex items-center space-x-4">
+              <ThemeToggleCompact />
+              <form onSubmit={handleSearch} className="flex items-center gap-2">
+                <Input
+                  type="search"
+                  placeholder="Search books..."
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  className="w-64"
+                />
+                <Button type="submit" size="md" variant="primary">
+                  Search
+                </Button>
+              </form>
+            </div>
           </div>
-          <div className="flex items-center space-x-4">
-            <ThemeToggleCompact />
+
+          {/* Mobile Header */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-3">
+              <Logo size="sm" />
+              <ThemeToggleCompact />
+            </div>
             <form onSubmit={handleSearch} className="flex items-center gap-2">
               <Input
                 type="search"
                 placeholder="Search books..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-64"
+                className="flex-1"
               />
-              <Button type="submit" size="md" variant="primary">
+              <Button type="submit" size="sm" variant="primary">
                 Search
               </Button>
             </form>
@@ -171,17 +193,18 @@ export default function Home() {
       </header>
 
       {/* Category Tabs */}
-      <section className="border-b border-gray-200 dark:border-gray-800">
+      <section className="border-b border-gray-200 dark:border-gray-800 sticky top-[73px] md:top-[73px] z-30 bg-white dark:bg-black">
         <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center py-4">
+          {/* Desktop Categories */}
+          <div className="hidden md:flex justify-between items-center py-4">
             <div className="flex items-center gap-4">
               {/* Quick access popular categories */}
-              <div className="hidden md:flex space-x-6">
+              <div className="flex space-x-6">
                 {categories.filter(c => c.popular).map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => setActiveCategory(cat.id)}
-                    className={`text-lg font-semibold ${
+                    className={`text-lg font-semibold whitespace-nowrap ${
                       activeCategory === cat.id
                         ? 'text-yellow-600 dark:text-yellow-400 border-b-2 border-yellow-600 dark:border-yellow-400 pb-1'
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -206,12 +229,12 @@ export default function Home() {
                   <>
                     {/* Backdrop to close dropdown when clicking outside */}
                     <div 
-                      className="fixed inset-0 z-10"
+                      className="fixed inset-0 z-40"
                       onClick={() => setShowCategoryDropdown(false)}
                     />
                     
                     {/* Dropdown menu */}
-                    <div className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl w-80 max-h-96 overflow-y-auto z-20">
+                    <div className="absolute left-0 top-full mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl w-80 max-h-96 overflow-y-auto z-50">
                       <div className="p-2">
                         <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                           Popular Categories
@@ -267,14 +290,94 @@ export default function Home() {
               </div>
             )}
           </div>
+
+          {/* Mobile Categories */}
+          <div className="md:hidden py-3">
+            <div className="flex items-center justify-between mb-3">
+              <div className="relative flex-1">
+                <button
+                  onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                  className="w-full flex items-center justify-between gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-900 rounded-lg text-gray-900 dark:text-white font-medium"
+                >
+                  <span className="truncate">
+                    {categories.find(c => c.id === activeCategory)?.label || 'Select Category'}
+                  </span>
+                  <span className="text-xs">{showCategoryDropdown ? '▲' : '▼'}</span>
+                </button>
+
+                {showCategoryDropdown && (
+                  <>
+                    {/* Backdrop */}
+                    <div 
+                      className="fixed inset-0 z-40"
+                      onClick={() => setShowCategoryDropdown(false)}
+                    />
+                    
+                    {/* Dropdown menu */}
+                    <div className="absolute left-0 right-0 top-full mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl max-h-96 overflow-y-auto z-50">
+                      <div className="p-2">
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Popular Categories
+                        </div>
+                        {categories.filter(c => c.popular).map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              setActiveCategory(cat.id);
+                              setShowCategoryDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                              activeCategory === cat.id
+                                ? 'bg-yellow-400/10 border-l-2 border-yellow-400 text-yellow-600 dark:text-yellow-400 font-medium'
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                        
+                        <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
+                        
+                        <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          More Categories
+                        </div>
+                        {categories.filter(c => !c.popular).map((cat) => (
+                          <button
+                            key={cat.id}
+                            onClick={() => {
+                              setActiveCategory(cat.id);
+                              setShowCategoryDropdown(false);
+                            }}
+                            className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${
+                              activeCategory === cat.id
+                                ? 'bg-yellow-400/10 border-l-2 border-yellow-400 text-yellow-600 dark:text-yellow-400 font-medium'
+                                : 'text-gray-900 dark:text-white'
+                            }`}
+                          >
+                            {cat.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {selectedBooks.length > 0 && (
+                <div className="ml-3 text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                  {selectedBooks.length} selected
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Books Grid */}
-      <section className="py-12">
+      <section className="py-6 md:py-12">
         <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-3xl font-bold">
+          <div className="flex justify-between items-center mb-6 md:mb-8">
+            <h2 className="text-xl md:text-3xl font-bold">
               {activeCategory === 'search' 
                 ? 'Search Results' 
                 : categories.find(c => c.id === activeCategory)?.label || activeCategory.replace('-', ' ')}
@@ -290,6 +393,7 @@ export default function Home() {
                     }
                   });
                 }}
+                className="hidden md:flex"
               >
                 Select All Visible
               </Button>
@@ -297,7 +401,7 @@ export default function Home() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
               {[...Array(12)].map((_, i) => (
                 <div key={i} className="animate-pulse">
                   <div className="bg-gray-200 dark:bg-gray-800 aspect-[2/3] rounded-lg mb-2" />
@@ -311,7 +415,7 @@ export default function Home() {
               <p>No books found</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 md:gap-6">
               {books.map((book) => (
                 <BookCard
                   key={book.id}

@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PWA Icon Generator</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: #f0f0f0; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+    button { background: #fbbf24; color: black; border: none; padding: 12px 24px; font-size: 16px; font-weight: bold; cursor: pointer; border-radius: 4px; margin: 10px 5px; }
+    button:hover { background: #f59e0b; }
+    .preview { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 20px; }
+    .icon-preview { text-align: center; }
+    canvas { border: 1px solid #ddd; margin: 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>PowerWrite PWA Icon Generator</h1>
+    <p>Click the button below to generate and download all required PWA icons.</p>
+    <button onclick="generateAllIcons()">Generate All Icons</button>
+    <div class="preview" id="preview"></div>
+  </div>
+
+  <script>
+    function createIcon(size, isMaskable = false) {
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      
+      // Background
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, size, size);
+      
+      // Calculate padding for maskable icons
+      const padding = isMaskable ? size * 0.1 : 0;
+      const contentSize = size - (padding * 2);
+      const x = padding;
+      const y = padding;
+      const radius = contentSize * 0.1;
+      
+      // Yellow rounded rectangle
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + contentSize - radius, y);
+      ctx.quadraticCurveTo(x + contentSize, y, x + contentSize, y + radius);
+      ctx.lineTo(x + contentSize, y + contentSize - radius);
+      ctx.quadraticCurveTo(x + contentSize, y + contentSize, x + contentSize - radius, y + contentSize);
+      ctx.lineTo(x + radius, y + contentSize);
+      ctx.quadraticCurveTo(x, y + contentSize, x, y + contentSize - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Text "PW"
+      const fontSize = contentSize * 0.4;
+      ctx.fillStyle = '#000000';
+      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('PW', size / 2, size / 2);
+      
+      return canvas;
+    }
+    
+    function downloadCanvas(canvas, filename) {
+      canvas.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+    
+    function generateAllIcons() {
+      const preview = document.getElementById('preview');
+      preview.innerHTML = '';
+      
+      const sizes = [72, 96, 128, 144, 152, 192, 384, 512];
+      const maskableSizes = [192, 512];
+      
+      // Generate regular icons
+      sizes.forEach(size => {
+        const canvas = createIcon(size, false);
+        const div = document.createElement('div');
+        div.className = 'icon-preview';
+        div.innerHTML = `<div>${size}x${size}</div>`;
+        div.appendChild(canvas);
+        preview.appendChild(div);
+        
+        // Auto-download
+        setTimeout(() => {
+          downloadCanvas(canvas, `icon-${size}x${size}.png`);
+        }, 100 * sizes.indexOf(size));
+      });
+      
+      // Generate maskable icons
+      maskableSizes.forEach(size => {
+        const canvas = createIcon(size, true);
+        const div = document.createElement('div');
+        div.className = 'icon-preview';
+        div.innerHTML = `<div>${size}x${size} (maskable)</div>`;
+        div.appendChild(canvas);
+        preview.appendChild(div);
+        
+        // Auto-download
+        setTimeout(() => {
+          downloadCanvas(canvas, `icon-${size}x${size}-maskable.png`);
+        }, 100 * (sizes.length + maskableSizes.indexOf(size)));
+      });
+      
+      // Generate apple-touch-icon
+      const appleIcon = createIcon(180, false);
+      const appleDiv = document.createElement('div');
+      appleDiv.className = 'icon-preview';
+      appleDiv.innerHTML = `<div>Apple Touch Icon</div>`;
+      appleDiv.appendChild(appleIcon);
+      preview.appendChild(appleDiv);
+      setTimeout(() => {
+        downloadCanvas(appleIcon, 'apple-touch-icon.png');
+      }, 100 * (sizes.length + maskableSizes.length));
+      
+      // Generate favicon
+      const favicon = createIcon(32, false);
+      const faviconDiv = document.createElement('div');
+      faviconDiv.className = 'icon-preview';
+      faviconDiv.innerHTML = `<div>Favicon</div>`;
+      faviconDiv.appendChild(favicon);
+      preview.appendChild(faviconDiv);
+      setTimeout(() => {
+        downloadCanvas(favicon, 'favicon-32x32.png');
+      }, 100 * (sizes.length + maskableSizes.length + 1));
+      
+      alert('Icons will download automatically. Save them to the public/icons/ directory.');
+    }
+  </script>
+</body>
+</html>
+

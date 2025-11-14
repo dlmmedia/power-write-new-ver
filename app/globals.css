@@ -64,3 +64,42 @@ body * {
   transition-duration: 0.2s;
   transition-timing-function: ease-in-out;
 }
+
+/* PWA Animations */
+@keyframes slide-down {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-down {
+  animation: slide-down 0.3s ease-out;
+}
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  /* Add padding to bottom for bottom navigation */
+  body {
+    padding-bottom: 64px;
+  }
+  
+  /* Ensure touch targets are at least 44x44px */
+  button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Responsive utilities */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
