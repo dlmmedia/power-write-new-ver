@@ -77,6 +77,13 @@ class OfflineCacheService {
         lastAccessed: Date.now(),
       };
 
+      // Remove old cached version if it exists to prevent stale data
+      const existing = await this.db.get('books', bookData.id);
+      if (existing) {
+        await this.db.delete('books', bookData.id);
+        console.log(`Removed old cached version of book ${bookData.id}`);
+      }
+
       await this.db.put('books', bookCache);
       console.log(`Book ${bookData.id} cached for offline access`);
 
@@ -280,4 +287,6 @@ export const offlineCache = new OfflineCacheService();
 if (typeof window !== 'undefined') {
   offlineCache.init();
 }
+
+
 

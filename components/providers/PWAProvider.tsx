@@ -1,28 +1,33 @@
 'use client';
 
 import { useEffect } from 'react';
-import { registerServiceWorker } from '@/lib/utils/pwa-utils';
+import { registerServiceWorker, isInstalled } from '@/lib/utils/pwa-utils';
 
 export function PWAProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
-    // Register service worker
+    // Only register service worker if app is installed as PWA
+    // This prevents the web version from being affected by PWA caching
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      registerServiceWorker();
-    }
-
-    // Log PWA status
-    if (typeof window !== 'undefined') {
-      const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
-      const isIOSStandalone = (window.navigator as any).standalone === true;
+      const isPWA = isInstalled();
       
-      if (isStandalone || isIOSStandalone) {
-        console.log('Running as PWA');
+      if (isPWA) {
+        console.log('Running as PWA - registering service worker');
+        registerServiceWorker();
       } else {
-        console.log('Running in browser');
+        console.log('Running in browser - skipping service worker registration');
+        // Unregister any existing service worker for web users
+        navigator.serviceWorker.getRegistration().then((registration) => {
+          if (registration) {
+            console.log('Unregistering service worker for web version');
+            registration.unregister();
+          }
+        });
       }
     }
   }, []);
 
   return <>{children}</>;
 }
+
+
 

@@ -70,3 +70,5 @@ console.log('\n✅ Icon generation complete!');
 console.log('Note: SVG files created. For production, convert to PNG using a tool like sharp or imagemagick.');
 console.log('Example: npx sharp -i icon.svg -o icon.png');
 
+
+

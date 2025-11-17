@@ -222,3 +222,5 @@ DROP TABLE IF EXISTS bibliography_references CASCADE;
 
 SELECT 'Bibliography system migration completed successfully!' as status;
 
+
+

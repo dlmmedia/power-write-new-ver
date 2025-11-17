@@ -267,3 +267,5 @@ A: Yes! Both in-text citations and the complete bibliography are included.
 
 **Version:** 1.0.0
 
+
+

@@ -78,3 +78,5 @@ export function BottomNav({ onMenuClick }: BottomNavProps) {
   );
 }
 
+
+

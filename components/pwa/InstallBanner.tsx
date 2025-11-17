@@ -132,13 +132,13 @@ export function InstallBanner({ onInstallClick }: InstallBannerProps) {
                 </button>
                 <button
                   onClick={handleMaybeLater}
-                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-black bg-opacity-15 hover:bg-opacity-25 active:bg-opacity-30 text-black rounded-lg font-semibold transition-colors text-xs sm:text-sm"
+                  className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-900 rounded-lg font-semibold transition-colors text-xs sm:text-sm border border-gray-300"
                 >
                   Maybe Later
                 </button>
                 <button
                   onClick={handleDontShowAgain}
-                  className="text-xs sm:text-sm text-black opacity-80 hover:opacity-100 underline font-medium px-2 py-1"
+                  className="text-xs sm:text-sm text-gray-700 hover:text-gray-900 underline font-medium px-2 py-1"
                 >
                   Don't show again
                 </button>

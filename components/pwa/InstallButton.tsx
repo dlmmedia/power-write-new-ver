@@ -82,3 +82,5 @@ export function InstallButton({ variant = 'primary', size = 'md', onInstallClick
   );
 }
 
+
+

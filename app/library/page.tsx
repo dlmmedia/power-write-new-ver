@@ -39,7 +39,14 @@ export default function LibraryPage() {
   const fetchBooks = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/books?userId=${getDemoUserId()}`);
+      // Add cache busting to ensure fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/books?userId=${getDemoUserId()}&_t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
       setBooks(data.books || []);
     } catch (error) {

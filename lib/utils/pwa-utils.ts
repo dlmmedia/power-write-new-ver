@@ -247,6 +247,26 @@ export const clearAllCaches = async (): Promise<boolean> => {
   }
 };
 
+// Clear book-related caches (useful after generating a new book)
+export const clearBookCaches = async (): Promise<boolean> => {
+  if (typeof window === 'undefined' || !('caches' in window)) {
+    return false;
+  }
+
+  try {
+    const cacheNames = await caches.keys();
+    const bookCacheNames = cacheNames.filter(name => 
+      name.includes('books') || name.includes('powerwrite-books')
+    );
+    await Promise.all(bookCacheNames.map(name => caches.delete(name)));
+    console.log('Book caches cleared');
+    return true;
+  } catch (error) {
+    console.error('Failed to clear book caches:', error);
+    return false;
+  }
+};
+
 // Get cache size (approximate)
 export const getCacheSize = async (): Promise<number> => {
   if (typeof window === 'undefined' || !('caches' in window)) {

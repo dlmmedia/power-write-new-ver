@@ -99,6 +99,20 @@ export default function StudioPage() {
       }
 
       if (data.success && data.book) {
+        // Clear any cached book data to ensure fresh data is loaded
+        if (typeof window !== 'undefined' && 'caches' in window) {
+          try {
+            const cacheNames = await caches.keys();
+            const bookCacheNames = cacheNames.filter(name => 
+              name.includes('books') || name.includes('powerwrite-books')
+            );
+            await Promise.all(bookCacheNames.map(name => caches.delete(name)));
+            console.log('Cleared book caches after generation');
+          } catch (error) {
+            console.error('Failed to clear caches:', error);
+          }
+        }
+
         alert(
           `Book generated successfully!\n\n` +
           `Title: ${data.book.title}\n` +

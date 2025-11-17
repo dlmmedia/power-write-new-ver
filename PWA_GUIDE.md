@@ -387,3 +387,5 @@ A: Yes, all data is stored locally on your device with browser-level encryption.
 **Version:** 1.0.0
 **Platform:** Web (PWA)
 
+
+

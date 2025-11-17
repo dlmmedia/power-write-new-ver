@@ -117,3 +117,5 @@ async function testAllCategories() {
 console.log('Make sure the dev server is running on http://localhost:3000\n');
 testAllCategories();
 
+
+

@@ -227,3 +227,5 @@ export function InstallModal({ isOpen, onClose }: InstallModalProps) {
   );
 }
 
+
+

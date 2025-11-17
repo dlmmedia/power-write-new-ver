@@ -1,7 +1,8 @@
 // PowerWrite Service Worker
 // Handles caching, offline functionality, and background sync
+// IMPORTANT: Only active when app is installed as PWA
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `powerwrite-${CACHE_VERSION}`;
 const BOOKS_CACHE_NAME = `powerwrite-books-${CACHE_VERSION}`;
 const MAX_BOOKS_CACHED = 10;
@@ -75,18 +76,25 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests - network first, no cache for generation endpoints
+  // API requests - network first, minimal caching
   if (url.pathname.startsWith('/api/')) {
-    // Don't cache generation endpoints
+    // Don't cache generation endpoints at all
     if (url.pathname.includes('/generate/')) {
+      return;
+    }
+
+    // Don't cache individual book details or book mutations
+    // Only cache the books list for offline viewing
+    if (url.pathname.includes('/books/') || 
+        url.pathname.includes('/api/books') && request.method !== 'GET') {
       return;
     }
 
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Cache successful book/library API responses
-          if (response.ok && (url.pathname.includes('/books') || url.pathname.includes('/library'))) {
+          // Only cache the books list endpoint for offline library view
+          if (response.ok && url.pathname === '/api/books' && request.method === 'GET') {
             const responseClone = response.clone();
             caches.open(BOOKS_CACHE_NAME).then((cache) => {
               cache.put(request, responseClone);
@@ -95,8 +103,11 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Return cached version if available
-          return caches.match(request);
+          // Return cached version only for books list if offline
+          if (url.pathname === '/api/books') {
+            return caches.match(request);
+          }
+          throw error;
         })
     );
     return;
@@ -199,4 +210,6 @@ self.addEventListener('sync', (event) => {
 });
 
 console.log('[SW] Service worker loaded');
+
+
 

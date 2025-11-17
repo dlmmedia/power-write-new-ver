@@ -68,7 +68,14 @@ export default function BookDetailPage() {
   const fetchBookDetail = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/books/${bookId}`);
+      // Add cache busting to ensure fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/books/${bookId}?_t=${timestamp}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       const data = await response.json();
       setBook(data.book);
     } catch (error) {
