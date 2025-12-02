@@ -18,8 +18,8 @@ PowerWrite now supports OpenRouter, giving you access to 20+ AI models from mult
 Add this to your `.env.local` file:
 
 ```bash
-# OpenRouter API Key
-OPENROUTER_API_KEY=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
+# OpenRouter API Key (get yours from https://openrouter.ai/keys)
+OPENROUTER_API_KEY=sk-or-v1-your-api-key-here
 ```
 
 ### 2. For Vercel Deployment
