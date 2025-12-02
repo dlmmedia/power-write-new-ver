@@ -64,7 +64,6 @@ export async function generateWithOpenRouter(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   options: {
     temperature?: number;
-    maxTokens?: number;
   } = {}
 ): Promise<string> {
   const model = getOpenRouterModel(modelId);
@@ -73,7 +72,6 @@ export async function generateWithOpenRouter(
     model,
     messages,
     temperature: options.temperature ?? 0.85,
-    maxTokens: options.maxTokens,
   });
   
   return result.text;
@@ -85,7 +83,6 @@ export async function* streamWithOpenRouter(
   messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }>,
   options: {
     temperature?: number;
-    maxTokens?: number;
   } = {}
 ) {
   const model = getOpenRouterModel(modelId);
@@ -94,7 +91,6 @@ export async function* streamWithOpenRouter(
     model,
     messages,
     temperature: options.temperature ?? 0.85,
-    maxTokens: options.maxTokens,
   });
   
   for await (const chunk of result.textStream) {
