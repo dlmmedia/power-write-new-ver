@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { aiService } from '@/lib/services/ai-service';
+import { AIService } from '@/lib/services/ai-service';
 import { ensureDemoUser } from '@/lib/db/operations';
 import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
@@ -10,17 +10,17 @@ export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for OpenAI API key first
-    if (!process.env.OPENAI_API_KEY) {
-      console.error('OPENAI_API_KEY is not configured');
+    // Check for at least one API key
+    if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+      console.error('No AI API keys configured');
       return NextResponse.json(
-        { error: 'OpenAI API key is not configured. Please set OPENAI_API_KEY in your environment variables.' },
+        { error: 'AI API key is not configured. Please set OPENAI_API_KEY or OPENROUTER_API_KEY in your environment variables.' },
         { status: 500 }
       );
     }
 
     const body = await request.json();
-    console.log('Request body received:', { userId: body.userId, hasConfig: !!body.config });
+    console.log('Request body received:', { userId: body.userId, hasConfig: !!body.config, modelId: body.modelId });
     
     interface ReferenceBook {
       title: string;
@@ -29,10 +29,11 @@ export async function POST(request: NextRequest) {
       genre?: string;
     }
     
-    const { userId, config, referenceBooks } = body as {
+    const { userId, config, referenceBooks, modelId } = body as {
       userId: string;
       config: BookConfiguration;
       referenceBooks?: ReferenceBook[];
+      modelId?: string;
     };
 
     // Validate required fields
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     await ensureDemoUser(userId);
 
     console.log('Generating outline for:', config.basicInfo.title);
+    console.log('Using model:', modelId || config.aiSettings?.model || 'default');
 
     // Detect if it's non-fiction based on genre or reference books
     const bookIsNonFiction = config.basicInfo.genre.toLowerCase().includes('non-fiction') ||
@@ -81,6 +83,12 @@ export async function POST(request: NextRequest) {
       return 'epic';
     };
 
+    // Create AI service with model selection
+    const aiService = new AIService(
+      modelId || config.aiSettings?.model, // outline model
+      (config.aiSettings as any)?.chapterModel // chapter model
+    );
+
     // Prepare generation config with full studio settings
     const outline = await aiService.generateBookOutline({
       title: sanitizeTitle(config.basicInfo.title),
@@ -93,6 +101,7 @@ export async function POST(request: NextRequest) {
       length: getLength(config.content.targetWordCount),
       isNonFiction: bookIsNonFiction,
       customCharacters: customCharacters,
+      outlineModel: modelId || config.aiSettings?.model,
       customInstructions: [
         `Writing Style: ${config.writingStyle.style}`,
         `Point of View: ${config.writingStyle.pov}`,
@@ -114,6 +123,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       outline,
+      modelUsed: modelId || config.aiSettings?.model || 'default',
     });
   } catch (error) {
     console.error('Error generating outline:', error);
@@ -129,7 +139,7 @@ export async function POST(request: NextRequest) {
         success: false,
         error: 'Failed to generate outline', 
         details: errorMessage,
-        hint: errorMessage.includes('API key') ? 'Check your OpenAI API key configuration in Vercel environment variables' : undefined
+        hint: errorMessage.includes('API key') ? 'Check your API key configuration in Vercel environment variables' : undefined
       },
       { status: 500 }
     );

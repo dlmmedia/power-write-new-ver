@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { aiService } from '@/lib/services/ai-service';
+import { AIService } from '@/lib/services/ai-service';
 import { createBook, createMultipleChapters, ensureDemoUser } from '@/lib/db/operations';
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
@@ -10,10 +10,11 @@ export const maxDuration = 300; // 5 minutes
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, outline, config } = body as {
+    const { userId, outline, config, modelId } = body as {
       userId: string;
       outline: BookOutline;
       config: BookConfiguration;
+      modelId?: string;
     };
 
     if (!userId || !outline || !config) {
@@ -26,12 +27,26 @@ export async function POST(request: NextRequest) {
     // Ensure demo user exists
     await ensureDemoUser(userId);
 
+    // Determine the model to use for chapter generation
+    const chapterModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+
     console.log(`Starting book generation: ${outline.title} (${outline.chapters.length} chapters)`);
+    console.log(`Using model for chapters: ${chapterModel}`);
+
+    // Create AI service with model selection
+    const aiService = new AIService(
+      config.aiSettings?.model, // outline model
+      chapterModel // chapter model
+    );
 
     // Generate all chapters
-    const { chapters } = await aiService.generateFullBook(outline, (current, total) => {
-      console.log(`Progress: Chapter ${current}/${total}`);
-    });
+    const { chapters } = await aiService.generateFullBook(
+      outline, 
+      (current, total) => {
+        console.log(`Progress: Chapter ${current}/${total}`);
+      },
+      chapterModel
+    );
 
     // Sanitize all chapters
     const sanitizedChapters = chapters.map((ch) => ({
@@ -49,9 +64,10 @@ export async function POST(request: NextRequest) {
       chapters: sanitizedChapters.length,
       generatedAt: new Date(),
       lastModified: new Date(),
+      modelUsed: chapterModel,
     };
 
-    // Generate cover image automatically
+    // Generate cover image automatically (still uses OpenAI DALL-E)
     let coverUrl: string | undefined;
     try {
       console.log('Generating cover image...');
@@ -104,6 +120,7 @@ export async function POST(request: NextRequest) {
         author: book.author,
         chapters: sanitizedChapters.length,
         wordCount: totalWords,
+        modelUsed: chapterModel,
       },
     });
   } catch (error) {
@@ -118,14 +135,14 @@ export async function POST(request: NextRequest) {
       
       // Provide user-friendly messages for common errors
       if (error.message.includes('quota')) {
-        errorMessage = 'OpenAI API quota exceeded';
-        errorDetails = 'Please check your OpenAI billing and usage limits.';
+        errorMessage = 'API quota exceeded';
+        errorDetails = 'Please check your API billing and usage limits.';
       } else if (error.message.includes('rate limit') || error.message.includes('429')) {
         errorMessage = 'Rate limit exceeded';
         errorDetails = 'Too many requests. Please wait a few minutes and try again.';
       } else if (error.message.includes('API key')) {
         errorMessage = 'API key error';
-        errorDetails = 'Invalid or missing OpenAI API key.';
+        errorDetails = 'Invalid or missing API key.';
       } else if (error.message.includes('timeout')) {
         errorMessage = 'Generation timeout';
         errorDetails = 'Book generation took too long. Try generating fewer chapters.';

@@ -145,8 +145,9 @@ export interface BookConfiguration {
 
   // N. AI Model Settings
   aiSettings: {
-    provider: 'openai' | 'anthropic' | 'google';
-    model: string;
+    provider: 'openai' | 'openrouter';
+    model: string; // Model for outline generation
+    chapterModel?: string; // Model for chapter generation (defaults to model if not set)
     temperature: number;
     maxTokens: number;
     customSystemPrompt?: string;
@@ -245,8 +246,9 @@ export const defaultBookConfiguration: BookConfiguration = {
     chapterIllustrations: false,
   },
   aiSettings: {
-    provider: 'openai',
-    model: 'gpt-4o',
+    provider: 'openrouter',
+    model: 'openai/gpt-4o-mini', // Fast model for outlines
+    chapterModel: 'anthropic/claude-sonnet-4', // Premium model for chapter writing
     temperature: 0.85,
     maxTokens: 4000,
     generationStrategy: 'sequential',

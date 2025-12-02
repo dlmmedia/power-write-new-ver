@@ -15,12 +15,14 @@ import { BibliographySettings } from '@/components/studio/config/BibliographySet
 import { AdvancedSettings } from '@/components/studio/config/AdvancedSettings';
 import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
+import { SmartPrompt } from '@/components/studio/SmartPrompt';
 import { getDemoUserId, canGenerateBook } from '@/lib/services/demo-account';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 
 type ConfigTab = 
+  | 'prompt'
   | 'basic' 
   | 'content' 
   | 'style' 
@@ -40,19 +42,20 @@ export default function StudioPage() {
     addUploadedReferences,
     removeUploadedReference 
   } = useStudioStore();
-  const [activeTab, setActiveTab] = useState<ConfigTab>('basic');
+  const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedReferenceId, setSelectedReferenceId] = useState<string>('');
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
 
   const tabs = [
+    { id: 'prompt' as ConfigTab, label: 'Smart Prompt', icon: '✨' },
     { id: 'basic' as ConfigTab, label: 'Basic Info', icon: '📝' },
-    { id: 'content' as ConfigTab, label: 'Content Settings', icon: '📖' },
-    { id: 'style' as ConfigTab, label: 'Style Preferences', icon: '✍️' },
-    { id: 'characters' as ConfigTab, label: 'Characters & World', icon: '🌍' },
+    { id: 'content' as ConfigTab, label: 'Content', icon: '📖' },
+    { id: 'style' as ConfigTab, label: 'Style', icon: '✍️' },
+    { id: 'characters' as ConfigTab, label: 'Characters', icon: '🌍' },
     { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: '📚' },
-    { id: 'advanced' as ConfigTab, label: 'Advanced Settings', icon: '⚙️' },
+    { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
   ];
 
   const handleGenerateBook = async () => {
@@ -67,9 +70,12 @@ export default function StudioPage() {
       return;
     }
 
+    // Get selected model
+    const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+
     const confirmed = confirm(
       `Generate full book: "${outline.title}"?\n\n` +
-      `This will generate ${outline.chapters.length} chapters and may take several minutes.\n\n` +
+      `This will generate ${outline.chapters.length} chapters using ${chapterModel} and may take several minutes.\n\n` +
       `Continue?`
     );
 
@@ -84,6 +90,7 @@ export default function StudioPage() {
           userId: getDemoUserId(),
           outline: outline,
           config: config,
+          modelId: chapterModel,
         }),
       });
 
@@ -164,6 +171,9 @@ export default function StudioPage() {
       return;
     }
 
+    // Get selected model for outline
+    const outlineModel = config.aiSettings?.model || 'gpt-4o-mini';
+
     setIsGenerating(true);
     try {
       const response = await fetch('/api/generate/outline', {
@@ -173,6 +183,7 @@ export default function StudioPage() {
           userId: getDemoUserId(),
           config: config,
           referenceBooks: selectedBooks,
+          modelId: outlineModel,
         }),
       });
 
@@ -194,6 +205,10 @@ export default function StudioPage() {
     }
   };
 
+  // Get current model info for display
+  const currentOutlineModel = config.aiSettings?.model || 'gpt-4o-mini';
+  const currentChapterModel = (config.aiSettings as any)?.chapterModel || 'anthropic/claude-sonnet-4';
+
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Header */}
@@ -210,6 +225,12 @@ export default function StudioPage() {
               </button>
               <Logo size="md" />
               <h1 className="text-2xl font-bold">Book Studio</h1>
+              {/* Model indicator */}
+              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
+                  🤖 {currentChapterModel.split('/').pop()}
+                </span>
+              </div>
             </div>
 
             <div className="flex items-center gap-3">
@@ -453,6 +474,31 @@ export default function StudioPage() {
                   </div>
                 </div>
               )}
+
+              {/* Model Info */}
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
+                <h3 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400">AI Models</h3>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Outline:</span>
+                    <span className="text-gray-900 dark:text-white font-medium truncate max-w-[120px]">
+                      {currentOutlineModel.split('/').pop()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Chapters:</span>
+                    <span className="text-gray-900 dark:text-white font-medium truncate max-w-[120px]">
+                      {currentChapterModel.split('/').pop()}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setActiveTab('advanced')}
+                  className="w-full mt-2 text-xs text-yellow-600 dark:text-yellow-400 hover:underline"
+                >
+                  Change models →
+                </button>
+              </div>
             </div>
           </div>
 
@@ -463,6 +509,7 @@ export default function StudioPage() {
                 <OutlineEditor />
               ) : (
                 <>
+                  {activeTab === 'prompt' && <SmartPrompt />}
                   {activeTab === 'basic' && <BasicInfo />}
                   {activeTab === 'content' && <ContentSettings />}
                   {activeTab === 'style' && <StylePreferences />}

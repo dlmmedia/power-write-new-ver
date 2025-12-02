@@ -1,41 +1,92 @@
 import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText } from 'ai';
+import { 
+  AIProvider, 
+  AIModel, 
+  getModelById, 
+  ALL_MODELS,
+  DEFAULT_OUTLINE_MODEL,
+  DEFAULT_CHAPTER_MODEL 
+} from '@/lib/types/models';
 
-// Validate OpenAI API key
+// API Keys
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
-if (!OPENAI_API_KEY) {
-  throw new Error('OPENAI_API_KEY is required. Please add it to your .env.local file.');
+// Validate at least one API key exists
+if (!OPENAI_API_KEY && !OPENROUTER_API_KEY) {
+  console.warn('⚠️ No AI API keys configured. Set OPENAI_API_KEY or OPENROUTER_API_KEY.');
 }
 
 // Initialize OpenAI provider
-const openai = createOpenAI({
-  apiKey: OPENAI_API_KEY,
-});
+const openai = OPENAI_API_KEY 
+  ? createOpenAI({ apiKey: OPENAI_API_KEY })
+  : null;
 
-console.log('✓ AI Service initialized with OpenAI');
-console.log('✓ API Key:', OPENAI_API_KEY.substring(0, 20) + '...');
+// Initialize OpenRouter provider (OpenAI-compatible)
+const openrouter = OPENROUTER_API_KEY
+  ? createOpenAI({
+      apiKey: OPENROUTER_API_KEY,
+      baseURL: 'https://openrouter.ai/api/v1',
+      headers: {
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'PowerWrite Book Studio',
+      },
+    })
+  : null;
 
-// Model configurations - Using OpenAI for all operations
-const MODELS = {
-  // Text generation models
-  OUTLINE: 'gpt-4o-mini',           // Fast structured output for outlines
-  CHAPTER: 'gpt-4o',                // High quality for creative writing
+// Log available providers
+if (OPENAI_API_KEY) {
+  console.log('✓ AI Service: OpenAI provider initialized');
+}
+if (OPENROUTER_API_KEY) {
+  console.log('✓ AI Service: OpenRouter provider initialized');
+  console.log('  Available models:', ALL_MODELS.filter(m => m.provider === 'openrouter').length);
+}
+
+// Get the language model for a given model ID
+function getModel(modelId: string) {
+  const modelInfo = getModelById(modelId);
   
-  // Image generation
-  COVER: 'dall-e-3',                // DALL-E 3 for book covers
-  
-  // Audio generation  
-  AUDIO: 'tts-1',
-  AUDIO_HD: 'tts-1-hd',
-} as const;
-
-// Model selection helpers
-function getTextModel(type: 'outline' | 'chapter' = 'chapter') {
-  if (type === 'outline') {
-    return openai(MODELS.OUTLINE);
+  if (!modelInfo) {
+    console.warn(`Model ${modelId} not found, falling back to default`);
+    // Fall back to available provider
+    if (openrouter) {
+      return openrouter(DEFAULT_CHAPTER_MODEL);
+    }
+    if (openai) {
+      return openai('gpt-4o');
+    }
+    throw new Error('No AI provider available');
   }
-  return openai(MODELS.CHAPTER);  // Use GPT-4o for chapters
+  
+  if (modelInfo.provider === 'openrouter') {
+    if (!openrouter) {
+      throw new Error('OpenRouter is not configured. Please set OPENROUTER_API_KEY.');
+    }
+    return openrouter(modelId);
+  }
+  
+  if (modelInfo.provider === 'openai') {
+    if (!openai) {
+      throw new Error('OpenAI is not configured. Please set OPENAI_API_KEY.');
+    }
+    return openai(modelId);
+  }
+  
+  throw new Error(`Unknown provider for model ${modelId}`);
+}
+
+// Check provider availability
+export function isProviderAvailable(provider: AIProvider): boolean {
+  if (provider === 'openai') return !!openai;
+  if (provider === 'openrouter') return !!openrouter;
+  return false;
+}
+
+// Get available models
+export function getAvailableModels(): AIModel[] {
+  return ALL_MODELS.filter(m => isProviderAvailable(m.provider));
 }
 
 export interface BookOutline {
@@ -80,12 +131,34 @@ export interface BookGenerationConfig {
     author: string;
     description: string;
   };
+  // Model selection
+  outlineModel?: string;
+  chapterModel?: string;
 }
 
 export class AIService {
+  private outlineModel: string;
+  private chapterModel: string;
+
+  constructor(
+    outlineModel: string = DEFAULT_OUTLINE_MODEL,
+    chapterModel: string = DEFAULT_CHAPTER_MODEL
+  ) {
+    // Use defaults or fall back to OpenAI if OpenRouter not available
+    this.outlineModel = openrouter ? outlineModel : 'gpt-4o-mini';
+    this.chapterModel = openrouter ? chapterModel : 'gpt-4o';
+  }
+
+  setModels(outlineModel?: string, chapterModel?: string) {
+    if (outlineModel) this.outlineModel = outlineModel;
+    if (chapterModel) this.chapterModel = chapterModel;
+  }
+
   async generateBookOutline(config: BookGenerationConfig): Promise<BookOutline> {
     try {
-      console.log('Starting outline generation with config:', {
+      const modelId = config.outlineModel || this.outlineModel;
+      console.log(`Starting outline generation with model: ${modelId}`);
+      console.log('Config:', {
         title: config.title,
         genre: config.genre,
         chapters: config.chapters,
@@ -94,13 +167,13 @@ export class AIService {
 
       const numChapters = config.chapters || 10;
       const lengthMapping: Record<string, number> = {
-        'micro': 10000,      // Micro/flash fiction
-        'novella': 20000,    // Novella
-        'short-novel': 30000,  // Short novel
-        'short': 50000,      // Short novel
-        'medium': 80000,     // Standard novel
-        'long': 120000,      // Long novel
-        'epic': 150000,      // Epic novel
+        'micro': 10000,
+        'novella': 20000,
+        'short-novel': 30000,
+        'short': 50000,
+        'medium': 80000,
+        'long': 120000,
+        'epic': 150000,
       };
       
       const targetWords = lengthMapping[config.length] || 80000;
@@ -112,7 +185,6 @@ export class AIService {
 
       const isNonFiction = config.isNonFiction || false;
 
-      // Build character context if custom characters are provided
       const hasCustomCharacters = config.customCharacters && config.customCharacters.length > 0;
       const characterContext = hasCustomCharacters
         ? `\n\nIMPORTANT - Use these EXACT characters in the outline:\n${config.customCharacters!.map(c => 
@@ -120,7 +192,6 @@ export class AIService {
           ).join('\n')}\n\nDo NOT create new main characters. Use the characters listed above.`
         : '';
 
-      // Determine if we should use custom title or let AI generate one
       const hasCustomTitle = config.title && config.title.trim().length > 0;
       const titleInstruction = hasCustomTitle
         ? `\n\nIMPORTANT - Use this EXACT title: "${config.title}"\nDo NOT create a different title.`
@@ -204,30 +275,23 @@ Return ONLY valid JSON in this format:
   ]
 }`;
 
-      console.log('Calling OpenAI API for outline generation...');
+      console.log(`Calling ${modelId} for outline generation...`);
       
       const systemPrompt = isNonFiction
         ? 'You are an expert non-fiction author and educator. Generate informative, well-researched book outlines as valid JSON only. Focus on educational content, clear structure, and factual information.'
         : 'You are an expert fiction author. Generate compelling story outlines as valid JSON only. Focus on character development, plot structure, and engaging narratives.';
 
       const result = await generateText({
-        model: getTextModel('outline'), // Use GPT-4o-mini for fast structured outlines
+        model: getModel(modelId),
         messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
         ],
         temperature: 0.8,
       });
       
-      console.log('OpenAI API response received, parsing JSON...');
+      console.log('AI response received, parsing JSON...');
 
-      // Clean the response - remove markdown code blocks if present
       let jsonText = result.text.trim();
       if (jsonText.startsWith('```json')) {
         jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
@@ -237,13 +301,11 @@ Return ONLY valid JSON in this format:
       
       const outline = JSON.parse(jsonText);
       
-      // If custom title was provided, ensure it's in the outline
       if (hasCustomTitle) {
         outline.title = config.title;
         console.log('Custom title applied to outline:', outline.title);
       }
       
-      // If custom characters were provided, ensure they're in the outline
       if (hasCustomCharacters && !isNonFiction) {
         outline.characters = config.customCharacters!.map(c => ({
           name: c.name,
@@ -258,13 +320,12 @@ Return ONLY valid JSON in this format:
     } catch (error) {
       console.error('Error generating book outline:', error);
       
-      // Provide more specific error messages
       if (error instanceof Error) {
         if (error.message.includes('API key')) {
-          throw new Error('Invalid or missing OpenAI API key. Please check your environment variables.');
+          throw new Error('Invalid or missing API key. Please check your environment variables.');
         }
         if (error.message.includes('quota')) {
-          throw new Error('OpenAI API quota exceeded. Please check your usage limits.');
+          throw new Error('API quota exceeded. Please check your usage limits.');
         }
         if (error.message.includes('JSON')) {
           throw new Error('Failed to parse AI response as JSON. Please try again.');
@@ -278,9 +339,11 @@ Return ONLY valid JSON in this format:
   async generateChapter(
     outline: BookOutline,
     chapterNumber: number,
-    previousChapters?: string
+    previousChapters?: string,
+    modelId?: string
   ): Promise<{ title: string; content: string; wordCount: number }> {
     try {
+      const model = modelId || this.chapterModel;
       const chapter = outline.chapters.find(ch => ch.number === chapterNumber);
       if (!chapter) {
         throw new Error(`Chapter ${chapterNumber} not found in outline`);
@@ -339,17 +402,13 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
         ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.`
         : `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.`;
 
+      console.log(`Generating chapter ${chapterNumber} with model: ${model}`);
+
       const result = await generateText({
-        model: getTextModel('chapter'),
+        model: getModel(model),
         messages: [
-          {
-            role: 'system',
-            content: systemPrompt,
-          },
-          {
-            role: 'user',
-            content: prompt,
-          },
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
         ],
         temperature: 0.85,
       });
@@ -370,12 +429,13 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
     }
   }
 
-  // Streaming version for real-time generation
   async *generateChapterStream(
     outline: BookOutline,
     chapterNumber: number,
-    previousChapters?: string
+    previousChapters?: string,
+    modelId?: string
   ) {
+    const model = modelId || this.chapterModel;
     const chapter = outline.chapters.find(ch => ch.number === chapterNumber);
     if (!chapter) {
       throw new Error(`Chapter ${chapterNumber} not found in outline`);
@@ -400,16 +460,13 @@ ${contextPrompt}
 Write a complete chapter with well-developed paragraphs. Develop the characters with depth and authenticity. Use double line breaks between paragraphs. NO markdown.`;
 
     const result = streamText({
-      model: getTextModel('chapter'), // Use GPT-4o for streaming
+      model: getModel(model),
       messages: [
         {
           role: 'system',
           content: `You are a master novelist. Write compelling chapters with rich detail and character development.`,
         },
-        {
-          role: 'user',
-          content: prompt,
-        },
+        { role: 'user', content: prompt },
       ],
       temperature: 0.85,
     });
@@ -419,7 +476,6 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     }
   }
 
-  // Generate cover image using DALL-E 3
   async generateCoverImage(
     title: string,
     author: string,
@@ -432,17 +488,14 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
         throw new Error('OPENAI_API_KEY is required for image generation');
       }
 
-      // Validate blob token
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
         throw new Error('BLOB_READ_WRITE_TOKEN is required for image storage. Set it in Vercel project settings.');
       }
 
-      // Create a detailed, professional book cover prompt
       const prompt = `A professional book cover for "${title}" by ${author}. Genre: ${genre}. ${description.substring(0, 200)}. Style: ${style}, premium publishing quality, eye-catching design, portrait orientation.`;
       
       console.log('Generating cover with DALL-E 3...');
       
-      // Use OpenAI's DALL-E 3 API
       const response = await fetch(
         'https://api.openai.com/v1/images/generations',
         {
@@ -455,7 +508,7 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
             model: 'dall-e-3',
             prompt: prompt,
             n: 1,
-            size: '1024x1792', // Portrait for book cover
+            size: '1024x1792',
             quality: 'hd',
             style: style,
           }),
@@ -474,11 +527,9 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
         throw new Error('No images generated');
       }
 
-      // Get the temporary DALL-E URL
       const temporaryUrl = data.data[0].url;
       console.log('DALL-E image generated, downloading and uploading to blob storage...');
 
-      // Download the image from DALL-E
       const imageResponse = await fetch(temporaryUrl);
       if (!imageResponse.ok) {
         throw new Error(`Failed to download image from DALL-E: ${imageResponse.status}`);
@@ -487,7 +538,6 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
       const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
       const contentType = imageResponse.headers.get('content-type') || 'image/png';
 
-      // Upload to Vercel Blob storage for permanent access
       const { put } = await import('@vercel/blob');
       const sanitizedTitle = title.replace(/[^a-z0-9]/gi, '-').toLowerCase().substring(0, 50);
       const filename = `covers/${sanitizedTitle}-${Date.now()}.png`;
@@ -508,10 +558,10 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     }
   }
 
-  // Generate full book with progress tracking
   async generateFullBook(
     outline: BookOutline,
-    onProgress?: (chapter: number, total: number) => void
+    onProgress?: (chapter: number, total: number) => void,
+    modelId?: string
   ): Promise<{ chapters: Array<{ title: string; content: string; wordCount: number }> }> {
     const chapters = [];
     let previousChapters = '';
@@ -524,10 +574,9 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
         onProgress(chapterNum, outline.chapters.length);
       }
 
-      const chapter = await this.generateChapter(outline, chapterNum, previousChapters);
+      const chapter = await this.generateChapter(outline, chapterNum, previousChapters, modelId);
       chapters.push(chapter);
 
-      // Add to context for next chapters (limited to last 2 chapters)
       const recentChapters = chapters.slice(-2);
       previousChapters = recentChapters
         .map((ch) => `Chapter ${ch.title}: ${ch.content.substring(0, 500)}...`)
