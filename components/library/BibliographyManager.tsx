@@ -191,7 +191,7 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
         }),
       });
 
-      setReferences(prev => prev.map(r => r.id === id ? updatedRef : r));
+      setReferences(prev => prev.map(r => r.id === id ? updatedRef as Reference : r));
       updateStoreReference(id, updates);
     } catch (error) {
       console.error('Failed to update reference:', error);
