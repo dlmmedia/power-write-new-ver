@@ -6,6 +6,8 @@ interface BookExport {
   title: string;
   author: string;
   coverUrl?: string; // URL to cover image
+  description?: string;
+  genre?: string;
   chapters: Array<{
     number: number;
     title: string;
@@ -82,7 +84,7 @@ export class ExportService {
     return content;
   }
 
-  // Export as HTML
+  // Export as HTML with professional print styling, TOC with page numbers
   static exportAsHTML(book: BookExport): string {
     let html = `<!DOCTYPE html>
 <html lang="en">
@@ -91,52 +93,445 @@ export class ExportService {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${book.title}</title>
     <style>
+        /* ============================================= */
+        /* BASE STYLES - Screen & Print */
+        /* ============================================= */
+        :root {
+            --primary-color: #1a1a1a;
+            --secondary-color: #444;
+            --muted-color: #666;
+            --light-color: #888;
+            --border-color: #ccc;
+            --bg-color: #fff;
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: 'Georgia', serif;
-            line-height: 1.6;
+            font-family: 'Georgia', 'Times New Roman', serif;
+            line-height: 1.8;
             max-width: 800px;
             margin: 0 auto;
             padding: 40px 20px;
-            color: #333;
+            color: var(--primary-color);
+            background: var(--bg-color);
         }
-        h1 {
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .author {
-            text-align: center;
-            font-style: italic;
-            margin-bottom: 40px;
-            color: #666;
-        }
-        ${book.coverUrl ? `
+        
+        /* ============================================= */
+        /* COVER PAGE */
+        /* ============================================= */
         .cover-page {
             page-break-after: always;
             text-align: center;
-            margin: 100px 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 60px 20px;
         }
+        
         .cover-page img {
             max-width: 100%;
+            max-height: 70vh;
             height: auto;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }` : ''}
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        
+        .cover-text {
+            text-align: center;
+            padding: 100px 20px;
+        }
+        
+        .cover-title {
+            font-size: 3em;
+            font-weight: normal;
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        
+        .cover-author {
+            font-size: 1.4em;
+            font-style: italic;
+            color: var(--secondary-color);
+        }
+        
+        /* ============================================= */
+        /* TITLE PAGE */
+        /* ============================================= */
+        .title-page {
+            page-break-after: always;
+            text-align: center;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 60px 20px;
+        }
+        
+        .title-page h1 {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            font-weight: normal;
+            letter-spacing: 1px;
+        }
+        
+        .title-divider {
+            width: 80px;
+            height: 2px;
+            background: var(--primary-color);
+            margin: 0 auto 30px;
+        }
+        
+        .title-author-label {
+            font-size: 0.8em;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--muted-color);
+            margin-bottom: 10px;
+        }
+        
+        .title-author {
+            font-size: 1.4em;
+            font-style: italic;
+            color: var(--secondary-color);
+        }
+        
+        .title-description {
+            margin-top: 40px;
+            font-size: 0.95em;
+            color: var(--secondary-color);
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        /* ============================================= */
+        /* COPYRIGHT PAGE */
+        /* ============================================= */
+        .copyright-page {
+            page-break-after: always;
+            text-align: center;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            font-size: 0.85em;
+            color: var(--muted-color);
+            padding: 60px 20px;
+        }
+        
+        .copyright-page h2 {
+            font-size: 1.2em;
+            margin-bottom: 5px;
+            color: var(--primary-color);
+        }
+        
+        .copyright-page .author-line {
+            font-style: italic;
+            margin-bottom: 30px;
+        }
+        
+        .copyright-divider {
+            width: 40px;
+            height: 1px;
+            background: var(--border-color);
+            margin: 25px auto;
+        }
+        
+        .copyright-notice {
+            margin-bottom: 30px;
+        }
+        
+        .publisher-info {
+            margin-top: 30px;
+        }
+        
+        .publisher-info strong {
+            display: block;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-size: 0.8em;
+            margin-bottom: 10px;
+        }
+        
+        /* ============================================= */
+        /* TABLE OF CONTENTS */
+        /* ============================================= */
+        .toc-page {
+            page-break-after: always;
+            padding: 60px 20px;
+        }
+        
+        .toc-page h2 {
+            text-align: center;
+            font-size: 1.5em;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            font-weight: normal;
+        }
+        
+        .toc-divider {
+            width: 50px;
+            height: 1px;
+            background: var(--primary-color);
+            margin: 0 auto 40px;
+        }
+        
+        .toc-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        
+        .toc-entry {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 15px;
+            padding: 5px 0;
+        }
+        
+        .toc-entry a {
+            color: inherit;
+            text-decoration: none;
+            display: flex;
+            width: 100%;
+            align-items: baseline;
+        }
+        
+        .toc-entry a:hover {
+            color: var(--secondary-color);
+        }
+        
+        .toc-chapter-label {
+            font-size: 0.85em;
+            color: var(--muted-color);
+            width: 80px;
+            flex-shrink: 0;
+        }
+        
+        .toc-chapter-title {
+            flex-grow: 0;
+            flex-shrink: 0;
+            max-width: 400px;
+        }
+        
+        .toc-dots {
+            flex-grow: 1;
+            border-bottom: 1px dotted var(--border-color);
+            margin: 0 10px 5px;
+            min-width: 30px;
+        }
+        
+        .toc-page-num {
+            font-weight: bold;
+            color: var(--primary-color);
+            flex-shrink: 0;
+            width: 30px;
+            text-align: right;
+        }
+        
+        /* ============================================= */
+        /* CHAPTER STYLES */
+        /* ============================================= */
         .chapter {
             page-break-before: always;
-            margin-top: 60px;
+            padding-top: 80px;
         }
+        
+        .chapter:first-of-type {
+            page-break-before: auto;
+        }
+        
+        .chapter-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .chapter-number-label {
+            font-size: 0.75em;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+            color: var(--muted-color);
+            margin-bottom: 8px;
+        }
+        
+        .chapter-number {
+            font-size: 2em;
+            margin-bottom: 15px;
+        }
+        
+        .chapter-title-divider {
+            width: 36px;
+            height: 1px;
+            background: var(--muted-color);
+            margin: 0 auto 15px;
+        }
+        
         .chapter-title {
-            font-size: 24px;
-            margin-bottom: 20px;
+            font-size: 1.3em;
+            font-style: italic;
+            font-weight: normal;
+            color: var(--secondary-color);
+            margin: 0;
         }
+        
         .chapter-content {
             text-align: justify;
-            white-space: pre-line;
         }
+        
+        .chapter-content p {
+            margin: 0 0 1em;
+            text-indent: 1.5em;
+        }
+        
+        .chapter-content p:first-of-type {
+            text-indent: 0;
+        }
+        
+        .chapter-content p.scene-break {
+            text-align: center;
+            text-indent: 0;
+            color: var(--muted-color);
+            letter-spacing: 6px;
+            margin: 2em 0;
+        }
+        
+        /* ============================================= */
+        /* BIBLIOGRAPHY */
+        /* ============================================= */
+        .bibliography-page {
+            page-break-before: always;
+            padding-top: 60px;
+        }
+        
+        .bibliography-page h2 {
+            text-align: center;
+            font-size: 1.5em;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            font-weight: normal;
+        }
+        
+        .bibliography-divider {
+            width: 60px;
+            height: 2px;
+            background: var(--primary-color);
+            margin: 0 auto 40px;
+        }
+        
+        .bibliography-entry {
+            margin-bottom: 12px;
+            padding-left: 30px;
+            text-indent: -30px;
+            font-size: 0.95em;
+            text-align: justify;
+        }
+        
+        /* ============================================= */
+        /* PRINT STYLES - Perfect page numbers */
+        /* ============================================= */
         @media print {
-            .page-number {
-                position: fixed;
-                bottom: 10px;
-                right: 10px;
+            @page {
+                size: A4;
+                margin: 2.5cm 2cm;
+            }
+            
+            /* Page numbering via CSS counters */
+            body {
+                counter-reset: page-counter;
+            }
+            
+            .chapter {
+                counter-increment: page-counter;
+            }
+            
+            /* Footer with page numbers */
+            @page {
+                @bottom-center {
+                    content: counter(page);
+                    font-family: Georgia, serif;
+                    font-size: 10pt;
+                    color: #555;
+                }
+            }
+            
+            /* No page number on cover */
+            @page :first {
+                @bottom-center {
+                    content: none;
+                }
+            }
+            
+            /* Print-specific adjustments */
+            body {
+                max-width: 100%;
+                padding: 0;
+            }
+            
+            .cover-page,
+            .title-page,
+            .copyright-page,
+            .toc-page {
+                min-height: auto;
+                height: auto;
+            }
+            
+            .chapter {
+                page-break-before: always;
+                page-break-inside: avoid;
+                padding-top: 60pt;
+            }
+            
+            .chapter-header {
+                page-break-after: avoid;
+            }
+            
+            .chapter-content p {
+                orphans: 3;
+                widows: 3;
+            }
+            
+            /* Hide screen-only elements */
+            .no-print {
+                display: none !important;
+            }
+            
+            /* Links show as text */
+            a {
+                color: inherit;
+                text-decoration: none;
+            }
+        }
+        
+        /* ============================================= */
+        /* RESPONSIVE */
+        /* ============================================= */
+        @media (max-width: 600px) {
+            .cover-title {
+                font-size: 2em;
+            }
+            
+            .title-page h1 {
+                font-size: 1.8em;
+            }
+            
+            .toc-entry {
+                flex-wrap: wrap;
+            }
+            
+            .toc-chapter-label {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+            
+            .toc-dots {
+                display: none;
             }
         }
     </style>
@@ -144,28 +539,156 @@ export class ExportService {
 <body>
 `;
     
-    // Add cover page if cover URL exists
+    // Add cover page
     if (book.coverUrl) {
       html += `
     <div class="cover-page">
         <img src="${book.coverUrl}" alt="${book.title} Cover" />
     </div>`;
+    } else {
+      html += `
+    <div class="cover-page">
+        <div class="cover-text">
+            <h1 class="cover-title">${book.title}</h1>
+            <p class="cover-author">by ${book.author}</p>
+        </div>
+    </div>`;
+    }
+    
+    // Title page
+    html += `
+    <div class="title-page">
+        <h1>${book.title}</h1>
+        <div class="title-divider"></div>
+        <p class="title-author-label">A Novel By</p>
+        <p class="title-author">${book.author}</p>
+        ${book.description ? `<p class="title-description">${book.description}</p>` : ''}
+    </div>`;
+    
+    // Copyright page
+    const currentYear = new Date().getFullYear();
+    html += `
+    <div class="copyright-page">
+        <h2>${book.title}</h2>
+        <p class="author-line">by ${book.author}</p>
+        <p class="copyright-notice">Copyright © ${currentYear} ${book.author}<br>All rights reserved.</p>
+        <div class="copyright-divider"></div>
+        <p>No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means, electronic, mechanical, photocopying, recording, or otherwise, without the prior written permission of the copyright holder.</p>
+        <div class="publisher-info">
+            <strong>Published By</strong>
+            <p>Dynamic Labs Media<br>dlmworld.com</p>
+        </div>
+        <p style="margin-top: 30px; font-style: italic;">Created with PowerWrite</p>
+    </div>`;
+    
+    // Table of Contents
+    html += `
+    <div class="toc-page">
+        <h2>Contents</h2>
+        <div class="toc-divider"></div>
+        <ul class="toc-list">`;
+    
+    book.chapters.forEach((chapter, index) => {
+      html += `
+            <li class="toc-entry">
+                <a href="#chapter-${chapter.number}">
+                    <span class="toc-chapter-label">Chapter ${chapter.number}</span>
+                    <span class="toc-chapter-title">${chapter.title}</span>
+                    <span class="toc-dots"></span>
+                    <span class="toc-page-num">${index + 1}</span>
+                </a>
+            </li>`;
+    });
+    
+    // Add bibliography to TOC if exists
+    if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
+      html += `
+            <li class="toc-entry">
+                <a href="#bibliography">
+                    <span class="toc-chapter-label"></span>
+                    <span class="toc-chapter-title">Bibliography</span>
+                    <span class="toc-dots"></span>
+                    <span class="toc-page-num">${book.chapters.length + 1}</span>
+                </a>
+            </li>`;
     }
     
     html += `
-    <h1>${book.title}</h1>
-    <p class="author">by ${book.author}</p>
-    <hr>
-`;
+        </ul>
+    </div>`;
     
+    // Chapters
     book.chapters.forEach(chapter => {
       const sanitizedContent = this.sanitizeChapterContent(chapter);
+      // Split into paragraphs and handle scene breaks
+      const paragraphs = sanitizedContent.split(/\n\n+/).filter(p => p.trim());
+      
       html += `
-    <div class="chapter">
-        <h2 class="chapter-title">Chapter ${chapter.number}: ${chapter.title}</h2>
-        <div class="chapter-content">${sanitizedContent}</div>
+    <div class="chapter" id="chapter-${chapter.number}">
+        <div class="chapter-header">
+            <p class="chapter-number-label">Chapter</p>
+            <p class="chapter-number">${chapter.number}</p>
+            <div class="chapter-title-divider"></div>
+            <h2 class="chapter-title">${chapter.title}</h2>
+        </div>
+        <div class="chapter-content">`;
+      
+      paragraphs.forEach((para, index) => {
+        const trimmed = para.trim();
+        // Check for scene breaks
+        if (trimmed === '***' || trimmed === '* * *' || trimmed === '---' || trimmed === '- - -') {
+          html += `
+            <p class="scene-break">* * *</p>`;
+        } else {
+          html += `
+            <p>${trimmed}</p>`;
+        }
+      });
+      
+      html += `
+        </div>
     </div>`;
     });
+    
+    // Bibliography if enabled
+    if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
+      const sortedRefs = CitationService.sortReferences(
+        book.bibliography.references,
+        book.bibliography.config.sortBy,
+        book.bibliography.config.sortDirection
+      );
+      
+      html += `
+    <div class="bibliography-page" id="bibliography">
+        <h2>Bibliography</h2>
+        <div class="bibliography-divider"></div>`;
+      
+      sortedRefs.forEach((ref, index) => {
+        const formatted = CitationService.formatReference(
+          ref,
+          book.bibliography!.config.citationStyle,
+          index + 1
+        );
+        // Keep em tags for italics but remove others
+        const cleanFormatted = formatted.replace(/<(?!\/?(em)>)[^>]*>/g, '');
+        
+        let refText = cleanFormatted;
+        if (book.bibliography!.config.numberingStyle === 'numeric') {
+          refText = `${index + 1}. ${cleanFormatted}`;
+        } else if (book.bibliography!.config.numberingStyle === 'alphabetic') {
+          refText = `${String.fromCharCode(65 + (index % 26))}. ${cleanFormatted}`;
+        }
+        
+        html += `
+        <p class="bibliography-entry">${refText}</p>`;
+      });
+      
+      html += `
+        <p style="text-align: center; margin-top: 30px; font-style: italic; color: var(--muted-color); font-size: 0.85em;">
+            References formatted in ${book.bibliography.config.citationStyle} style.
+        </p>
+    </div>`;
+    }
     
     html += `
 </body>

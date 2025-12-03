@@ -1,6 +1,30 @@
 // Advanced Export Service with PDF and DOCX support
+// Professional formatting with perfect page numbers and TOC
 import React from 'react';
-import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, PageBreak, Footer, PageNumber, ImageRun } from 'docx';
+import { 
+  Document, 
+  Packer, 
+  Paragraph, 
+  TextRun, 
+  HeadingLevel, 
+  AlignmentType, 
+  PageBreak, 
+  Footer, 
+  Header,
+  PageNumber, 
+  NumberFormat,
+  ImageRun,
+  TableOfContents,
+  StyleLevel,
+  SectionType,
+  convertInchesToTwip,
+  Tab,
+  TabStopType,
+  TabStopPosition,
+  ExternalHyperlink,
+  Bookmark,
+  InternalHyperlink
+} from 'docx';
 import { pdf } from '@react-pdf/renderer';
 import PDFDocument from './pdf-document';
 import { registerFonts } from './pdf-fonts';
@@ -55,6 +79,27 @@ export class ExportServiceAdvanced {
       console.error('Error fetching image:', error);
       throw error;
     }
+  }
+
+  /**
+   * Detect image type from buffer magic bytes
+   */
+  private static detectImageType(buffer: Buffer): 'png' | 'jpg' | 'gif' | 'bmp' {
+    // Check magic bytes
+    if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) {
+      return 'png';
+    }
+    if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+      return 'jpg';
+    }
+    if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46) {
+      return 'gif';
+    }
+    if (buffer[0] === 0x42 && buffer[1] === 0x4D) {
+      return 'bmp';
+    }
+    // Default to png
+    return 'png';
   }
 
   /**
@@ -126,9 +171,42 @@ export class ExportServiceAdvanced {
   }
 
   /**
-   * Export book as DOCX with professional formatting
+   * Export book as DOCX with professional publishing-quality formatting
+   * Features: Multiple fonts, text hierarchy, proper book structure, page numbers
    */
   static async exportBookAsDOCX(book: BookExport): Promise<Buffer> {
+    // Professional font sizes (in half-points, so 24 = 12pt)
+    const FONTS = {
+      // Serif fonts for body and titles
+      title: 'Georgia',
+      heading: 'Georgia',
+      body: 'Georgia',
+      // Sans-serif for labels and metadata
+      label: 'Calibri',
+      toc: 'Calibri',
+    };
+    
+    const SIZES = {
+      bookTitle: 72,        // 36pt - Main book title
+      chapterNumber: 48,    // 24pt - Chapter numbers
+      chapterTitle: 36,     // 18pt - Chapter titles
+      sectionTitle: 32,     // 16pt - Section headings
+      body: 24,             // 12pt - Body text
+      bodyLarge: 26,        // 13pt - First paragraph
+      small: 20,            // 10pt - Small text
+      tiny: 18,             // 9pt - Copyright, labels
+      pageNum: 20,          // 10pt - Page numbers
+    };
+
+    const COLORS = {
+      primary: '1a1a1a',    // Rich black
+      secondary: '444444',  // Dark gray
+      muted: '666666',      // Medium gray
+      light: '888888',      // Light gray
+      accent: '8B4513',     // Saddle brown for accents
+      divider: 'CCCCCC',    // Light divider
+    };
+
     // Fetch cover image if available
     let coverImageBuffer: Buffer | null = null;
     if (book.coverUrl) {
@@ -138,252 +216,531 @@ export class ExportServiceAdvanced {
         console.log('Cover image fetched successfully for DOCX');
       } catch (error) {
         console.error('Error fetching cover image for DOCX:', error);
-        // Continue without image
       }
     }
 
-    const coverPageChildren = [];
-    
-    // Add spacing before content
-    coverPageChildren.push(
+    // Helper to check if text is a scene break
+    const isSceneBreak = (text: string): boolean => {
+      const trimmed = text.trim();
+      return trimmed === '***' || trimmed === '* * *' || trimmed === '---' || 
+             trimmed === '- - -' || (trimmed.length <= 5 && /^[*\-]+$/.test(trimmed.replace(/\s/g, '')));
+    };
+
+    // =====================================================
+    // SECTION 1: FRONT MATTER (Cover, Title, Copyright, TOC)
+    // =====================================================
+    const frontMatterChildren: Paragraph[] = [];
+
+    // --- COVER PAGE ---
+    if (coverImageBuffer) {
+      frontMatterChildren.push(
+        new Paragraph({
+          alignment: AlignmentType.CENTER,
+          children: [
+            new ImageRun({
+              type: this.detectImageType(coverImageBuffer),
+              data: coverImageBuffer,
+              transformation: { width: 450, height: 650 },
+            }),
+          ],
+          spacing: { before: 100 },
+        }),
+        new Paragraph({ children: [new PageBreak()] })
+      );
+    } else {
+      // Text-based cover
+      frontMatterChildren.push(
+        new Paragraph({ text: '', spacing: { before: 3500 } }),
+        new Paragraph({
+          children: [
+            new TextRun({ 
+              text: book.title.toUpperCase(), 
+              font: FONTS.title, 
+              size: SIZES.bookTitle, 
+              bold: true,
+              color: COLORS.primary,
+            }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: '━━━━━━━━━━━━━━━', font: FONTS.label, size: 24, color: COLORS.divider }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: book.author, font: FONTS.heading, size: 32, italics: true, color: COLORS.secondary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+        ...(book.genre ? [
+          new Paragraph({
+            children: [
+              new TextRun({ 
+                text: book.genre.toUpperCase(), 
+                font: FONTS.label, 
+                size: SIZES.tiny, 
+                color: COLORS.muted,
+              }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+          }),
+        ] : []),
+        new Paragraph({ children: [new PageBreak()] })
+      );
+    }
+
+    // --- TITLE PAGE ---
+    frontMatterChildren.push(
+      new Paragraph({ text: '', spacing: { before: 2500 } }),
       new Paragraph({
-        text: '',
-        spacing: { before: 3000 },
-      })
-    );
-    
-    // Note: Cover image embedding in DOCX temporarily disabled due to type compatibility
-    // The cover image is still available via the coverUrl field
-    // if (coverImageBuffer) {
-    //   coverPageChildren.push(
-    //     new Paragraph({
-    //       alignment: AlignmentType.CENTER,
-    //       children: [
-    //         new ImageRun({
-    //           data: coverImageBuffer,
-    //           transformation: {
-    //             width: 400,
-    //             height: 600,
-    //           },
-    //         }),
-    //       ],
-    //       spacing: { after: 400 },
-    //     })
-    //   );
-    // }
-    
-    // Add title
-    coverPageChildren.push(
-      new Paragraph({
-        text: book.title,
-        heading: HeadingLevel.TITLE,
+        children: [
+          new TextRun({ 
+            text: book.title, 
+            font: FONTS.title, 
+            size: 56, // 28pt
+            color: COLORS.primary,
+          }),
+        ],
         alignment: AlignmentType.CENTER,
-        spacing: { after: 400 },
+        spacing: { after: 300 },
       }),
       new Paragraph({
         children: [
-          new TextRun({ text: `by ${book.author}`, size: 28 }),
+          new TextRun({ text: '━━━━━━━━━━━', font: FONTS.label, size: 20, color: COLORS.accent }),
         ],
         alignment: AlignmentType.CENTER,
         spacing: { after: 400 },
       }),
       new Paragraph({
-        children: [new PageBreak()],
-      })
+        children: [
+          new TextRun({ text: 'A BOOK BY', font: FONTS.label, size: SIZES.tiny, color: COLORS.muted }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: book.author, font: FONTS.heading, size: 36, italics: true, color: COLORS.secondary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 600 },
+      }),
+      ...(book.description ? [
+        new Paragraph({
+          children: [
+            new TextRun({ text: book.description, font: FONTS.body, size: SIZES.small, color: COLORS.muted }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 400, after: 400 },
+        }),
+      ] : []),
+      new Paragraph({ children: [new PageBreak()] })
     );
 
+    // --- COPYRIGHT PAGE ---
+    const currentYear = new Date().getFullYear();
+    frontMatterChildren.push(
+      new Paragraph({ text: '', spacing: { before: 2500 } }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: book.title, font: FONTS.heading, size: 28, bold: true, color: COLORS.primary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: `by ${book.author}`, font: FONTS.body, size: 24, italics: true, color: COLORS.secondary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 600 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: `Copyright © ${currentYear} ${book.author}`, font: FONTS.body, size: SIZES.small, color: COLORS.primary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'All rights reserved.', font: FONTS.body, size: SIZES.small, color: COLORS.primary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 500 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: '• • •', font: FONTS.label, size: 24, color: COLORS.divider }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 500 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ 
+            text: 'No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means, electronic, mechanical, photocopying, recording, or otherwise, without the prior written permission of the copyright holder.', 
+            font: FONTS.body, 
+            size: SIZES.tiny, 
+            color: COLORS.muted,
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 600 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'PUBLISHED BY', font: FONTS.label, size: 16, bold: true, color: COLORS.muted }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 100 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Dynamic Labs Media', font: FONTS.body, size: SIZES.small, color: COLORS.secondary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 50 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'dlmworld.com', font: FONTS.body, size: SIZES.tiny, color: COLORS.light }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 600 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'Created with PowerWrite', font: FONTS.body, size: SIZES.tiny, italics: true, color: COLORS.light }),
+        ],
+        alignment: AlignmentType.CENTER,
+      }),
+      new Paragraph({ children: [new PageBreak()] })
+    );
+
+    // --- TABLE OF CONTENTS ---
+    frontMatterChildren.push(
+      new Paragraph({ text: '', spacing: { before: 600 } }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: 'CONTENTS', font: FONTS.label, size: 36, bold: true, color: COLORS.primary }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 200 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({ text: '━━━━━━━━━━━', font: FONTS.label, size: 20, color: COLORS.accent }),
+        ],
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 600 },
+      }),
+      // TOC entries
+      ...book.chapters.map((chapter, index) => 
+        new Paragraph({
+          children: [
+            new TextRun({ text: `CHAPTER ${chapter.number}`, font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
+            new TextRun({ text: '    ', font: FONTS.toc }),
+            new TextRun({ text: chapter.title, font: FONTS.heading, size: 24, italics: true, color: COLORS.primary }),
+            new TextRun({ text: '  ', font: FONTS.toc }),
+            new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
+            new TextRun({ text: `${index + 1}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
+          ],
+          spacing: { after: 240 },
+          indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
+        })
+      ),
+      ...(book.bibliography?.config.enabled && book.bibliography.references.length > 0 ? [
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'BIBLIOGRAPHY', font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
+            new TextRun({ text: '  ', font: FONTS.toc }),
+            new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
+            new TextRun({ text: `${book.chapters.length + 1}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
+          ],
+          spacing: { before: 200, after: 240 },
+          indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
+        }),
+      ] : [])
+    );
+
+    // Front matter section configuration
+    const frontMatterSection = {
+      properties: {
+        type: SectionType.NEXT_PAGE,
+        page: {
+          pageNumbers: { start: 1, formatType: NumberFormat.LOWER_ROMAN },
+          margin: {
+            top: convertInchesToTwip(1),
+            bottom: convertInchesToTwip(1),
+            left: convertInchesToTwip(1.25),
+            right: convertInchesToTwip(1.25),
+          },
+        },
+      },
+      footers: {
+        default: new Footer({
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ children: [PageNumber.CURRENT], font: FONTS.label, size: SIZES.pageNum, color: COLORS.muted }),
+              ],
+            }),
+          ],
+        }),
+      },
+      children: frontMatterChildren,
+    };
+
+    // =====================================================
+    // SECTION 2: MAIN CONTENT (Chapters)
+    // =====================================================
+    const mainContentChildren: Paragraph[] = [];
+
+    book.chapters.forEach((chapter, chapterIndex) => {
+      const sanitizedContent = this.sanitizeChapterContent(chapter);
+      const paragraphs = sanitizedContent.split('\n\n').filter(p => p.trim());
+
+      // Chapter opening page
+      if (chapterIndex > 0) {
+        mainContentChildren.push(
+          new Paragraph({ children: [new PageBreak()] })
+        );
+      }
+
+      // Chapter number
+      mainContentChildren.push(
+        new Paragraph({ text: '', spacing: { before: 1500 } }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'CHAPTER', font: FONTS.label, size: 20, color: COLORS.muted }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: String(chapter.number), font: FONTS.heading, size: 60, color: COLORS.primary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: '━━━', font: FONTS.label, size: 24, color: COLORS.accent }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 200 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: chapter.title, font: FONTS.heading, size: SIZES.chapterTitle, italics: true, color: COLORS.secondary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 800 },
+        })
+      );
+
+      // Chapter content
+      paragraphs.forEach((para, paraIndex) => {
+        const trimmedPara = para.trim();
+
+        // Handle scene breaks
+        if (isSceneBreak(trimmedPara)) {
+          mainContentChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '* * *', font: FONTS.body, size: 24, color: COLORS.muted }),
+              ],
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 400, after: 400 },
+            })
+          );
+          return;
+        }
+
+        // First paragraph - no indent, slightly larger
+        if (paraIndex === 0) {
+          mainContentChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: trimmedPara, font: FONTS.body, size: SIZES.bodyLarge, color: COLORS.primary }),
+              ],
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { after: 280, line: 360 }, // 1.5 line spacing
+            })
+          );
+        } else {
+          // Regular paragraphs with first-line indent
+          mainContentChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: trimmedPara, font: FONTS.body, size: SIZES.body, color: COLORS.primary }),
+              ],
+              alignment: AlignmentType.JUSTIFIED,
+              spacing: { after: 240, line: 360 },
+              indent: { firstLine: convertInchesToTwip(0.4) },
+            })
+          );
+        }
+      });
+
+      // End of chapter spacing
+      mainContentChildren.push(
+        new Paragraph({ text: '', spacing: { after: 600 } })
+      );
+    });
+
+    // Add bibliography if enabled
+    mainContentChildren.push(...this.generateDOCXBibliography(book));
+
+    // Main content section configuration
+    const mainContentSection = {
+      properties: {
+        type: SectionType.NEXT_PAGE,
+        page: {
+          pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL },
+          margin: {
+            top: convertInchesToTwip(1),
+            bottom: convertInchesToTwip(1.25),
+            left: convertInchesToTwip(1.25),
+            right: convertInchesToTwip(1.25),
+          },
+        },
+      },
+      headers: {
+        default: new Header({
+          children: [
+            new Paragraph({
+              children: [
+                new TextRun({ text: book.title.toUpperCase(), font: FONTS.label, size: 16, color: COLORS.light }),
+              ],
+              alignment: AlignmentType.CENTER,
+            }),
+          ],
+        }),
+      },
+      footers: {
+        default: new Footer({
+          children: [
+            new Paragraph({
+              alignment: AlignmentType.CENTER,
+              children: [
+                new TextRun({ text: '— ', font: FONTS.label, size: SIZES.pageNum, color: COLORS.muted }),
+                new TextRun({ children: [PageNumber.CURRENT], font: FONTS.label, size: SIZES.pageNum, color: COLORS.primary }),
+                new TextRun({ text: ' —', font: FONTS.label, size: SIZES.pageNum, color: COLORS.muted }),
+              ],
+            }),
+          ],
+        }),
+      },
+      children: mainContentChildren,
+    };
+
+    // Create the document with custom styles
     const doc = new Document({
-      sections: [
-        {
-          properties: {
-            page: {
-              pageNumbers: {
-                start: 1,
-                formatType: 'decimal',
-              },
+      sections: [frontMatterSection, mainContentSection],
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: FONTS.body,
+              size: SIZES.body,
+            },
+            paragraph: {
+              spacing: { line: 360 },
             },
           },
-          footers: {
-            default: new Footer({
-              children: [
-                new Paragraph({
-                  alignment: AlignmentType.CENTER,
-                  children: [
-                    new TextRun({
-                      children: [PageNumber.CURRENT],
-                    }),
-                  ],
-                }),
-              ],
-            }),
-          },
-          children: [
-            // === COVER PAGE ===
-            ...coverPageChildren,
-
-            // === TITLE PAGE ===
-            new Paragraph({
-              text: '',
-              spacing: { before: 2000 },
-            }),
-            new Paragraph({
-              text: book.title,
-              heading: HeadingLevel.HEADING_1,
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 200 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: `by ${book.author}`, italics: true, size: 24 }),
-              ],
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 400 },
-            }),
-
-            // Description if available
-            ...(book.description ? [
-              new Paragraph({
-                text: '',
-                spacing: { before: 400 },
-              }),
-              new Paragraph({
-                text: book.description,
-                alignment: AlignmentType.JUSTIFIED,
-                spacing: { after: 400 },
-              }),
-            ] : []),
-            new Paragraph({
-              children: [new PageBreak()],
-            }),
-
-            // === LEGAL/COPYRIGHT PAGE ===
-            new Paragraph({
-              children: [
-                new TextRun({ text: book.title, bold: true }),
-              ],
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 100 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: `by ${book.author}` }),
-              ],
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 400 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: `Copyright © ${new Date().getFullYear()} ${book.author}. All rights reserved.` }),
-              ],
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 400 },
-            }),
-            new Paragraph({
-              text: 'This book was created using PowerWrite, an AI-powered book writing platform developed by Dynamic Labs Media.',
-              alignment: AlignmentType.LEFT,
-              spacing: { after: 200 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: 'Published by:', bold: true }),
-              ],
-              spacing: { after: 100 },
-            }),
-            new Paragraph({
-              text: 'Dynamic Labs Media',
-              spacing: { after: 50 },
-            }),
-            new Paragraph({
-              text: 'Website: dlmworld.com',
-              spacing: { after: 50 },
-            }),
-            new Paragraph({
-              text: 'Email: info@dlmworld.com',
-              spacing: { after: 400 },
-            }),
-            new Paragraph({
-              text: 'No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means, electronic, mechanical, photocopying, recording, or otherwise, without the prior written permission of the copyright holder.',
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 200 },
-            }),
-            new Paragraph({
-              children: [
-                new TextRun({ text: 'PowerWrite is a product of Dynamic Labs Media.', italics: true }),
-              ],
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 400 },
-            }),
-            new Paragraph({
-              children: [new PageBreak()],
-            }),
-
-            // === TABLE OF CONTENTS ===
-            new Paragraph({
-              text: 'Table of Contents',
-              heading: HeadingLevel.HEADING_1,
-              alignment: AlignmentType.CENTER,
-              spacing: { after: 400 },
-            }),
-            ...book.chapters.map((chapter) => 
-              new Paragraph({
-                children: [
-                  new TextRun({ text: `Chapter ${chapter.number}: ${chapter.title}` }),
-                ],
-                spacing: { after: 150 },
-              })
-            ),
-            new Paragraph({
-              children: [new PageBreak()],
-            }),
-
-            // === CHAPTERS ===
-            ...book.chapters.flatMap((chapter, index) => {
-              // Use sanitization helper to remove all duplicates
-              const sanitizedContent = this.sanitizeChapterContent(chapter);
-              const paragraphs = sanitizedContent.split('\n\n').filter(p => p.trim());
-
-              return [
-                // Chapter heading (only once)
-                new Paragraph({
-                  text: `Chapter ${chapter.number}`,
-                  heading: HeadingLevel.HEADING_1,
-                  spacing: { before: 400, after: 100 },
-                  pageBreakBefore: index > 0,
-                }),
-                new Paragraph({
-                  text: chapter.title,
-                  heading: HeadingLevel.HEADING_2,
-                  spacing: { after: 300 },
-                }),
-
-                // Chapter content (split into paragraphs)
-                ...paragraphs.map(
-                  (para) =>
-                    new Paragraph({
-                      children: [
-                        new TextRun({
-                          text: para,
-                        }),
-                      ],
-                      alignment: AlignmentType.JUSTIFIED,
-                      spacing: { after: 200 },
-                      indent: { firstLine: 720 }, // 0.5 inch indent for first line
-                    })
-                ),
-
-                // Space after chapter
-                new Paragraph({
-                  text: '',
-                  spacing: { after: 400 },
-                }),
-              ];
-            }),
-            
-            // === BIBLIOGRAPHY SECTION ===
-            ...this.generateDOCXBibliography(book),
-          ],
         },
-      ],
+        paragraphStyles: [
+          {
+            id: "Normal",
+            name: "Normal",
+            run: {
+              font: FONTS.body,
+              size: SIZES.body,
+              color: COLORS.primary,
+            },
+            paragraph: {
+              spacing: { after: 200, line: 360 },
+            },
+          },
+          {
+            id: "Title",
+            name: "Title",
+            basedOn: "Normal",
+            next: "Normal",
+            run: {
+              font: FONTS.title,
+              size: SIZES.bookTitle,
+              bold: true,
+              color: COLORS.primary,
+            },
+            paragraph: {
+              alignment: AlignmentType.CENTER,
+              spacing: { after: 400 },
+            },
+          },
+          {
+            id: "Heading1",
+            name: "Heading 1",
+            basedOn: "Normal",
+            next: "Normal",
+            run: {
+              font: FONTS.heading,
+              size: SIZES.chapterNumber,
+              bold: true,
+              color: COLORS.primary,
+            },
+            paragraph: {
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 400, after: 200 },
+            },
+          },
+          {
+            id: "Heading2",
+            name: "Heading 2",
+            basedOn: "Normal",
+            next: "Normal",
+            run: {
+              font: FONTS.heading,
+              size: SIZES.chapterTitle,
+              italics: true,
+              color: COLORS.secondary,
+            },
+            paragraph: {
+              alignment: AlignmentType.CENTER,
+              spacing: { before: 200, after: 400 },
+            },
+          },
+          {
+            id: "Heading3",
+            name: "Heading 3",
+            basedOn: "Normal",
+            next: "Normal",
+            run: {
+              font: FONTS.label,
+              size: SIZES.sectionTitle,
+              bold: true,
+              color: COLORS.primary,
+            },
+            paragraph: {
+              spacing: { before: 300, after: 150 },
+            },
+          },
+        ],
+      },
+      creator: "PowerWrite by Dynamic Labs Media",
+      title: book.title,
+      description: book.description || `${book.title} by ${book.author}`,
     });
 
     return await Packer.toBuffer(doc);

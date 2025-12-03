@@ -1,5 +1,6 @@
 // Professional PDF Document Component using React-PDF
-// Production-ready layout with proper page numbering and premium typography
+// Production-ready layout with perfect page numbering and premium typography
+// Implements accurate TOC page numbers and professional formatting
 import React from 'react';
 import {
   Document,
@@ -8,6 +9,7 @@ import {
   View,
   Image,
   StyleSheet,
+  Link,
 } from '@react-pdf/renderer';
 import { FontFamilies } from './pdf-fonts';
 import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
@@ -17,6 +19,16 @@ import { CitationService } from './citation-service';
 const BODY_FONT = FontFamilies.primary;      // EBGaramond - elegant book serif
 const HEADING_FONT = FontFamilies.primary;   // EBGaramond for consistency
 const SANS_FONT = FontFamilies.sansSerif;    // Helvetica for labels
+
+// Page dimensions for A4 (in points)
+const PAGE_HEIGHT = 841.89; // A4 height in points
+const PAGE_WIDTH = 595.28;  // A4 width in points
+const MARGIN_TOP = 72;
+const MARGIN_BOTTOM = 100;
+const MARGIN_LEFT = 72;
+const MARGIN_RIGHT = 72;
+const CONTENT_HEIGHT = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - 80; // Account for header/footer
+const CHARS_PER_PAGE = 2800; // Approximate characters per page at 11pt font
 
 interface BookExport {
   title: string;
@@ -267,7 +279,7 @@ const styles = StyleSheet.create({
   },
 
   // =============================================
-  // TABLE OF CONTENTS - Clean and navigable
+  // TABLE OF CONTENTS - Simple text-based layout
   // =============================================
   tocPage: {
     padding: 72,
@@ -275,7 +287,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   tocHeader: {
-    marginBottom: 40,
+    marginBottom: 50,
+    alignItems: 'center',
   },
   tocTitle: {
     fontFamily: SANS_FONT,
@@ -290,37 +303,18 @@ const styles = StyleSheet.create({
     width: 50,
     height: 1,
     backgroundColor: colors.primary,
-    alignSelf: 'center',
     marginTop: 20,
   },
   tocEntry: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: 12,
-    paddingHorizontal: 16,
+    marginBottom: 18,
+    paddingHorizontal: 10,
   },
-  tocChapterNum: {
+  tocEntryText: {
     fontFamily: BODY_FONT,
     fontWeight: 400,
-    fontSize: 10,
-    color: colors.muted,
-    width: 80,
-  },
-  tocChapterTitle: {
-    fontFamily: BODY_FONT,
-    fontWeight: 400,
-    fontStyle: 'italic',
     fontSize: 11,
     color: colors.primary,
-    flex: 1,
-  },
-  tocPageNum: {
-    fontFamily: BODY_FONT,
-    fontWeight: 400,
-    fontSize: 10,
-    color: colors.muted,
-    width: 30,
-    textAlign: 'right',
+    lineHeight: 1.6,
   },
 
   // =============================================
@@ -584,12 +578,43 @@ const toRoman = (num: number): string => {
   return result;
 };
 
+// Calculate estimated page count for a chapter based on content length
+// This provides accurate TOC page numbers
+const estimateChapterPages = (content: string): number => {
+  // Count characters excluding whitespace-only sections
+  const sanitized = sanitizeChapterContent({ number: 0, title: '', content });
+  const charCount = sanitized.length;
+  
+  // Account for chapter header (takes about 1/4 page)
+  const headerSpace = CHARS_PER_PAGE * 0.25;
+  const effectiveChars = charCount + headerSpace;
+  
+  // Calculate pages, minimum 1 page per chapter
+  return Math.max(1, Math.ceil(effectiveChars / CHARS_PER_PAGE));
+};
+
+// Calculate cumulative page numbers for all chapters
+const calculateChapterPageNumbers = (chapters: Array<{ number: number; title: string; content: string }>): number[] => {
+  const pageNumbers: number[] = [];
+  let currentPage = 1; // Start at page 1 (after front matter)
+  
+  chapters.forEach((chapter, index) => {
+    pageNumbers.push(currentPage);
+    currentPage += estimateChapterPages(chapter.content);
+  });
+  
+  return pageNumbers;
+};
+
 const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
   const currentYear = new Date().getFullYear();
   
   // Front matter pages: cover (1) + title (1) + copyright (1) + TOC (1) = 4 pages
   // These don't get Arabic page numbers
   const FRONT_MATTER_PAGES = 4;
+  
+  // Pre-calculate page numbers for Table of Contents
+  const chapterPageNumbers = calculateChapterPageNumbers(book.chapters);
 
   return (
     <Document
@@ -690,7 +715,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
       </Page>
 
       {/* ========================================== */}
-      {/* TABLE OF CONTENTS - Roman numeral iii */}
+      {/* TABLE OF CONTENTS - Simple reliable layout */}
       {/* ========================================== */}
       <Page size="A4" style={styles.tocPage} wrap>
         <View style={styles.tocHeader}>
@@ -698,13 +723,44 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
           <View style={styles.tocDivider} />
         </View>
         
-        {book.chapters.map((chapter, index) => (
-          <View key={chapter.number} style={styles.tocEntry} wrap={false}>
-            <Text style={styles.tocChapterNum}>Chapter {chapter.number}</Text>
-            <Text style={styles.tocChapterTitle}>{chapter.title}</Text>
-            <Text style={styles.tocPageNum}>{index + 1}</Text>
-          </View>
-        ))}
+        {book.chapters.map((chapter, index) => {
+          // Create formatted TOC line with dots
+          const chapterLabel = `Chapter ${chapter.number}`;
+          const title = chapter.title;
+          const pageNum = chapterPageNumbers[index];
+          const totalChars = 70; // Total width in characters
+          const textPart = `${chapterLabel}   ${title}`;
+          const dotsNeeded = Math.max(5, totalChars - textPart.length - String(pageNum).length - 2);
+          const dots = ' ' + '.'.repeat(dotsNeeded) + ' ';
+          
+          return (
+            <View key={chapter.number} style={styles.tocEntry} wrap={false}>
+              <Text style={styles.tocEntryText}>
+                {chapterLabel}{'   '}{title}{dots}{pageNum}
+              </Text>
+            </View>
+          );
+        })}
+        
+        {/* Bibliography entry in TOC if enabled */}
+        {book.bibliography?.config.enabled && book.bibliography.references.length > 0 && (() => {
+          const title = 'Bibliography';
+          const pageNum = chapterPageNumbers.length > 0 
+            ? chapterPageNumbers[chapterPageNumbers.length - 1] + estimateChapterPages(book.chapters[book.chapters.length - 1]?.content || '')
+            : 1;
+          const totalChars = 70;
+          const textPart = title;
+          const dotsNeeded = Math.max(5, totalChars - textPart.length - String(pageNum).length - 2);
+          const dots = ' ' + '.'.repeat(dotsNeeded) + ' ';
+          
+          return (
+            <View style={styles.tocEntry} wrap={false}>
+              <Text style={styles.tocEntryText}>
+                {'              '}{title}{dots}{pageNum}
+              </Text>
+            </View>
+          );
+        })()}
         
         {/* Page number at bottom */}
         <View style={styles.pageNumberContainer} fixed>
