@@ -9,6 +9,7 @@ import { BookReader } from '@/components/library/BookReader';
 import { BookEditor } from '@/components/library/BookEditor';
 import { AudioGenerator } from '@/components/library/AudioGenerator';
 import { BibliographyManager } from '@/components/library/BibliographyManager';
+import CoverGenerator from '@/components/studio/CoverGenerator';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
@@ -497,6 +498,7 @@ export default function BookDetailPage() {
           tabs={[
             { id: 'overview', label: 'Overview' },
             { id: 'chapters', label: 'Chapters' },
+            { id: 'cover', label: 'Cover' },
             { id: 'audio', label: 'Audio' },
             { id: 'settings', label: 'Settings' }
           ]}
@@ -770,6 +772,31 @@ export default function BookDetailPage() {
                   <Button variant="primary" onClick={() => router.push('/studio')}>Go to Studio</Button>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'cover' && (
+            <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+                <span className="text-yellow-600 dark:text-yellow-400">🎨</span>
+                Book Cover
+              </h3>
+              <CoverGenerator
+                bookId={book.id}
+                title={book.title}
+                author={book.author}
+                genre={book.genre}
+                description={book.metadata.description || ''}
+                targetAudience="General"
+                themes={[]}
+                currentCoverUrl={book.coverUrl}
+                onCoverGenerated={(coverUrl, metadata) => {
+                  // Update local state with new cover
+                  setBook(prev => prev ? { ...prev, coverUrl } : null);
+                  // Show success message
+                  alert('✓ Cover generated successfully!');
+                }}
+              />
             </div>
           )}
 
