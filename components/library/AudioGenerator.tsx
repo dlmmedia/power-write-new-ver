@@ -102,16 +102,16 @@ const scaleIn = {
     opacity: 1,
     transition: { type: "spring" as const, stiffness: 300, damping: 20 }
   }
-};
+} as const;
 
 const slideUp = {
   hidden: { y: 30, opacity: 0 },
   visible: { 
     y: 0, 
     opacity: 1,
-    transition: { type: "spring", stiffness: 400, damping: 25 }
+    transition: { type: "spring" as const, stiffness: 400, damping: 25 }
   }
-};
+} as const;
 
 export function AudioGenerator({
   bookId,
