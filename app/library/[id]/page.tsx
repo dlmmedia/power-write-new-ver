@@ -49,6 +49,7 @@ export default function BookDetailPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isReading, setIsReading] = useState(false);
+  const [initialChapterIndex, setInitialChapterIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -328,6 +329,18 @@ export default function BookDetailPage() {
 
   const progress = (book.metadata.wordCount / book.metadata.targetWordCount) * 100;
 
+  // Function to open the reader at a specific chapter
+  const openReaderAtChapter = (chapterIndex: number) => {
+    setInitialChapterIndex(chapterIndex);
+    setIsReading(true);
+  };
+
+  // Function to start reading from the beginning
+  const startReading = () => {
+    setInitialChapterIndex(0);
+    setIsReading(true);
+  };
+
   // If editing mode is active, show full-screen editor
   if (isEditing && book.chapters && book.chapters.length > 0) {
     return (
@@ -356,7 +369,23 @@ export default function BookDetailPage() {
         author={book.author}
         bookId={book.id}
         chapters={book.chapters}
-        onClose={() => setIsReading(false)}
+        initialChapterIndex={initialChapterIndex}
+        onClose={() => {
+          setIsReading(false);
+          // Refresh book data to get any newly generated audio
+          fetchBookDetail();
+        }}
+        onAudioGenerated={(chapterNumber, audioUrl, duration) => {
+          // Update local state immediately when audio is generated in reader
+          if (book) {
+            const updatedChapters = book.chapters.map(ch => 
+              ch.number === chapterNumber 
+                ? { ...ch, audioUrl, audioDuration: duration }
+                : ch
+            );
+            setBook({ ...book, chapters: updatedChapters });
+          }
+        }}
       />
     );
   }
@@ -388,7 +417,7 @@ export default function BookDetailPage() {
                   <Button variant="outline" onClick={() => setIsEditing(true)}>
                     ✏️ Edit
                   </Button>
-                  <Button variant="primary" onClick={() => setIsReading(true)}>
+                  <Button variant="primary" onClick={startReading}>
                     📖 Read Book
                   </Button>
                 </>
@@ -549,7 +578,7 @@ export default function BookDetailPage() {
 
                     {book.chapters && book.chapters.length > 0 && (
                       <div className="flex gap-3 mt-6">
-                        <Button variant="primary" size="lg" onClick={() => setIsReading(true)} className="flex-1">
+                        <Button variant="primary" size="lg" onClick={startReading} className="flex-1">
                           📖 Start Reading
                         </Button>
                         <Button variant="outline" size="lg" onClick={() => setIsEditing(true)}>
@@ -630,11 +659,11 @@ export default function BookDetailPage() {
                     </Button>
                   </div>
                   <div className="space-y-3">
-                    {book.chapters.slice(0, 3).map((chapter) => (
+                    {book.chapters.slice(0, 3).map((chapter, idx) => (
                       <div
                         key={chapter.id}
                         className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all cursor-pointer"
-                        onClick={() => setIsReading(true)}
+                        onClick={() => openReaderAtChapter(idx)}
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-3">
@@ -678,7 +707,7 @@ export default function BookDetailPage() {
                     <Button variant="outline" onClick={() => setIsEditing(true)}>
                       ✏️ Edit
                     </Button>
-                    <Button variant="primary" onClick={() => setIsReading(true)}>
+                    <Button variant="primary" onClick={startReading}>
                       📖 Start Reading
                     </Button>
                   </div>
@@ -691,7 +720,7 @@ export default function BookDetailPage() {
                     <div
                       key={chapter.id}
                       className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-5 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all cursor-pointer group"
-                      onClick={() => setIsReading(true)}
+                      onClick={() => openReaderAtChapter(idx)}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
@@ -842,6 +871,7 @@ export default function BookDetailPage() {
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-auto">
             <BibliographyManager
               bookId={book.id}
+              userId={getDemoUserId()}
               onClose={() => setShowBibliography(false)}
             />
           </div>

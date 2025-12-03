@@ -11,7 +11,7 @@ export const BasicInfo: React.FC = () => {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Basic Information</h2>
-        <p className="text-gray-600 dark:text-gray-600 dark:text-gray-400">Essential details about your book</p>
+        <p className="text-gray-600 dark:text-gray-400">Essential details about your book</p>
       </div>
 
       <div className="space-y-4">
@@ -45,7 +45,7 @@ export const BasicInfo: React.FC = () => {
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-700 dark:text-gray-300 mb-1">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Genre *
           </label>
           <select
@@ -83,7 +83,7 @@ export const BasicInfo: React.FC = () => {
         />
 
         {/* Series Information */}
-        <div className="border-t border-gray-200 dark:border-gray-200 dark:border-gray-800 pt-4 mt-6">
+        <div className="border-t border-gray-200 dark:border-gray-800 pt-4 mt-6">
           <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Series Information (Optional)</h3>
           <div className="grid grid-cols-2 gap-4">
             <Input
@@ -124,7 +124,7 @@ export const BasicInfo: React.FC = () => {
         </div>
 
         {/* Co-Authors */}
-        <div className="border-t border-gray-200 dark:border-gray-200 dark:border-gray-800 pt-4 mt-6">
+        <div className="border-t border-gray-200 dark:border-gray-800 pt-4 mt-6">
           <h3 className="text-lg font-semibold mb-3 text-gray-900 dark:text-white">Co-Authors (Optional)</h3>
           <Input
             label="Co-Author Names"

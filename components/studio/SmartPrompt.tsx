@@ -46,6 +46,7 @@ export function SmartPrompt() {
   const [parsedResult, setParsedResult] = useState<ParsedPrompt | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showAppliedNotification, setShowAppliedNotification] = useState(false);
 
   // Analyze prompt and extract configuration
   const analyzePrompt = useCallback(async () => {
@@ -204,6 +205,10 @@ export function SmartPrompt() {
     };
 
     setConfig({ ...config, ...newConfig } as BookConfiguration);
+    
+    // Show success notification
+    setShowAppliedNotification(true);
+    setTimeout(() => setShowAppliedNotification(false), 3000);
   };
 
   const handleSuggestionClick = (suggestion: SuggestionChip) => {
@@ -211,7 +216,37 @@ export function SmartPrompt() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 relative">
+      {/* Success Notification */}
+      {showAppliedNotification && (
+        <div 
+          className="fixed top-4 right-4 z-50 transition-all duration-300 ease-out"
+          style={{
+            animation: 'slideInFadeIn 0.3s ease-out forwards'
+          }}
+        >
+          <div className="flex items-center gap-3 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg border border-green-400">
+            <span className="text-xl">✅</span>
+            <div>
+              <p className="font-semibold">Configuration Applied!</p>
+              <p className="text-sm opacity-90">Your settings have been updated</p>
+            </div>
+          </div>
+          <style jsx>{`
+            @keyframes slideInFadeIn {
+              from {
+                opacity: 0;
+                transform: translateY(-10px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+          `}</style>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -419,4 +454,6 @@ export function SmartPrompt() {
     </div>
   );
 }
+
+
 

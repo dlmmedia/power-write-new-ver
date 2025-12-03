@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookWithChapters, ensureDemoUser } from '@/lib/db/operations';
+import { getBookWithChaptersAndBibliography, ensureDemoUser } from '@/lib/db/operations';
 import { ExportService } from '@/lib/services/export-service';
 import { ExportServiceAdvanced } from '@/lib/services/export-service-advanced';
+import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 
 // Configure route for longer execution time and Node.js runtime
 export const runtime = 'nodejs';
@@ -34,8 +35,8 @@ export async function POST(request: NextRequest) {
     // Ensure demo user exists
     await ensureDemoUser(userId);
 
-    // Get book with chapters
-    const book = await getBookWithChapters(bookId);
+    // Get book with chapters and bibliography
+    const book = await getBookWithChaptersAndBibliography(bookId);
     if (!book) {
       return NextResponse.json(
         { error: 'Book not found' },
@@ -49,6 +50,74 @@ export async function POST(request: NextRequest) {
         { error: 'Unauthorized' },
         { status: 403 }
       );
+    }
+
+    // Convert database bibliography to export format
+    let bibliographyData = undefined;
+    if (book.bibliography?.config?.enabled && book.bibliography.references.length > 0) {
+      // Convert database references to the Reference type expected by export
+      const convertedReferences: Reference[] = book.bibliography.references.map(ref => {
+        // Parse authors from JSONB
+        const authors: Author[] = Array.isArray(ref.authors) 
+          ? (ref.authors as any[]).map((a: any) => ({
+              firstName: a.firstName || '',
+              middleName: a.middleName,
+              lastName: a.lastName || '',
+              suffix: a.suffix,
+              organization: a.organization,
+            }))
+          : [];
+        
+        // Get type-specific data
+        const typeData = (ref.typeSpecificData as Record<string, any>) || {};
+        
+        // Build base reference
+        const baseRef = {
+          id: ref.id,
+          type: ref.type as any,
+          title: ref.title,
+          authors,
+          year: ref.year || undefined,
+          url: ref.url || undefined,
+          doi: ref.doi || undefined,
+          accessDate: ref.accessDate || undefined,
+          notes: ref.notes || undefined,
+          tags: Array.isArray(ref.tags) ? ref.tags as string[] : undefined,
+          citationKey: ref.citationKey || undefined,
+          createdAt: ref.createdAt || new Date(),
+          updatedAt: ref.updatedAt || new Date(),
+          // Spread type-specific data
+          ...typeData,
+        };
+        
+        return baseRef as Reference;
+      });
+
+      // Convert config to BibliographyConfig format
+      const config = book.bibliography.config;
+      const bibliographyConfig: BibliographyConfig = {
+        enabled: config.enabled || false,
+        citationStyle: (config.citationStyle as any) || 'APA',
+        location: Array.isArray(config.location) ? config.location as any[] : ['bibliography'],
+        sortBy: (config.sortBy as any) || 'author',
+        sortDirection: (config.sortDirection as any) || 'asc',
+        includeAnnotations: config.includeAnnotations || false,
+        includeAbstracts: config.includeAbstracts || false,
+        hangingIndent: config.hangingIndent ?? true,
+        lineSpacing: (config.lineSpacing as any) || 'single',
+        groupByType: config.groupByType || false,
+        numberingStyle: (config.numberingStyle as any) || 'none',
+        showDOI: config.showDOI ?? true,
+        showURL: config.showURL ?? true,
+        showAccessDate: config.showAccessDate ?? true,
+      };
+
+      bibliographyData = {
+        config: bibliographyConfig,
+        references: convertedReferences,
+      };
+      
+      console.log(`Book has bibliography enabled with ${convertedReferences.length} references`);
     }
 
     // Prepare export data
@@ -65,6 +134,7 @@ export async function POST(request: NextRequest) {
           title: ch.title,
           content: ch.content,
         })),
+      bibliography: bibliographyData,
     };
 
     const baseFilename = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();

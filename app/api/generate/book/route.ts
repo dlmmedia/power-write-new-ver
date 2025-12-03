@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIService } from '@/lib/services/ai-service';
-import { createBook, createMultipleChapters, ensureDemoUser } from '@/lib/db/operations';
+import { createBook, createMultipleChapters, ensureDemoUser, upsertBibliographyConfig } from '@/lib/db/operations';
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
@@ -110,6 +110,36 @@ export async function POST(request: NextRequest) {
 
     await createMultipleChapters(chapterData);
 
+    // Create bibliography config if enabled in studio settings
+    if (config.bibliography?.include) {
+      console.log('Creating bibliography config for book:', book.id);
+      try {
+        await upsertBibliographyConfig({
+          bookId: book.id,
+          enabled: true,
+          citationStyle: config.bibliography.citationStyle || 'APA',
+          location: config.bibliography.referenceFormat 
+            ? [config.bibliography.referenceFormat]
+            : ['bibliography'],
+          sortBy: 'author',
+          sortDirection: 'asc',
+          includeAnnotations: false,
+          includeAbstracts: false,
+          hangingIndent: true,
+          lineSpacing: 'single',
+          groupByType: false,
+          numberingStyle: 'none',
+          showDOI: true,
+          showURL: true,
+          showAccessDate: true,
+        });
+        console.log('Bibliography config created successfully');
+      } catch (bibError) {
+        console.error('Failed to create bibliography config:', bibError);
+        // Continue - not critical
+      }
+    }
+
     console.log(`Book generated successfully: ${book.id}`);
 
     return NextResponse.json({
@@ -121,6 +151,7 @@ export async function POST(request: NextRequest) {
         chapters: sanitizedChapters.length,
         wordCount: totalWords,
         modelUsed: chapterModel,
+        hasBibliography: !!config.bibliography?.include,
       },
     });
   } catch (error) {

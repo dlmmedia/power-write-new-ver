@@ -43,15 +43,15 @@ export function ChapterEditor({ chapter, onSave, onClose }: ChapterEditorProps) 
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-8">
+    <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white p-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">
               Chapter {editedChapter.number}: {editedChapter.title}
             </h1>
-            <p className="text-gray-400">
+            <p className="text-gray-600 dark:text-gray-400">
               {editedChapter.wordCount} words
             </p>
           </div>
@@ -71,7 +71,7 @@ export function ChapterEditor({ chapter, onSave, onClose }: ChapterEditorProps) 
 
         {/* Chapter Title */}
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Chapter Title</label>
+          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Chapter Title</label>
           <Input
             value={editedChapter.title}
             onChange={(e) => setEditedChapter({
@@ -84,7 +84,7 @@ export function ChapterEditor({ chapter, onSave, onClose }: ChapterEditorProps) 
 
         {/* Chapter Content */}
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-2">Content</label>
+          <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Content</label>
           <Textarea
             value={editedChapter.content}
             onChange={(e) => updateContent(e.target.value)}
@@ -95,14 +95,14 @@ export function ChapterEditor({ chapter, onSave, onClose }: ChapterEditorProps) 
 
         {/* Status */}
         <div className="flex items-center gap-4">
-          <label className="block text-sm font-medium">Status:</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status:</label>
           <select
             value={editedChapter.status}
             onChange={(e) => setEditedChapter({
               ...editedChapter,
               status: e.target.value as 'draft' | 'completed'
             })}
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-white"
+            className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-gray-900 dark:text-white"
           >
             <option value="draft">Draft</option>
             <option value="completed">Completed</option>

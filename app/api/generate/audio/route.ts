@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
       userId: string;
       bookId: string;
       chapterNumbers?: number[]; // If specified, generate only these chapters
-      voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+      voice?: 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
       speed?: number;
       model?: 'tts-1' | 'tts-1-hd';
     };

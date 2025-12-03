@@ -7,7 +7,7 @@ export const maxDuration = 60; // 1 minute for image generation
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, bookId, title, author, genre, description, style } = body as {
+    const { userId, bookId, title, author, genre, description, style, imageModel } = body as {
       userId: string;
       bookId?: number;
       title: string;
@@ -15,6 +15,7 @@ export async function POST(request: NextRequest) {
       genre: string;
       description: string;
       style?: string;
+      imageModel?: string;
     };
 
     // Validate required fields
@@ -30,13 +31,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`Generating cover image for: ${title}`);
 
-    // Generate cover image
+    // Generate cover image using selected model (default: Nano Banana Pro)
     const coverImageUrl = await aiService.generateCoverImage(
       title,
       author,
       genre,
       description,
-      style || 'photographic'
+      style || 'photographic',
+      imageModel
     );
 
     // If bookId provided, update the book with the cover URL

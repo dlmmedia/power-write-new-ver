@@ -1,6 +1,7 @@
 // AI Model Configuration Types
 
 export type AIProvider = 'openai' | 'openrouter';
+export type ImageProvider = 'dalle' | 'nanobanana' | 'nanobanana-pro';
 
 export interface AIModel {
   id: string;
@@ -386,4 +387,63 @@ export function getRecommendedModels(): AIModel[] {
 // Default model configurations
 export const DEFAULT_OUTLINE_MODEL = 'openai/gpt-4o-mini';
 export const DEFAULT_CHAPTER_MODEL = 'anthropic/claude-sonnet-4';
+
+// Image Generation Models
+export interface ImageModel {
+  id: string;
+  name: string;
+  provider: ImageProvider;
+  description: string;
+  maxResolution: string;
+  pricing: {
+    perImage: number; // approximate cost per image in USD
+  };
+  capabilities: {
+    textRendering: boolean;
+    highResolution: boolean;
+    styleControl: boolean;
+  };
+  tier: 'premium' | 'standard';
+}
+
+export const IMAGE_MODELS: ImageModel[] = [
+  {
+    id: 'dall-e-3',
+    name: 'DALL-E 3',
+    provider: 'dalle',
+    description: 'OpenAI\'s image generation model - proven quality',
+    maxResolution: '1792x1024',
+    pricing: { perImage: 0.08 },
+    capabilities: { textRendering: false, highResolution: true, styleControl: true },
+    tier: 'premium',
+  },
+  {
+    id: 'google/gemini-2.5-flash-image',
+    name: 'Nano Banana (Gemini 2.5 Flash)',
+    provider: 'nanobanana',
+    description: 'Fast image generation via OpenRouter',
+    maxResolution: '1024x1024',
+    pricing: { perImage: 0.02 },
+    capabilities: { textRendering: true, highResolution: false, styleControl: true },
+    tier: 'standard',
+  },
+  {
+    id: 'google/gemini-3-pro-image-preview',
+    name: 'Nano Banana Pro (Gemini 3 Pro)',
+    provider: 'nanobanana-pro',
+    description: 'Premium image generation - 4K, better text, advanced controls',
+    maxResolution: '4096x4096',
+    pricing: { perImage: 0.05 },
+    capabilities: { textRendering: true, highResolution: true, styleControl: true },
+    tier: 'premium',
+  },
+];
+
+export const DEFAULT_IMAGE_MODEL = 'google/gemini-3-pro-image-preview'; // Nano Banana Pro
+
+export function getImageModelById(id: string): ImageModel | undefined {
+  return IMAGE_MODELS.find((m) => m.id === id);
+}
+
+
 

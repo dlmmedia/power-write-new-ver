@@ -200,7 +200,7 @@ export function CharactersWorld() {
                 id="char-role"
                 value={newCharacter.role || 'supporting'}
                 onChange={(e) => setNewCharacter({ ...newCharacter, role: e.target.value as Character['role'] })}
-                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
               >
                 <option value="protagonist">Protagonist</option>
                 <option value="antagonist">Antagonist</option>

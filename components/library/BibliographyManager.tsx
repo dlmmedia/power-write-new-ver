@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
@@ -11,6 +11,7 @@ import {
   REFERENCE_TYPE_LABELS,
   CITATION_STYLE_LABELS,
   BibliographyConfig,
+  defaultBibliographyConfig,
 } from '@/lib/types/bibliography';
 import {
   useBibliographyStore,
@@ -24,28 +25,228 @@ import { ReferenceEditor } from './ReferenceEditor';
 
 interface BibliographyManagerProps {
   bookId: number;
+  userId: string;
   onClose?: () => void;
 }
 
 export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
   bookId,
+  userId,
   onClose,
 }) => {
   const {
-    config,
-    references,
-    updateConfig,
-    addReference,
-    updateReference,
-    deleteReference,
-    exportReferences,
-    importReferences,
+    config: storeConfig,
+    references: storeReferences,
+    updateConfig: updateStoreConfig,
+    addReference: addStoreReference,
+    updateReference: updateStoreReference,
+    deleteReference: deleteStoreReference,
+    importReferences: importStoreReferences,
+    loadBibliography,
+    setBookId,
   } = useBibliographyStore();
+
+  // Local state that syncs with database
+  const [config, setConfig] = useState<BibliographyConfig>(storeConfig);
+  const [references, setReferences] = useState<Reference[]>(storeReferences);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Load bibliography from database on mount
+  const loadFromDatabase = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/books/${bookId}/bibliography`);
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        const { config: dbConfig, references: dbRefs } = data.data;
+        
+        // Convert database config to BibliographyConfig format
+        if (dbConfig) {
+          const loadedConfig: BibliographyConfig = {
+            enabled: dbConfig.enabled ?? false,
+            citationStyle: (dbConfig.citationStyle as CitationStyle) || 'APA',
+            location: Array.isArray(dbConfig.location) ? dbConfig.location : ['bibliography'],
+            sortBy: dbConfig.sortBy || 'author',
+            sortDirection: dbConfig.sortDirection || 'asc',
+            includeAnnotations: dbConfig.includeAnnotations ?? false,
+            includeAbstracts: dbConfig.includeAbstracts ?? false,
+            hangingIndent: dbConfig.hangingIndent ?? true,
+            lineSpacing: dbConfig.lineSpacing || 'single',
+            groupByType: dbConfig.groupByType ?? false,
+            numberingStyle: dbConfig.numberingStyle || 'none',
+            showDOI: dbConfig.showDOI ?? true,
+            showURL: dbConfig.showURL ?? true,
+            showAccessDate: dbConfig.showAccessDate ?? true,
+          };
+          setConfig(loadedConfig);
+          updateStoreConfig(loadedConfig);
+        }
+
+        // Convert database references to Reference format
+        if (dbRefs && dbRefs.length > 0) {
+          const loadedRefs: Reference[] = dbRefs.map((ref: any) => ({
+            id: ref.id,
+            type: ref.type,
+            title: ref.title,
+            authors: Array.isArray(ref.authors) ? ref.authors : [],
+            year: ref.year,
+            url: ref.url,
+            doi: ref.doi,
+            accessDate: ref.accessDate,
+            notes: ref.notes,
+            tags: Array.isArray(ref.tags) ? ref.tags : [],
+            citationKey: ref.citationKey,
+            createdAt: new Date(ref.createdAt),
+            updatedAt: new Date(ref.updatedAt),
+            // Spread type-specific data
+            ...(ref.typeSpecificData || {}),
+          }));
+          setReferences(loadedRefs);
+          importStoreReferences(loadedRefs);
+        }
+
+        setBookId(bookId);
+      }
+    } catch (error) {
+      console.error('Failed to load bibliography from database:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [bookId, updateStoreConfig, importStoreReferences, setBookId]);
+
+  useEffect(() => {
+    loadFromDatabase();
+  }, [loadFromDatabase]);
+
+  // Save config to database
+  const saveConfigToDatabase = async (newConfig: Partial<BibliographyConfig>) => {
+    try {
+      setIsSaving(true);
+      const mergedConfig = { ...config, ...newConfig };
+      
+      await fetch(`/api/books/${bookId}/bibliography`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          config: mergedConfig,
+        }),
+      });
+
+      setConfig(mergedConfig);
+      updateStoreConfig(newConfig);
+    } catch (error) {
+      console.error('Failed to save config:', error);
+      alert('Failed to save bibliography settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Wrapper functions that sync with database
+  const updateConfig = (updates: Partial<BibliographyConfig>) => {
+    saveConfigToDatabase(updates);
+  };
+
+  const addReference = async (reference: Reference) => {
+    try {
+      setIsSaving(true);
+      await fetch(`/api/books/${bookId}/bibliography`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          reference,
+          action: 'create',
+        }),
+      });
+
+      setReferences(prev => [...prev, reference]);
+      addStoreReference(reference);
+    } catch (error) {
+      console.error('Failed to add reference:', error);
+      alert('Failed to save reference');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateReference = async (id: string, updates: Partial<Reference>) => {
+    try {
+      setIsSaving(true);
+      const existingRef = references.find(r => r.id === id);
+      if (!existingRef) return;
+
+      const updatedRef = { ...existingRef, ...updates };
+      
+      await fetch(`/api/books/${bookId}/bibliography`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          reference: updatedRef,
+          action: 'update',
+        }),
+      });
+
+      setReferences(prev => prev.map(r => r.id === id ? updatedRef : r));
+      updateStoreReference(id, updates);
+    } catch (error) {
+      console.error('Failed to update reference:', error);
+      alert('Failed to update reference');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteReference = async (id: string) => {
+    try {
+      setIsSaving(true);
+      await fetch(`/api/books/${bookId}/bibliography`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          reference: { id },
+          action: 'delete',
+        }),
+      });
+
+      setReferences(prev => prev.filter(r => r.id !== id));
+      deleteStoreReference(id);
+    } catch (error) {
+      console.error('Failed to delete reference:', error);
+      alert('Failed to delete reference');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const importReferences = async (newRefs: Reference[]) => {
+    // Import multiple references to database
+    for (const ref of newRefs) {
+      await addReference(ref);
+    }
+  };
 
   const [view, setView] = useState<'list' | 'add' | 'edit' | 'settings'>('list');
   const [selectedReference, setSelectedReference] = useState<Reference | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<ReferenceType | 'all'>('all');
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="p-6 bg-white dark:bg-gray-900 rounded-lg flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-yellow-500 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading bibliography...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Filter and search references
   const filteredReferences = references.filter((ref) => {
@@ -71,11 +272,11 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
     setView('add');
   };
 
-  const handleSaveReference = (reference: Reference) => {
+  const handleSaveReference = async (reference: Reference) => {
     if (view === 'add') {
-      addReference(reference);
+      await addReference(reference);
     } else {
-      updateReference(reference.id, reference);
+      await updateReference(reference.id, reference);
     }
     setView('list');
     setSelectedReference(null);
@@ -86,13 +287,16 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
     setView('edit');
   };
 
-  const handleDeleteReference = (id: string) => {
+  const handleDeleteReference = async (id: string) => {
     if (confirm('Are you sure you want to delete this reference?')) {
-      deleteReference(id);
+      await deleteReference(id);
     }
   };
 
+  const exportReferences = () => references;
+
   const handleExport = (format: 'json' | 'bibtex' | 'ris') => {
+    const refsToExport = exportReferences();
     let content = '';
     let filename = '';
     let mimeType = '';
@@ -102,7 +306,7 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
         content = exportBibliographyToJSON({
           bookId,
           config,
-          references,
+          references: refsToExport,
           chapterReferences: [],
           createdAt: new Date(),
           updatedAt: new Date(),
@@ -111,12 +315,12 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
         mimeType = 'application/json';
         break;
       case 'bibtex':
-        content = exportToBibTeX(references);
+        content = exportToBibTeX(refsToExport);
         filename = 'bibliography.bib';
         mimeType = 'text/plain';
         break;
       case 'ris':
-        content = exportToRIS(references);
+        content = exportToRIS(refsToExport);
         filename = 'bibliography.ris';
         mimeType = 'text/plain';
         break;
@@ -138,12 +342,12 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const content = e.target?.result as string;
         const data = JSON.parse(content);
         if (data.references && Array.isArray(data.references)) {
-          importReferences(data.references);
+          await importReferences(data.references);
           alert(`Imported ${data.references.length} references successfully!`);
         }
       } catch (error) {
@@ -307,6 +511,11 @@ export const BibliographyManager: React.FC<BibliographyManagerProps> = ({
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
             Bibliography Manager
+            {isSaving && (
+              <span className="ml-2 text-sm font-normal text-yellow-600 dark:text-yellow-400">
+                Saving...
+              </span>
+            )}
           </h2>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             {references.length} reference{references.length !== 1 ? 's' : ''} • {config.citationStyle} style

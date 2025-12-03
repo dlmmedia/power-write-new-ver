@@ -6,7 +6,10 @@ import {
   getModelById, 
   ALL_MODELS,
   DEFAULT_OUTLINE_MODEL,
-  DEFAULT_CHAPTER_MODEL 
+  DEFAULT_CHAPTER_MODEL,
+  DEFAULT_IMAGE_MODEL,
+  getImageModelById,
+  ImageProvider 
 } from '@/lib/types/models';
 
 // API Keys
@@ -481,58 +484,38 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     author: string,
     genre: string,
     description: string,
-    style: string = 'vivid'
+    style: string = 'vivid',
+    imageModelId?: string
   ): Promise<string> {
     try {
-      if (!OPENAI_API_KEY) {
-        throw new Error('OPENAI_API_KEY is required for image generation');
-      }
-
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
         throw new Error('BLOB_READ_WRITE_TOKEN is required for image storage. Set it in Vercel project settings.');
       }
 
-      const prompt = `A professional book cover for "${title}" by ${author}. Genre: ${genre}. ${description.substring(0, 200)}. Style: ${style}, premium publishing quality, eye-catching design, portrait orientation.`;
+      const modelId = imageModelId || DEFAULT_IMAGE_MODEL;
+      const imageModel = getImageModelById(modelId);
       
-      console.log('Generating cover with DALL-E 3...');
+      // Determine which provider to use
+      const provider: ImageProvider = imageModel?.provider || 'nanobanana-pro';
       
-      const response = await fetch(
-        'https://api.openai.com/v1/images/generations',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENAI_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: 'dall-e-3',
-            prompt: prompt,
-            n: 1,
-            size: '1024x1792',
-            quality: 'hd',
-            style: style,
-          }),
-        }
-      );
+      console.log(`Generating cover with ${imageModel?.name || modelId}...`);
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('DALL-E 3 image generation error:', errorText);
-        throw new Error(`Image generation failed: ${response.status} ${errorText}`);
+      let imageUrl: string;
+
+      if (provider === 'dalle') {
+        // Use DALL-E 3 via OpenAI
+        imageUrl = await this.generateWithDallE(title, author, genre, description, style);
+      } else {
+        // Use Nano Banana / Nano Banana Pro via OpenRouter (Gemini image models)
+        imageUrl = await this.generateWithNanoBanana(title, author, genre, description, style, modelId);
       }
 
-      const data = await response.json();
-      
-      if (!data.data || data.data.length === 0) {
-        throw new Error('No images generated');
-      }
+      // Upload to blob storage
+      console.log('Image generated, downloading and uploading to blob storage...');
 
-      const temporaryUrl = data.data[0].url;
-      console.log('DALL-E image generated, downloading and uploading to blob storage...');
-
-      const imageResponse = await fetch(temporaryUrl);
+      const imageResponse = await fetch(imageUrl);
       if (!imageResponse.ok) {
-        throw new Error(`Failed to download image from DALL-E: ${imageResponse.status}`);
+        throw new Error(`Failed to download image: ${imageResponse.status}`);
       }
 
       const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
@@ -556,6 +539,236 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
       console.error('Error generating cover:', error);
       throw new Error(`Failed to generate cover image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  private async generateWithDallE(
+    title: string,
+    author: string,
+    genre: string,
+    description: string,
+    style: string
+  ): Promise<string> {
+    if (!OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY is required for DALL-E image generation');
+    }
+
+    const prompt = `A professional book cover for "${title}" by ${author}. Genre: ${genre}. ${description.substring(0, 200)}. Style: ${style}, premium publishing quality, eye-catching design, portrait orientation.`;
+    
+    console.log('Using DALL-E 3...');
+    
+    const response = await fetch(
+      'https://api.openai.com/v1/images/generations',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'dall-e-3',
+          prompt: prompt,
+          n: 1,
+          size: '1024x1792',
+          quality: 'hd',
+          style: style,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('DALL-E 3 image generation error:', errorText);
+      throw new Error(`DALL-E image generation failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.data || data.data.length === 0) {
+      throw new Error('No images generated by DALL-E');
+    }
+
+    return data.data[0].url;
+  }
+
+  private async generateWithNanoBanana(
+    title: string,
+    author: string,
+    genre: string,
+    description: string,
+    style: string,
+    modelId: string
+  ): Promise<string> {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY is required for Nano Banana Pro image generation. Set it in your environment variables.');
+    }
+
+    // Build a detailed prompt for book cover generation
+    const prompt = `Generate a stunning professional book cover image for a ${genre} book.
+
+Title: "${title}"
+Author: ${author}
+Description: ${description.substring(0, 300)}
+Style: ${style}, premium publishing quality
+
+Requirements:
+- Create a visually striking book cover background image
+- Portrait orientation (2:3 aspect ratio suitable for book covers)
+- High quality, eye-catching design appropriate for ${genre}
+- DO NOT include any text, titles, or author names in the image
+- Focus on mood, atmosphere, and visual storytelling
+- Professional publishing quality suitable for commercial use
+
+Generate only the background artwork/imagery for a book cover.`;
+
+    // Use the model ID directly - it should be one of:
+    // - google/gemini-3-pro-image-preview (Nano Banana Pro)
+    // - google/gemini-2.5-flash-image (Nano Banana)
+    console.log(`Using ${modelId} via OpenRouter for image generation...`);
+
+    // Use OpenRouter's chat completions API with image generation capability
+    // Models with output_modalities: ["image", "text"] support this
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          'X-Title': 'PowerWrite Book Studio',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            {
+              role: 'user',
+              content: prompt,
+            },
+          ],
+          // Request image output - required for image generation models
+          modalities: ['image', 'text'],
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Nano Banana image generation error:', errorText);
+      
+      // If this model doesn't support image generation, fall back to DALL-E
+      if (response.status === 400 || response.status === 422 || response.status === 404) {
+        console.log('OpenRouter image generation not available, falling back to DALL-E...');
+        if (OPENAI_API_KEY) {
+          return await this.generateWithDallE(title, author, genre, description, style);
+        }
+        throw new Error('Image generation failed and no fallback available. Please set OPENAI_API_KEY for DALL-E.');
+      }
+      
+      throw new Error(`Nano Banana image generation failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('OpenRouter response structure:', Object.keys(data));
+    
+    // Parse the response - OpenRouter returns images in various formats
+    if (data.choices && data.choices[0]) {
+      const choice = data.choices[0];
+      const message = choice.message;
+      
+      console.log('Message structure:', message ? Object.keys(message) : 'null');
+      
+      // Check for images array (OpenRouter multimodal format)
+      if (message?.images && Array.isArray(message.images)) {
+        for (const image of message.images) {
+          if (image.image_url?.url) {
+            console.log('Found image in images array (image_url.url)');
+            return image.image_url.url;
+          }
+          if (image.url) {
+            console.log('Found image in images array (url)');
+            return image.url;
+          }
+          if (image.b64_json) {
+            console.log('Found base64 image in images array');
+            return `data:image/png;base64,${image.b64_json}`;
+          }
+        }
+      }
+      
+      // Check content array (multimodal response format)
+      if (message?.content) {
+        const content = message.content;
+        console.log('Content type:', typeof content, Array.isArray(content) ? `(array of ${content.length})` : '');
+        
+        if (Array.isArray(content)) {
+          for (const part of content) {
+            console.log('Content part type:', part.type);
+            
+            // Standard image_url format
+            if (part.type === 'image_url' && part.image_url?.url) {
+              console.log('Found image_url in content array');
+              return part.image_url.url;
+            }
+            
+            // Image with nested image_url
+            if (part.type === 'image' && part.image_url?.url) {
+              console.log('Found image with image_url in content array');
+              return part.image_url.url;
+            }
+            
+            // Base64 image data
+            if (part.type === 'image' && part.data) {
+              console.log('Found base64 image in content array');
+              return `data:image/png;base64,${part.data}`;
+            }
+            
+            // Inline base64 in image_url
+            if (part.type === 'image_url' && part.image_url?.url?.startsWith('data:')) {
+              console.log('Found inline base64 in image_url');
+              return part.image_url.url;
+            }
+          }
+        }
+        
+        // Check if content itself is a URL string
+        if (typeof content === 'string') {
+          if (content.startsWith('http')) {
+            console.log('Content is a URL string');
+            return content;
+          }
+          if (content.startsWith('data:image')) {
+            console.log('Content is a data URL');
+            return content;
+          }
+        }
+      }
+      
+      // Check for direct image_url on message
+      if (message?.image_url?.url) {
+        console.log('Found image_url directly on message');
+        return message.image_url.url;
+      }
+      if (message?.image_url && typeof message.image_url === 'string') {
+        console.log('Found image_url string on message');
+        return message.image_url;
+      }
+    }
+
+    // Check top-level data array (DALL-E-like response)
+    if (data.data && data.data[0]?.url) {
+      console.log('Found image in data array');
+      return data.data[0].url;
+    }
+
+    console.error('Could not extract image from OpenRouter response:', JSON.stringify(data, null, 2));
+    
+    // Fall back to DALL-E if available
+    if (OPENAI_API_KEY) {
+      console.log('Falling back to DALL-E due to unexpected response format...');
+      return await this.generateWithDallE(title, author, genre, description, style);
+    }
+    
+    throw new Error('Could not extract image URL from OpenRouter response. Full response logged above.');
   }
 
   async generateFullBook(

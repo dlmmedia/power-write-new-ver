@@ -4,12 +4,21 @@ import {
   bookChapters,
   referenceBooks,
   users,
+  bibliographyReferences,
+  bibliographyConfigs,
+  citations,
   InsertGeneratedBook,
   InsertBookChapter,
   InsertReferenceBook,
+  InsertBibliographyReference,
+  InsertBibliographyConfig,
+  InsertCitation,
   GeneratedBook,
   BookChapter,
   ReferenceBook,
+  BibliographyReference,
+  BibliographyConfigDB,
+  Citation,
 } from './schema';
 import { eq, and, desc, like, inArray } from 'drizzle-orm';
 
@@ -326,5 +335,130 @@ export async function getUserBookStats(userId: string): Promise<{
       const metadata = b.metadata as any;
       return sum + (metadata?.chapters || 0);
     }, 0),
+  };
+}
+
+// ============ BIBLIOGRAPHY OPERATIONS ============
+
+export async function getBibliographyConfig(bookId: number): Promise<BibliographyConfigDB | null> {
+  const [config] = await db
+    .select()
+    .from(bibliographyConfigs)
+    .where(eq(bibliographyConfigs.bookId, bookId))
+    .limit(1);
+  return config || null;
+}
+
+export async function createBibliographyConfig(data: InsertBibliographyConfig): Promise<BibliographyConfigDB> {
+  const [config] = await db.insert(bibliographyConfigs).values(data).returning();
+  return config;
+}
+
+export async function updateBibliographyConfig(
+  bookId: number,
+  data: Partial<InsertBibliographyConfig>
+): Promise<BibliographyConfigDB | null> {
+  const [config] = await db
+    .update(bibliographyConfigs)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(bibliographyConfigs.bookId, bookId))
+    .returning();
+  return config || null;
+}
+
+export async function upsertBibliographyConfig(data: InsertBibliographyConfig): Promise<BibliographyConfigDB> {
+  const existing = await getBibliographyConfig(data.bookId);
+  if (existing) {
+    const updated = await updateBibliographyConfig(data.bookId, data);
+    return updated!;
+  }
+  return await createBibliographyConfig(data);
+}
+
+export async function getBibliographyReferences(bookId: number): Promise<BibliographyReference[]> {
+  return await db
+    .select()
+    .from(bibliographyReferences)
+    .where(eq(bibliographyReferences.bookId, bookId))
+    .orderBy(bibliographyReferences.createdAt);
+}
+
+export async function createBibliographyReference(data: InsertBibliographyReference): Promise<BibliographyReference> {
+  const [ref] = await db.insert(bibliographyReferences).values(data).returning();
+  return ref;
+}
+
+export async function updateBibliographyReference(
+  id: string,
+  data: Partial<InsertBibliographyReference>
+): Promise<BibliographyReference | null> {
+  const [ref] = await db
+    .update(bibliographyReferences)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(bibliographyReferences.id, id))
+    .returning();
+  return ref || null;
+}
+
+export async function deleteBibliographyReference(id: string): Promise<void> {
+  await db.delete(bibliographyReferences).where(eq(bibliographyReferences.id, id));
+}
+
+export async function getBookCitations(bookId: number): Promise<Citation[]> {
+  return await db
+    .select()
+    .from(citations)
+    .where(eq(citations.bookId, bookId))
+    .orderBy(citations.createdAt);
+}
+
+export async function getChapterCitations(chapterId: number): Promise<Citation[]> {
+  return await db
+    .select()
+    .from(citations)
+    .where(eq(citations.chapterId, chapterId))
+    .orderBy(citations.position);
+}
+
+export async function createCitation(data: InsertCitation): Promise<Citation> {
+  const [citation] = await db.insert(citations).values(data).returning();
+  return citation;
+}
+
+export async function deleteCitation(id: string): Promise<void> {
+  await db.delete(citations).where(eq(citations.id, id));
+}
+
+// Get complete bibliography data for a book (for export)
+export async function getBookBibliography(bookId: number): Promise<{
+  config: BibliographyConfigDB | null;
+  references: BibliographyReference[];
+  citations: Citation[];
+} | null> {
+  const config = await getBibliographyConfig(bookId);
+  const references = await getBibliographyReferences(bookId);
+  const bookCitations = await getBookCitations(bookId);
+  
+  return {
+    config,
+    references,
+    citations: bookCitations,
+  };
+}
+
+// Get book with chapters and bibliography
+export async function getBookWithChaptersAndBibliography(bookId: number | string) {
+  const id = typeof bookId === 'string' ? parseInt(bookId, 10) : bookId;
+  const book = await getBook(id);
+  if (!book) {
+    return null;
+  }
+  const chapters = await getBookChapters(id);
+  const bibliography = await getBookBibliography(id);
+  
+  return {
+    ...book,
+    chapters,
+    bibliography,
   };
 }

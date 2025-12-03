@@ -7,13 +7,14 @@ export const maxDuration = 60; // 1 minute for image generation
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, title, author, genre, description, style } = body as {
+    const { userId, title, author, genre, description, style, imageModel } = body as {
       userId: string;
       title: string;
       author: string;
       genre: string;
       description: string;
       style?: string;
+      imageModel?: string;
     };
 
     // Validate required fields
@@ -29,13 +30,14 @@ export async function POST(request: NextRequest) {
 
     console.log(`Generating cover for "${title}" by ${author}`);
 
-    // Generate cover using Google Imagen
+    // Generate cover using selected image model (default: Nano Banana Pro)
     const coverImageUrl = await aiService.generateCoverImage(
       title,
       author,
       genre,
       description,
-      style || 'photographic'
+      style || 'photographic',
+      imageModel
     );
 
     console.log('Cover generated successfully');

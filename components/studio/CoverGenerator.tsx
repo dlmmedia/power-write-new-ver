@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { CoverDesignOptions, GENRE_COVER_DEFAULTS } from '@/lib/types/cover';
 import { CoverService } from '@/lib/services/cover-service';
+import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '@/lib/types/models';
 
 interface CoverGeneratorProps {
   bookId?: number;
@@ -31,6 +32,7 @@ export default function CoverGenerator({
   const [coverUrl, setCoverUrl] = useState<string | undefined>(currentCoverUrl);
   const [error, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'cover' | 'mockup'>('cover');
+  const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL);
   
   // Design customization state
   const genreDefaults = GENRE_COVER_DEFAULTS[genre] || GENRE_COVER_DEFAULTS['Literary Fiction'];
@@ -68,6 +70,7 @@ export default function CoverGenerator({
           targetAudience,
           themes,
           designOptions,
+          imageModel,
         }),
       });
 
@@ -192,6 +195,45 @@ export default function CoverGenerator({
         <h3 className="text-lg font-semibold text-white mb-4">Design Options</h3>
         
         <div className="space-y-4">
+          {/* Image Model Selection */}
+          <div>
+            <label className="block text-sm font-medium text-gray-300 mb-2">
+              Image AI Model
+            </label>
+            <div className="grid grid-cols-1 gap-2">
+              {IMAGE_MODELS.map((model) => (
+                <button
+                  key={model.id}
+                  onClick={() => setImageModel(model.id)}
+                  className={`px-4 py-3 rounded text-left transition-all ${
+                    imageModel === model.id
+                      ? 'bg-yellow-400 text-black ring-2 ring-yellow-300'
+                      : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{model.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${
+                      model.tier === 'premium' 
+                        ? 'bg-yellow-500/20 text-yellow-400' 
+                        : 'bg-gray-600 text-gray-300'
+                    }`}>
+                      {model.tier === 'premium' ? '⭐ Premium' : 'Standard'}
+                    </span>
+                  </div>
+                  <p className={`text-xs mt-1 ${imageModel === model.id ? 'text-black/70' : 'text-gray-500'}`}>
+                    {model.description}
+                  </p>
+                  <div className={`flex gap-2 mt-1 text-xs ${imageModel === model.id ? 'text-black/60' : 'text-gray-600'}`}>
+                    <span>Max: {model.maxResolution}</span>
+                    {model.capabilities.textRendering && <span>• Text OK</span>}
+                    {model.capabilities.highResolution && <span>• 4K</span>}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Generation Method */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
@@ -215,7 +257,7 @@ export default function CoverGenerator({
               ))}
             </div>
             <p className="text-xs text-gray-500 mt-1">
-              {designOptions.generationMethod === 'ai' && 'Full AI image generation using DALL-E 3'}
+              {designOptions.generationMethod === 'ai' && `Full AI image generation using ${IMAGE_MODELS.find(m => m.id === imageModel)?.name || 'selected model'}`}
               {designOptions.generationMethod === 'template' && 'Professional templates with custom text'}
               {designOptions.generationMethod === 'hybrid' && 'AI background with styled typography overlay'}
             </p>

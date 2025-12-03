@@ -1,9 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Headphones, 
+  Mic, 
+  Download, 
+  Play, 
+  Pause, 
+  Square,
+  Check, 
+  Clock, 
+  BarChart3, 
+  Zap, 
+  Sparkles,
+  Book, 
+  FileAudio,
+  Archive,
+  Volume2,
+  ChevronDown,
+  Loader2,
+  AlertCircle,
+  CheckCircle2,
+  Music,
+  Radio,
+  User,
+  Users,
+  Briefcase,
+  GraduationCap,
+  Heart,
+  Shield,
+  Star,
+  Package
+} from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { AudioPlayer } from './AudioPlayer';
+import JSZip from 'jszip';
 
 interface Chapter {
   id: number;
@@ -30,7 +63,55 @@ interface GeneratedAudio {
   duration: number;
 }
 
-type VoiceType = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+type VoiceType = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+
+interface VoiceInfo {
+  id: VoiceType;
+  name: string;
+  title: string;
+  description: string;
+  expertise: string[];
+  gender: 'neutral' | 'masculine' | 'feminine';
+  style: string;
+  icon: React.ElementType;
+  gradient: string;
+}
+
+// Animation variants
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { duration: 0.4, ease: "easeOut" }
+  }
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.1 }
+  }
+};
+
+const scaleIn = {
+  hidden: { scale: 0.8, opacity: 0 },
+  visible: { 
+    scale: 1, 
+    opacity: 1,
+    transition: { type: "spring", stiffness: 300, damping: 20 }
+  }
+};
+
+const slideUp = {
+  hidden: { y: 30, opacity: 0 },
+  visible: { 
+    y: 0, 
+    opacity: 1,
+    transition: { type: "spring", stiffness: 400, damping: 25 }
+  }
+};
 
 export function AudioGenerator({
   bookId,
@@ -39,27 +120,226 @@ export function AudioGenerator({
   userId,
   onAudioGenerated,
 }: AudioGeneratorProps) {
-  const [generationMode, setGenerationMode] = useState<'full' | 'chapters'>('full');
+  const [generationMode, setGenerationMode] = useState<'full' | 'chapters'>('chapters');
   const [selectedChapters, setSelectedChapters] = useState<number[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [generatingChapter, setGeneratingChapter] = useState<number | null>(null);
   const [generatedAudios, setGeneratedAudios] = useState<GeneratedAudio[]>([]);
   const [fullAudioUrl, setFullAudioUrl] = useState<string | null>(null);
-  const [showAudioStatus, setShowAudioStatus] = useState(true);
+  const [chaptersData, setChaptersData] = useState<Chapter[]>(chapters);
+  const [playingVoiceSample, setPlayingVoiceSample] = useState<VoiceType | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const voiceSampleRef = useRef<HTMLAudioElement | null>(null);
   
   // Voice settings
-  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('alloy');
+  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
   const [selectedQuality, setSelectedQuality] = useState<'tts-1' | 'tts-1-hd'>('tts-1');
 
-  const voices: { id: VoiceType; name: string; description: string }[] = [
-    { id: 'alloy', name: 'Alloy', description: 'Neutral and balanced' },
-    { id: 'echo', name: 'Echo', description: 'Calm and smooth' },
-    { id: 'fable', name: 'Fable', description: 'Warm and expressive' },
-    { id: 'onyx', name: 'Onyx', description: 'Deep and authoritative' },
-    { id: 'nova', name: 'Nova', description: 'Energetic and bright' },
-    { id: 'shimmer', name: 'Shimmer', description: 'Soft and gentle' },
+  // Professional voice definitions with corporate naming - All 11 OpenAI voices
+  const voices: VoiceInfo[] = [
+    { 
+      id: 'nova', 
+      name: 'Victoria Sterling',
+      title: 'Executive Narrator',
+      description: 'Polished and professional with excellent pacing. Victoria brings authority and warmth to every narrative.',
+      expertise: ['Business', 'Leadership', 'Biography'],
+      gender: 'feminine',
+      style: 'Warm & Professional',
+      icon: Briefcase,
+      gradient: 'from-rose-500 to-pink-600',
+    },
+    { 
+      id: 'alloy', 
+      name: 'Morgan Blake',
+      title: 'Versatile Presenter',
+      description: 'Balanced and adaptable, delivering content with clarity and precision. Ideal for educational materials.',
+      expertise: ['Education', 'Training', 'Corporate'],
+      gender: 'neutral',
+      style: 'Clear & Articulate',
+      icon: GraduationCap,
+      gradient: 'from-violet-500 to-purple-600',
+    },
+    { 
+      id: 'ash', 
+      name: 'Alexander Grey',
+      title: 'Senior Narrator',
+      description: 'Deep and resonant voice with gravitas. Alexander commands attention for compelling narratives.',
+      expertise: ['Drama', 'Thriller', 'Documentary'],
+      gender: 'masculine',
+      style: 'Deep & Commanding',
+      icon: Shield,
+      gradient: 'from-stone-500 to-zinc-700',
+    },
+    { 
+      id: 'ballad', 
+      name: 'Sophia Nightingale',
+      title: 'Story Weaver',
+      description: 'Melodic and emotive voice that brings stories to life. Perfect for romantic and emotional narratives.',
+      expertise: ['Romance', 'Drama', 'Literary Fiction'],
+      gender: 'feminine',
+      style: 'Melodic & Emotive',
+      icon: Heart,
+      gradient: 'from-pink-400 to-rose-600',
+    },
+    { 
+      id: 'coral', 
+      name: 'Camille Rose',
+      title: 'Dynamic Host',
+      description: 'Warm and energetic with infectious enthusiasm. Camille brings life to adventure and lifestyle content.',
+      expertise: ['Adventure', 'Lifestyle', 'Memoir'],
+      gender: 'feminine',
+      style: 'Warm & Energetic',
+      icon: Star,
+      gradient: 'from-coral-500 to-red-500',
+    },
+    { 
+      id: 'echo', 
+      name: 'Sebastian Cross',
+      title: 'Distinguished Scholar',
+      description: 'Refined and contemplative with intellectual depth. Sebastian excels at scholarly and philosophical works.',
+      expertise: ['Philosophy', 'Academic', 'Documentary'],
+      gender: 'masculine',
+      style: 'Thoughtful & Measured',
+      icon: Book,
+      gradient: 'from-slate-500 to-gray-600',
+    },
+    { 
+      id: 'fable', 
+      name: 'Aurora Winters',
+      title: 'Creative Director',
+      description: 'Expressive and dynamic with exceptional range. Aurora transforms creative content into immersive experiences.',
+      expertise: ['Fantasy', 'Children\'s', 'Adventure'],
+      gender: 'neutral',
+      style: 'Dynamic & Expressive',
+      icon: Sparkles,
+      gradient: 'from-amber-500 to-orange-600',
+    },
+    { 
+      id: 'onyx', 
+      name: 'Marcus Ashford',
+      title: 'Senior Correspondent',
+      description: 'Commanding presence with authoritative delivery. The voice of choice for investigative and historical content.',
+      expertise: ['Journalism', 'Mystery', 'History'],
+      gender: 'masculine',
+      style: 'Authoritative & Bold',
+      icon: Shield,
+      gradient: 'from-emerald-500 to-teal-600',
+    },
+    { 
+      id: 'sage', 
+      name: 'Professor Elena Sage',
+      title: 'Knowledge Guide',
+      description: 'Patient and wise with a natural teaching quality. Perfect for educational and instructional content.',
+      expertise: ['Education', 'Science', 'How-To'],
+      gender: 'feminine',
+      style: 'Patient & Wise',
+      icon: GraduationCap,
+      gradient: 'from-indigo-500 to-purple-600',
+    },
+    { 
+      id: 'shimmer', 
+      name: 'Isabella Chen',
+      title: 'Wellness Director',
+      description: 'Gentle and soothing with a calming presence. Isabella specializes in mindfulness and wellness content.',
+      expertise: ['Wellness', 'Meditation', 'Self-Help'],
+      gender: 'feminine',
+      style: 'Calming & Intimate',
+      icon: Heart,
+      gradient: 'from-cyan-500 to-blue-600',
+    },
+    { 
+      id: 'verse', 
+      name: 'Julian Verse',
+      title: 'Literary Artist',
+      description: 'Poetic and artistic with a lyrical quality. Julian brings beauty to poetry, literature, and artistic works.',
+      expertise: ['Poetry', 'Literature', 'Arts'],
+      gender: 'masculine',
+      style: 'Poetic & Lyrical',
+      icon: Book,
+      gradient: 'from-fuchsia-500 to-purple-600',
+    },
   ];
+
+  // Sync chapters data when prop changes
+  useEffect(() => {
+    setChaptersData(chapters);
+  }, [chapters]);
+
+  // Cache for voice preview URLs
+  const [voicePreviewUrls, setVoicePreviewUrls] = useState<Record<string, string>>({});
+  const [loadingPreview, setLoadingPreview] = useState<VoiceType | null>(null);
+
+  const playVoiceSample = async (voiceId: VoiceType) => {
+    // Stop any currently playing audio
+    if (voiceSampleRef.current) {
+      voiceSampleRef.current.pause();
+      voiceSampleRef.current.currentTime = 0;
+    }
+
+    // Toggle off if same voice
+    if (playingVoiceSample === voiceId) {
+      setPlayingVoiceSample(null);
+      return;
+    }
+
+    // Check if we have a cached URL
+    let audioUrl = voicePreviewUrls[voiceId];
+    
+    if (!audioUrl) {
+      // Fetch the preview URL from our API
+      setLoadingPreview(voiceId);
+      try {
+        const response = await fetch(`/api/generate/voice-preview?voice=${voiceId}`);
+        const data = await response.json();
+        
+        if (data.success && data.audioUrl) {
+          audioUrl = data.audioUrl;
+          setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
+        } else {
+          console.error('Failed to get voice preview:', data.error);
+          setLoadingPreview(null);
+          return;
+        }
+      } catch (error) {
+        console.error('Error fetching voice preview:', error);
+        setLoadingPreview(null);
+        return;
+      }
+      setLoadingPreview(null);
+    }
+
+    // Play the audio
+    setPlayingVoiceSample(voiceId);
+    
+    try {
+      const audio = new Audio(audioUrl);
+      voiceSampleRef.current = audio;
+      
+      audio.onended = () => {
+        setPlayingVoiceSample(null);
+      };
+      
+      audio.onerror = () => {
+        console.error('Error playing audio');
+        setPlayingVoiceSample(null);
+      };
+      
+      await audio.play();
+    } catch (error) {
+      console.error('Error playing voice sample:', error);
+      setPlayingVoiceSample(null);
+    }
+  };
+
+  const stopVoiceSample = () => {
+    if (voiceSampleRef.current) {
+      voiceSampleRef.current.pause();
+      voiceSampleRef.current.currentTime = 0;
+    }
+    setPlayingVoiceSample(null);
+  };
 
   const toggleChapterSelection = (chapterNumber: number) => {
     setSelectedChapters((prev) =>
@@ -73,13 +353,19 @@ export function AudioGenerator({
     setSelectedChapters(chapters.map((ch) => ch.number));
   };
 
+  const selectMissingAudio = () => {
+    const chaptersWithoutAudio = chaptersData
+      .filter(ch => !ch.audioUrl)
+      .map(ch => ch.number);
+    setSelectedChapters(chaptersWithoutAudio);
+  };
+
   const clearSelection = () => {
     setSelectedChapters([]);
   };
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    setProgress({ current: 0, total: 0 });
     setGeneratedAudios([]);
     setFullAudioUrl(null);
 
@@ -124,6 +410,20 @@ export function AudioGenerator({
       } else if (data.type === 'chapters') {
         console.log('[AudioGenerator] Chapter audio generated:', data.chapters?.length, 'chapters');
         setGeneratedAudios(data.chapters);
+        
+        const updatedChapters = [...chaptersData];
+        data.chapters.forEach((audio: GeneratedAudio) => {
+          const idx = updatedChapters.findIndex(ch => ch.number === audio.chapterNumber);
+          if (idx !== -1) {
+            updatedChapters[idx] = {
+              ...updatedChapters[idx],
+              audioUrl: audio.audioUrl,
+              audioDuration: audio.duration,
+            };
+          }
+        });
+        setChaptersData(updatedChapters);
+        
         if (onAudioGenerated) {
           onAudioGenerated({ type: 'chapters', chapters: data.chapters });
         }
@@ -134,6 +434,123 @@ export function AudioGenerator({
       alert(`Audio Generation Failed\n\n${errorMessage}`);
     } finally {
       setIsGenerating(false);
+      setGeneratingChapter(null);
+    }
+  };
+
+  // Direct download function - fetches blob and triggers download
+  const downloadAudioFile = async (audioUrl: string, filename: string) => {
+    try {
+      const response = await fetch(audioUrl);
+      if (!response.ok) throw new Error('Failed to fetch audio file');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the blob URL
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+    } catch (error) {
+      console.error('Download error:', error);
+      // Fallback to direct link
+      const link = document.createElement('a');
+      link.href = audioUrl;
+      link.download = filename;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleDownloadChapter = async (audioUrl: string, chapterNumber: number, chapterTitle: string) => {
+    const filename = `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Chapter_${chapterNumber}_${chapterTitle.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+    await downloadAudioFile(audioUrl, filename);
+  };
+
+  // Download all as ZIP
+  const handleDownloadAllAudio = async () => {
+    const chaptersWithAudioData = chaptersData.filter(ch => ch.audioUrl);
+    
+    if (chaptersWithAudioData.length === 0) return;
+    
+    // If only one file, download directly
+    if (chaptersWithAudioData.length === 1) {
+      const chapter = chaptersWithAudioData[0];
+      await handleDownloadChapter(chapter.audioUrl!, chapter.number, chapter.title);
+      return;
+    }
+    
+    // Multiple files - create ZIP
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    
+    try {
+      const zip = new JSZip();
+      const audioFolder = zip.folder(`${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Audiobook`);
+      
+      if (!audioFolder) throw new Error('Failed to create ZIP folder');
+      
+      let completed = 0;
+      const total = chaptersWithAudioData.length;
+      
+      // Fetch all audio files
+      for (const chapter of chaptersWithAudioData) {
+        if (!chapter.audioUrl) continue;
+        
+        try {
+          const response = await fetch(chapter.audioUrl);
+          if (!response.ok) continue;
+          
+          const blob = await response.blob();
+          const filename = `Chapter_${String(chapter.number).padStart(2, '0')}_${chapter.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+          audioFolder.file(filename, blob);
+          
+          completed++;
+          setDownloadProgress(Math.round((completed / total) * 100));
+        } catch (err) {
+          console.error(`Failed to fetch chapter ${chapter.number}:`, err);
+        }
+      }
+      
+      // Generate and download ZIP
+      const zipBlob = await zip.generateAsync({ 
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      });
+      
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Audiobook.zip`;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      setTimeout(() => window.URL.revokeObjectURL(url), 100);
+    } catch (error) {
+      console.error('ZIP creation error:', error);
+      alert('Failed to create ZIP archive. Downloading files individually...');
+      
+      // Fallback to individual downloads
+      for (const chapter of chaptersWithAudioData) {
+        if (chapter.audioUrl) {
+          await handleDownloadChapter(chapter.audioUrl, chapter.number, chapter.title);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
     }
   };
 
@@ -149,379 +566,794 @@ export function AudioGenerator({
     }
   };
 
+  const formatDuration = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   const canGenerate =
     generationMode === 'full' || (generationMode === 'chapters' && selectedChapters.length > 0);
 
-  // Calculate audio statistics
-  const chaptersWithAudio = chapters.filter(ch => ch.audioUrl).length;
-  const totalChapters = chapters.length;
+  const chaptersWithAudio = chaptersData.filter(ch => ch.audioUrl).length;
+  const totalChapters = chaptersData.length;
   const audioCompletionPercent = totalChapters > 0 ? (chaptersWithAudio / totalChapters) * 100 : 0;
+  const totalAudioDuration = chaptersData.reduce((sum, ch) => sum + (ch.audioDuration || 0), 0);
+
+  const selectedVoiceInfo = voices.find(v => v.id === selectedVoice);
 
   return (
-    <div className="space-y-6">
-      {/* Audio Status Overview */}
-      {showAudioStatus && (
-        <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-600/5 rounded-lg border border-yellow-400/30 p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl">🎧</div>
+    <motion.div 
+      className="space-y-8"
+      initial="hidden"
+      animate="visible"
+      variants={staggerContainer}
+    >
+      {/* Hero Audio Status Card */}
+      <motion.div 
+        variants={cardVariants}
+        className="relative overflow-hidden bg-gradient-to-br from-amber-500/20 via-yellow-400/10 to-orange-500/20 dark:from-amber-900/30 dark:via-yellow-800/20 dark:to-orange-900/30 rounded-2xl border border-yellow-400/30 dark:border-yellow-600/30 p-8"
+      >
+        {/* Decorative Elements */}
+        <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-400/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-orange-400/10 rounded-full blur-2xl translate-y-1/2 -translate-x-1/2" />
+        
+        <div className="relative z-10">
+          <div className="flex items-start justify-between mb-6">
+            <div className="flex items-center gap-4">
+              <motion.div 
+                className="w-16 h-16 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-2xl flex items-center justify-center shadow-lg shadow-yellow-500/30"
+                whileHover={{ scale: 1.05, rotate: 3 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Headphones className="w-8 h-8 text-white" />
+              </motion.div>
               <div>
-                <h3 className="text-xl font-bold">Audiobook Status</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Track your chapter audio generation progress</p>
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Audiobook Studio</h2>
+                <p className="text-gray-600 dark:text-gray-400">Transform your book into professional audio</p>
               </div>
             </div>
-            <button
-              onClick={() => setShowAudioStatus(false)}
-              className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700">
-              <div className="text-2xl font-bold text-yellow-400">{chaptersWithAudio}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Chapters with Audio</div>
-            </div>
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700">
-              <div className="text-2xl font-bold text-yellow-400">{totalChapters - chaptersWithAudio}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Chapters Remaining</div>
-            </div>
-            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700">
-              <div className="text-2xl font-bold text-yellow-400">{audioCompletionPercent.toFixed(0)}%</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Completion</div>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mb-4">
-            <div className="w-full bg-gray-300 dark:bg-gray-700 rounded-full h-3">
-              <div
-                className="bg-gradient-to-r from-yellow-400 to-yellow-600 h-3 rounded-full transition-all duration-500"
-                style={{ width: `${audioCompletionPercent}%` }}
-              />
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          {chaptersWithAudio < totalChapters && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  setGenerationMode('chapters');
-                  const chaptersWithoutAudio = chapters
-                    .filter(ch => !ch.audioUrl)
-                    .map(ch => ch.number);
-                  setSelectedChapters(chaptersWithoutAudio);
-                }}
-                className="px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded font-medium transition-colors text-sm"
+            
+            {chaptersWithAudio > 0 && (
+              <motion.button
+                onClick={handleDownloadAllAudio}
+                disabled={isDownloading}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white/80 dark:bg-black/40 hover:bg-white dark:hover:bg-black/60 border border-yellow-400/50 rounded-xl text-sm font-medium transition-all disabled:opacity-50"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
               >
-                Generate Missing Chapters ({totalChapters - chaptersWithAudio})
-              </button>
-            </div>
+                {isDownloading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Preparing ZIP... {downloadProgress}%</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="w-4 h-4" />
+                    <span>Download All ({chaptersWithAudio})</span>
+                  </>
+                )}
+              </motion.button>
+            )}
+          </div>
+
+          {/* Stats Grid */}
+          <motion.div 
+            className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"
+            variants={staggerContainer}
+          >
+            {[
+              { icon: CheckCircle2, label: 'Complete', value: chaptersWithAudio, sub: 'chapters with audio', color: 'text-green-500' },
+              { icon: Clock, label: 'Remaining', value: totalChapters - chaptersWithAudio, sub: 'chapters pending', color: 'text-yellow-500' },
+              { icon: Radio, label: 'Duration', value: totalAudioDuration > 0 ? formatDuration(totalAudioDuration) : '--:--', sub: 'total audio time', color: 'text-blue-500' },
+              { icon: BarChart3, label: 'Progress', value: `${audioCompletionPercent.toFixed(0)}%`, sub: 'completion rate', color: 'text-purple-500' },
+            ].map((stat, index) => (
+              <motion.div 
+                key={stat.label}
+                variants={scaleIn}
+                whileHover={{ scale: 1.03, y: -2 }}
+                className="bg-white/60 dark:bg-black/30 backdrop-blur-sm rounded-xl p-4 border border-white/50 dark:border-gray-700/50 cursor-default"
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  <stat.icon className={`w-4 h-4 ${stat.color}`} />
+                  <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider">{stat.label}</span>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">{stat.sub}</div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Progress Bar */}
+          <div className="relative h-3 bg-white/50 dark:bg-black/30 rounded-full overflow-hidden">
+            <motion.div
+              className="absolute inset-y-0 left-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${audioCompletionPercent}%` }}
+              transition={{ duration: 1, ease: "easeOut" }}
+            >
+              <div className="absolute inset-0 bg-white/30 animate-pulse" />
+            </motion.div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Voice Selection - Enhanced Cards */}
+      <motion.div 
+        variants={cardVariants}
+        className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm"
+      >
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <Mic className="w-5 h-5 text-white" />
+              </div>
+              Select Your Narrator
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose a professional voice that matches your content</p>
+          </div>
+          {selectedVoiceInfo && (
+            <motion.div
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-yellow-400/20 to-amber-400/20 border border-yellow-400/50 rounded-full"
+            >
+              <Check className="w-4 h-4 text-yellow-600" />
+              <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">{selectedVoiceInfo.name}</span>
+            </motion.div>
           )}
         </div>
-      )}
-      {/* Mode Selection */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-        <h3 className="text-xl font-bold mb-4">Generation Mode</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <button
-            onClick={() => setGenerationMode('full')}
-            className={`p-4 rounded-lg border-2 transition-all ${
-              generationMode === 'full'
-                ? 'border-yellow-400 bg-yellow-400/10'
-                : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
-            }`}
-          >
-            <div className="text-4xl mb-2">📖</div>
-            <div className="font-semibold mb-1">Full Book</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Generate complete audiobook</div>
-          </button>
-          <button
-            onClick={() => setGenerationMode('chapters')}
-            className={`p-4 rounded-lg border-2 transition-all ${
-              generationMode === 'chapters'
-                ? 'border-yellow-400 bg-yellow-400/10'
-                : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
-            }`}
-          >
-            <div className="text-4xl mb-2">📑</div>
-            <div className="font-semibold mb-1">Select Chapters</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Choose specific chapters</div>
-          </button>
-        </div>
-      </div>
-
-      {/* Chapter Selection */}
-      {generationMode === 'chapters' && (
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-xl font-bold">Select Chapters</h3>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={selectAllChapters}>
-                Select All
-              </Button>
-              <Button variant="outline" size="sm" onClick={clearSelection}>
-                Clear
-              </Button>
-            </div>
-          </div>
-
-          <div className="space-y-2 max-h-96 overflow-y-auto">
-            {chapters.map((chapter) => {
-              const isSelected = selectedChapters.includes(chapter.number);
-              return (
-                <button
-                  key={chapter.id}
-                  onClick={() => toggleChapterSelection(chapter.number)}
-                  className={`w-full text-left p-4 rounded-lg border-2 transition-all ${
-                    isSelected
-                      ? 'border-yellow-400 bg-yellow-400/10'
-                      : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
+        
+        <motion.div 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          variants={staggerContainer}
+        >
+          {voices.map((voice) => {
+            const isSelected = selectedVoice === voice.id;
+            const isPlaying = playingVoiceSample === voice.id;
+            const VoiceIcon = voice.icon;
+            
+            return (
+              <motion.div
+                key={voice.id}
+                variants={slideUp}
+                whileHover={{ y: -4 }}
+                whileTap={{ scale: 0.98 }}
+                className={`relative group rounded-xl border-2 transition-all duration-300 cursor-pointer overflow-hidden ${
+                  isSelected
+                    ? 'border-yellow-400 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 shadow-lg shadow-yellow-400/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600 hover:shadow-md'
+                }`}
+                onClick={() => setSelectedVoice(voice.id)}
+              >
+                {/* Selection Indicator */}
+                <AnimatePresence>
+                  {isSelected && (
+                    <motion.div 
+                      initial={{ scale: 0, rotate: -180 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      exit={{ scale: 0, rotate: 180 }}
+                      className="absolute top-3 right-3 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg"
+                    >
+                      <Check className="w-4 h-4 text-black" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+                
+                <div className="p-5">
+                  {/* Voice Header */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <motion.div 
+                      className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${voice.gradient}`}
+                      whileHover={{ rotate: [0, -10, 10, 0] }}
+                      transition={{ duration: 0.5 }}
+                    >
+                      <VoiceIcon className="w-6 h-6 text-white" />
+                    </motion.div>
                     <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                            isSelected
-                              ? 'bg-yellow-400 border-yellow-400'
-                              : 'border-gray-400 dark:border-gray-600'
-                          }`}
-                        >
-                          {isSelected && <span className="text-black text-xs">✓</span>}
-                        </div>
-                        <span className="text-gray-500 dark:text-gray-500 text-sm">Chapter {chapter.number}</span>
-                        <h4 className="font-semibold">{chapter.title}</h4>
-                        {chapter.audioUrl && (
-                          <span className="ml-2 text-green-400" title="Audio already generated">
-                            🎧✓
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 ml-8 mt-1">
-                        {chapter.wordCount.toLocaleString()} words • ~
-                        {Math.ceil(chapter.wordCount / 150)} min
-                        {chapter.audioUrl && chapter.audioDuration && (
-                          <span className="ml-2 text-green-400">
-                            • Audio: {Math.floor(chapter.audioDuration / 60)}:{(chapter.audioDuration % 60).toString().padStart(2, '0')}
-                          </span>
-                        )}
-                      </p>
+                      <h4 className="font-bold text-gray-900 dark:text-white">{voice.name}</h4>
+                      <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">{voice.title}</p>
                     </div>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                  
+                  {/* Style Badge */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="px-2.5 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg text-xs font-medium text-gray-600 dark:text-gray-400">
+                      {voice.style}
+                    </span>
+                  </div>
+                  
+                  {/* Description */}
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+                    {voice.description}
+                  </p>
+                  
+                  {/* Expertise Tags */}
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {voice.expertise.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="px-2 py-0.5 bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 text-yellow-700 dark:text-yellow-400 rounded-full text-xs font-medium"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                  
+                  {/* Preview Button */}
+                  <motion.button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isPlaying) {
+                        stopVoiceSample();
+                      } else {
+                        playVoiceSample(voice.id);
+                      }
+                    }}
+                    disabled={loadingPreview === voice.id}
+                    className={`w-full py-2.5 rounded-xl font-medium text-sm transition-all flex items-center justify-center gap-2 ${
+                      isPlaying
+                        ? 'bg-red-500 hover:bg-red-600 text-white'
+                        : loadingPreview === voice.id
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
+                        : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}
+                    whileHover={{ scale: loadingPreview === voice.id ? 1 : 1.02 }}
+                    whileTap={{ scale: loadingPreview === voice.id ? 1 : 0.98 }}
+                  >
+                    {loadingPreview === voice.id ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Loading...</span>
+                      </>
+                    ) : isPlaying ? (
+                      <>
+                        <Square className="w-4 h-4" />
+                        <span>Stop Preview</span>
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-4 h-4" />
+                        <span>Preview Voice</span>
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </motion.div>
+            );
+          })}
+        </motion.div>
+      </motion.div>
 
-          {selectedChapters.length > 0 && (
-            <div className="mt-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-              <div className="text-sm">
-                <span className="text-gray-600 dark:text-gray-400">Selected: </span>
-                <span className="font-semibold text-yellow-400">
-                  {selectedChapters.length} chapter{selectedChapters.length !== 1 ? 's' : ''}
-                </span>
-              </div>
+      {/* Audio Settings */}
+      <motion.div 
+        variants={cardVariants}
+        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+      >
+        {/* Speed Control */}
+        <motion.div 
+          className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm"
+          whileHover={{ y: -2 }}
+        >
+          <h4 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl flex items-center justify-center">
+              <Zap className="w-5 h-5 text-white" />
             </div>
-          )}
-        </div>
-      )}
-
-      {/* Voice Settings */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-        <h3 className="text-xl font-bold mb-4">Voice Settings</h3>
-        
-        {/* Voice Selection */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">Voice</label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {voices.map((voice) => (
-              <button
-                key={voice.id}
-                onClick={() => setSelectedVoice(voice.id)}
-                className={`p-3 rounded-lg border-2 transition-all text-left ${
-                  selectedVoice === voice.id
-                    ? 'border-yellow-400 bg-yellow-400/10'
-                    : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
-                }`}
+            Narration Speed
+          </h4>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <motion.span 
+                className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-cyan-500"
+                key={selectedSpeed}
+                initial={{ scale: 1.2 }}
+                animate={{ scale: 1 }}
               >
-                <div className="font-semibold text-sm">{voice.name}</div>
-                <div className="text-xs text-gray-600 dark:text-gray-400">{voice.description}</div>
-              </button>
+                {selectedSpeed}x
+              </motion.span>
+              <span className="text-sm text-gray-500 dark:text-gray-400 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                {selectedSpeed < 0.8 ? 'Slower' : selectedSpeed > 1.2 ? 'Faster' : 'Normal'} pace
+              </span>
+            </div>
+            
+            <input
+              type="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+              value={selectedSpeed}
+              onChange={(e) => setSelectedSpeed(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-blue-500"
+            />
+            
+            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+              <span>0.5x Slow</span>
+              <span>1.0x Normal</span>
+              <span>2.0x Fast</span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Quality Selection */}
+        <motion.div 
+          className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm"
+          whileHover={{ y: -2 }}
+        >
+          <h4 className="font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            Audio Quality
+          </h4>
+          
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { id: 'tts-1' as const, icon: Music, label: 'Standard', desc: 'Fast generation', badge: 'Lower cost', badgeColor: 'text-green-500' },
+              { id: 'tts-1-hd' as const, icon: Star, label: 'HD Quality', desc: 'Premium audio', badge: 'Best quality', badgeColor: 'text-purple-500' },
+            ].map((quality) => (
+              <motion.button
+                key={quality.id}
+                onClick={() => setSelectedQuality(quality.id)}
+                className={`p-4 rounded-xl border-2 transition-all text-left ${
+                  selectedQuality === quality.id
+                    ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                <quality.icon className={`w-6 h-6 mb-2 ${selectedQuality === quality.id ? 'text-yellow-500' : 'text-gray-400'}`} />
+                <div className="font-bold text-gray-900 dark:text-white">{quality.label}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{quality.desc}</div>
+                <div className={`text-xs ${quality.badgeColor} mt-2 flex items-center gap-1`}>
+                  {quality.id === 'tts-1' ? <CheckCircle2 className="w-3 h-3" /> : <Star className="w-3 h-3" />}
+                  {quality.badge}
+                </div>
+              </motion.button>
             ))}
           </div>
-        </div>
+        </motion.div>
+      </motion.div>
 
-        {/* Speed */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium mb-2">
-            Speed: {selectedSpeed}x
-          </label>
-          <input
-            type="range"
-            min="0.25"
-            max="4"
-            step="0.25"
-            value={selectedSpeed}
-            onChange={(e) => setSelectedSpeed(parseFloat(e.target.value))}
-            className="w-full"
-          />
-          <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mt-1">
-            <span>0.25x (Very Slow)</span>
-            <span>1x (Normal)</span>
-            <span>4x (Very Fast)</span>
-          </div>
-        </div>
-
-        {/* Quality */}
-        <div>
-          <label className="block text-sm font-medium mb-2">Quality</label>
-          <div className="grid grid-cols-2 gap-4">
-            <button
-              onClick={() => setSelectedQuality('tts-1')}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                selectedQuality === 'tts-1'
-                  ? 'border-yellow-400 bg-yellow-400/10'
-                  : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
-              }`}
-            >
-              <div className="font-semibold text-sm">Standard</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Faster, lower cost</div>
-            </button>
-            <button
-              onClick={() => setSelectedQuality('tts-1-hd')}
-              className={`p-3 rounded-lg border-2 transition-all ${
-                selectedQuality === 'tts-1-hd'
-                  ? 'border-yellow-400 bg-yellow-400/10'
-                  : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
-              }`}
-            >
-              <div className="font-semibold text-sm">HD</div>
-              <div className="text-xs text-gray-600 dark:text-gray-400">Higher quality</div>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Generation Info */}
-      <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-gray-600 dark:text-gray-400">Estimated Duration:</span>
-            <p className="font-medium text-lg">~{estimatedDuration()} minutes</p>
-          </div>
-          <div>
-            <span className="text-gray-600 dark:text-gray-400">File Format:</span>
-            <p className="font-medium text-lg">MP3</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Generate Button */}
-      <Button
-        variant="primary"
-        onClick={handleGenerate}
-        disabled={!canGenerate || isGenerating}
-        className="w-full py-4 text-lg"
+      {/* Generation Mode */}
+      <motion.div 
+        variants={cardVariants}
+        className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm"
       >
-        {isGenerating ? (
-          <>
-            <span className="animate-spin mr-2">⏳</span>
-            Generating Audio...
-          </>
-        ) : (
-          <>🎙️ Generate Audiobook</>
-        )}
-      </Button>
-
-      {isGenerating && (
-        <div className="bg-yellow-400/10 border border-yellow-400/50 rounded-lg p-4">
-          <p className="text-sm text-yellow-400">
-            ⏱ This may take several minutes. Please don't close this page.
-          </p>
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
+            <Book className="w-5 h-5 text-white" />
+          </div>
+          What would you like to generate?
+        </h3>
+        
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          {[
+            { mode: 'full' as const, icon: Book, title: 'Full Audiobook', desc: 'Generate complete audiobook as one file' },
+            { mode: 'chapters' as const, icon: FileAudio, title: 'By Chapter', desc: 'Select specific chapters to generate' },
+          ].map((option) => (
+            <motion.button
+              key={option.mode}
+              onClick={() => setGenerationMode(option.mode)}
+              className={`p-6 rounded-xl border-2 transition-all text-left ${
+                generationMode === option.mode
+                  ? 'border-yellow-400 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 shadow-lg'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600'
+              }`}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <option.icon className={`w-10 h-10 mb-3 ${generationMode === option.mode ? 'text-yellow-500' : 'text-gray-400'}`} />
+              <div className="font-bold text-lg text-gray-900 dark:text-white">{option.title}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{option.desc}</div>
+            </motion.button>
+          ))}
         </div>
-      )}
 
-      {/* Generated Audio Results */}
-      {fullAudioUrl && (
-        <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="text-3xl">🎧</div>
-              <div className="flex-1">
-                <h4 className="font-semibold">Full Audiobook Ready</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-400">Your complete audiobook has been generated</p>
+        {/* Chapter Selection */}
+        <AnimatePresence>
+          {generationMode === 'chapters' && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+              className="border-t border-gray-200 dark:border-gray-700 pt-6 overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h4 className="font-bold text-gray-900 dark:text-white">Select Chapters</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {selectedChapters.length} of {totalChapters} selected
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={selectAllChapters}>
+                    Select All
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={selectMissingAudio}>
+                    Missing Only ({totalChapters - chaptersWithAudio})
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={clearSelection}>
+                    Clear
+                  </Button>
+                </div>
               </div>
-              <Badge variant="success">Available</Badge>
+
+              <div className="space-y-2 max-h-80 overflow-y-auto pr-2">
+                {chaptersData.map((chapter, index) => {
+                  const isSelected = selectedChapters.includes(chapter.number);
+                  const hasAudio = !!chapter.audioUrl;
+                  
+                  return (
+                    <motion.div
+                      key={chapter.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                      }`}
+                      onClick={() => toggleChapterSelection(chapter.number)}
+                      whileHover={{ x: 4 }}
+                    >
+                      {/* Checkbox */}
+                      <motion.div
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          isSelected
+                            ? 'bg-yellow-400 border-yellow-400'
+                            : 'border-gray-300 dark:border-gray-600'
+                        }`}
+                        whileTap={{ scale: 0.8 }}
+                      >
+                        <AnimatePresence>
+                          {isSelected && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                              exit={{ scale: 0 }}
+                            >
+                              <Check className="w-4 h-4 text-black" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.div>
+                      
+                      {/* Chapter Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-500 dark:text-gray-400">Ch. {chapter.number}</span>
+                          <h5 className="font-semibold text-gray-900 dark:text-white truncate">{chapter.title}</h5>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          <span>{chapter.wordCount.toLocaleString()} words</span>
+                          <span>~{Math.ceil(chapter.wordCount / 150)} min</span>
+                        </div>
+                      </div>
+                      
+                      {/* Audio Status & Actions */}
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {hasAudio ? (
+                          <>
+                            <Badge variant="success" size="sm">
+                              <Headphones className="w-3 h-3 mr-1" /> Ready
+                            </Badge>
+                            <motion.button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadChapter(chapter.audioUrl!, chapter.number, chapter.title);
+                              }}
+                              className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              title="Download audio"
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.9 }}
+                            >
+                              <Download className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                            </motion.button>
+                          </>
+                        ) : (
+                          <Badge variant="default" size="sm">
+                            <Clock className="w-3 h-3 mr-1" /> Pending
+                          </Badge>
+                        )}
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+
+      {/* Generation Summary & Button */}
+      <motion.div 
+        variants={cardVariants}
+        className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-1"
+      >
+        <div className="bg-white dark:bg-gray-900 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h4 className="font-bold text-gray-900 dark:text-white">Ready to Generate</h4>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {generationMode === 'full' 
+                  ? `Full audiobook with ${totalChapters} chapters`
+                  : `${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''} selected`
+                }
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-500 to-orange-500">~{estimatedDuration()} min</div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">estimated duration</div>
             </div>
           </div>
-
-          <AudioPlayer
-            audioUrl={fullAudioUrl}
-            title={`${bookTitle} - Full Audiobook`}
-          />
-
-          <a
-            href={fullAudioUrl}
-            download
-            className="inline-flex items-center px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-medium rounded transition-colors w-full justify-center"
-          >
-            ⬇ Download Full Audiobook
-          </a>
-        </div>
-      )}
-
-      {generatedAudios.length > 0 && (
-        <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
-          <h4 className="font-semibold mb-4 flex items-center gap-2">
-            <span className="text-yellow-400">🎧</span>
-            Generated Chapter Audio ({generatedAudios.length})
-          </h4>
-          <div className="space-y-4">
-            {generatedAudios.map((audio) => {
-              const chapter = chapters.find((ch) => ch.number === audio.chapterNumber);
-              return (
-                <div
-                  key={audio.chapterNumber}
-                  className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700"
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h5 className="font-semibold">
-                        Chapter {audio.chapterNumber}
-                        {chapter && `: ${chapter.title}`}
-                      </h5>
-                      <p className="text-xs text-gray-600 dark:text-gray-400">
-                        Duration: {Math.floor(audio.duration / 60)}:{(audio.duration % 60).toString().padStart(2, '0')}
-                      </p>
-                    </div>
-                    <Badge variant="success" size="sm">
-                      ✓ Ready
-                    </Badge>
-                  </div>
-
-                  <AudioPlayer
-                    audioUrl={audio.audioUrl}
-                    showMiniControls={true}
-                    className="mb-3"
-                  />
-
-                  <a
-                    href={audio.audioUrl}
-                    download
-                    className="inline-flex items-center text-sm text-yellow-400 hover:text-yellow-300 transition-colors"
-                  >
-                    ⬇ Download Chapter {audio.chapterNumber}
-                  </a>
+          
+          <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg mb-4">
+            {selectedVoiceInfo && (
+              <>
+                <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${selectedVoiceInfo.gradient} flex items-center justify-center`}>
+                  <selectedVoiceInfo.icon className="w-5 h-5 text-white" />
                 </div>
-              );
-            })}
+                <div className="flex-1">
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {selectedVoiceInfo.name} • {selectedSpeed}x speed • {selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}
+                  </div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{selectedVoiceInfo.style}</div>
+                </div>
+              </>
+            )}
           </div>
+
+          <motion.div
+            whileHover={{ scale: canGenerate && !isGenerating ? 1.01 : 1 }}
+            whileTap={{ scale: canGenerate && !isGenerating ? 0.99 : 1 }}
+          >
+            <Button
+              variant="primary"
+              onClick={handleGenerate}
+              disabled={!canGenerate || isGenerating}
+              className="w-full py-4 text-lg font-bold shadow-lg shadow-yellow-500/30 hover:shadow-xl hover:shadow-yellow-500/40 transition-all"
+            >
+              {isGenerating ? (
+                <span className="flex items-center gap-3">
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Generating Audio...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Mic className="w-5 h-5" />
+                  Generate Audiobook
+                </span>
+              )}
+            </Button>
+          </motion.div>
+
+          <AnimatePresence>
+            {isGenerating && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800"
+              >
+                <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
+                  <Clock className="w-4 h-4 animate-pulse" />
+                  This may take several minutes. Please don't close this page.
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
+      </motion.div>
+
+      {/* Full Audiobook Result */}
+      <AnimatePresence>
+        {fullAudioUrl && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-6"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <motion.div 
+                className="w-14 h-14 bg-green-500 rounded-xl flex items-center justify-center text-white shadow-lg"
+                initial={{ scale: 0, rotate: -180 }}
+                animate={{ scale: 1, rotate: 0 }}
+                transition={{ type: "spring", stiffness: 200 }}
+              >
+                <CheckCircle2 className="w-7 h-7" />
+              </motion.div>
+              <div className="flex-1">
+                <h4 className="text-xl font-bold text-gray-900 dark:text-white">Full Audiobook Ready!</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Your complete audiobook has been generated</p>
+              </div>
+              <Badge variant="success" size="lg">Complete</Badge>
+            </div>
+
+            <AudioPlayer
+              audioUrl={fullAudioUrl}
+              title={`${bookTitle} - Full Audiobook`}
+            />
+
+            <motion.button
+              onClick={() => downloadAudioFile(fullAudioUrl, `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Full_Audiobook.mp3`)}
+              className="mt-4 flex items-center justify-center gap-2 w-full py-3 bg-green-500 hover:bg-green-600 text-white font-medium rounded-xl transition-all"
+              whileHover={{ scale: 1.01 }}
+              whileTap={{ scale: 0.99 }}
+            >
+              <Download className="w-5 h-5" />
+              Download Full Audiobook
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chapter Audio Results */}
+      <AnimatePresence>
+        {generatedAudios.length > 0 && (
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl border border-green-200 dark:border-green-800 p-6"
+          >
+            <div className="flex items-center gap-4 mb-6">
+              <motion.div 
+                className="w-14 h-14 bg-green-500 rounded-xl flex items-center justify-center text-white shadow-lg"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+              >
+                <Headphones className="w-7 h-7" />
+              </motion.div>
+              <div className="flex-1">
+                <h4 className="text-xl font-bold text-gray-900 dark:text-white">Chapters Generated!</h4>
+                <p className="text-sm text-gray-600 dark:text-gray-400">{generatedAudios.length} chapter audio files ready</p>
+              </div>
+              {generatedAudios.length > 1 && (
+                <motion.button
+                  onClick={handleDownloadAllAudio}
+                  disabled={isDownloading}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-all"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{downloadProgress}%</span>
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="w-4 h-4" />
+                      <span>Download All as ZIP</span>
+                    </>
+                  )}
+                </motion.button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {generatedAudios.map((audio, index) => {
+                const chapter = chaptersData.find((ch) => ch.number === audio.chapterNumber);
+                return (
+                  <motion.div
+                    key={audio.chapterNumber}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-700"
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <h5 className="font-bold text-gray-900 dark:text-white">
+                          Chapter {audio.chapterNumber}{chapter && `: ${chapter.title}`}
+                        </h5>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Duration: {formatDuration(audio.duration)}
+                        </p>
+                      </div>
+                      <motion.button
+                        onClick={() => handleDownloadChapter(audio.audioUrl, audio.chapterNumber, chapter?.title || `Chapter_${audio.chapterNumber}`)}
+                        className="flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-medium rounded-lg transition-all"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>Download</span>
+                      </motion.button>
+                    </div>
+                    <AudioPlayer audioUrl={audio.audioUrl} showMiniControls={true} />
+                  </motion.div>
+                );
+              })}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Existing Audio Library */}
+      {chaptersWithAudio > 0 && generatedAudios.length === 0 && (
+        <motion.div 
+          variants={cardVariants}
+          className="bg-white dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                  <FileAudio className="w-5 h-5 text-white" />
+                </div>
+                Your Audio Library
+              </h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{chaptersWithAudio} chapters with audio available</p>
+            </div>
+            <motion.button
+              onClick={handleDownloadAllAudio}
+              disabled={isDownloading}
+              className="flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-300 text-black font-medium rounded-lg transition-all"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              {isDownloading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>{downloadProgress}%</span>
+                </>
+              ) : (
+                <>
+                  <Archive className="w-4 h-4" />
+                  <span>Download All</span>
+                </>
+              )}
+            </motion.button>
+          </div>
+
+          <div className="space-y-4">
+            {chaptersData.filter(ch => ch.audioUrl).map((chapter, index) => (
+              <motion.div
+                key={chapter.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.05 }}
+                className="bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+              >
+                {/* Chapter Header */}
+                <div className="flex items-center gap-4 p-4 border-b border-gray-200 dark:border-gray-700">
+                  <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <Headphones className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h5 className="font-semibold text-gray-900 dark:text-white truncate">
+                      Chapter {chapter.number}: {chapter.title}
+                    </h5>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {chapter.audioDuration ? formatDuration(chapter.audioDuration) : '—'} • {chapter.wordCount.toLocaleString()} words
+                    </p>
+                  </div>
+                  <motion.button
+                    onClick={() => handleDownloadChapter(chapter.audioUrl!, chapter.number, chapter.title)}
+                    className="p-2.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-all flex-shrink-0"
+                    title="Download chapter"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Download className="w-4 h-4" />
+                  </motion.button>
+                </div>
+                {/* Audio Player - Full Width */}
+                <div className="p-3">
+                  <AudioPlayer audioUrl={chapter.audioUrl!} showMiniControls={true} />
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </motion.div>
       )}
-    </div>
+    </motion.div>
   );
 }

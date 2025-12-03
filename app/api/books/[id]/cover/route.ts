@@ -15,6 +15,15 @@ export async function POST(
     const { id } = await params;
     const bookId = parseInt(id);
     
+    // Parse request body for optional imageModel
+    let imageModel: string | undefined;
+    try {
+      const body = await request.json();
+      imageModel = body.imageModel;
+    } catch {
+      // No body or invalid JSON, use default
+    }
+    
     if (isNaN(bookId)) {
       return NextResponse.json(
         { error: 'Invalid book ID' },
@@ -36,15 +45,16 @@ export async function POST(
       );
     }
 
-    console.log(`Generating cover for book ${bookId}: ${book.title}`);
+    console.log(`Generating cover for book ${bookId}: ${book.title} using ${imageModel || 'default model'}`);
 
-    // Generate cover
+    // Generate cover using selected model (defaults to Nano Banana Pro)
     const tempUrl = await aiService.generateCoverImage(
       book.title,
       book.author || 'Unknown Author',
       book.genre || 'Fiction',
       book.summary || book.title,
-      'vivid'
+      'vivid',
+      imageModel
     );
 
     // Download the image from OpenAI's temporary URL

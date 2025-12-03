@@ -10,6 +10,8 @@ import {
   StyleSheet,
 } from '@react-pdf/renderer';
 import { FontFamilies } from './pdf-fonts';
+import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
+import { CitationService } from './citation-service';
 
 // Use Google Fonts with built-in fallback
 const BODY_FONT = FontFamilies.primary;      // EBGaramond - elegant book serif
@@ -27,6 +29,11 @@ interface BookExport {
   }>;
   description?: string;
   genre?: string;
+  bibliography?: {
+    config: BibliographyConfig;
+    references: Reference[];
+    chapterReferences?: ChapterReferences[];
+  };
 }
 
 interface PDFDocumentProps {
@@ -455,6 +462,75 @@ const styles = StyleSheet.create({
     color: colors.light,
     letterSpacing: 1,
   },
+
+  // =============================================
+  // BIBLIOGRAPHY STYLES
+  // =============================================
+  bibliographyPage: {
+    padding: 72,
+    paddingBottom: 100,
+    backgroundColor: colors.background,
+  },
+  bibliographyHeader: {
+    marginBottom: 40,
+    alignItems: 'center',
+  },
+  bibliographyTitle: {
+    fontFamily: SANS_FONT,
+    fontWeight: 700,
+    fontSize: 24,
+    textAlign: 'center',
+    color: colors.primary,
+    letterSpacing: 4,
+    textTransform: 'uppercase',
+  },
+  bibliographyDivider: {
+    width: 60,
+    height: 2,
+    backgroundColor: colors.primary,
+    alignSelf: 'center',
+    marginTop: 20,
+    marginBottom: 30,
+  },
+  bibliographyTypeHeading: {
+    fontFamily: BODY_FONT,
+    fontWeight: 700,
+    fontSize: 14,
+    color: colors.primary,
+    marginTop: 20,
+    marginBottom: 12,
+    textTransform: 'capitalize',
+  },
+  referenceEntry: {
+    marginBottom: 10,
+    paddingLeft: 24,
+    textIndent: -24, // Hanging indent
+  },
+  referenceText: {
+    fontFamily: BODY_FONT,
+    fontWeight: 400,
+    fontSize: 10,
+    color: colors.primary,
+    lineHeight: 1.6,
+    textAlign: 'justify',
+  },
+  referenceTextItalic: {
+    fontFamily: BODY_FONT,
+    fontWeight: 400,
+    fontStyle: 'italic',
+    fontSize: 10,
+    color: colors.primary,
+    lineHeight: 1.6,
+  },
+  bibliographyNote: {
+    fontFamily: BODY_FONT,
+    fontWeight: 400,
+    fontStyle: 'italic',
+    fontSize: 9,
+    color: colors.muted,
+    textAlign: 'center',
+    marginTop: 30,
+  },
 });
 
 // Helper to sanitize chapter content (remove duplicate titles)
@@ -730,7 +806,124 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
           </Page>
         );
       })}
+
+      {/* ========================================== */}
+      {/* BIBLIOGRAPHY - Professional Reference List */}
+      {/* ========================================== */}
+      {book.bibliography?.config.enabled && book.bibliography.references.length > 0 && (
+        <BibliographySection 
+          bibliography={book.bibliography} 
+          frontMatterPages={FRONT_MATTER_PAGES}
+          totalChapters={book.chapters.length}
+        />
+      )}
     </Document>
+  );
+};
+
+// Bibliography Section Component
+const BibliographySection: React.FC<{
+  bibliography: {
+    config: BibliographyConfig;
+    references: Reference[];
+  };
+  frontMatterPages: number;
+  totalChapters: number;
+}> = ({ bibliography, frontMatterPages, totalChapters }) => {
+  const { config, references } = bibliography;
+  
+  // Sort references
+  const sortedReferences = CitationService.sortReferences(
+    references,
+    config.sortBy,
+    config.sortDirection
+  );
+
+  // Format references for display (remove HTML tags)
+  const formatRefText = (ref: Reference, index: number): string => {
+    const formatted = CitationService.formatReference(ref, config.citationStyle, index + 1);
+    // Remove HTML tags and decode entities
+    let plainText = formatted
+      .replace(/<em>/g, '')
+      .replace(/<\/em>/g, '')
+      .replace(/<[^>]*>/g, '')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"');
+    
+    // Add numbering if configured
+    if (config.numberingStyle === 'numeric') {
+      plainText = `${index + 1}. ${plainText}`;
+    } else if (config.numberingStyle === 'alphabetic') {
+      plainText = `${String.fromCharCode(65 + (index % 26))}. ${plainText}`;
+    }
+    
+    return plainText;
+  };
+
+  // Group references by type if configured
+  const groupedRefs = config.groupByType
+    ? sortedReferences.reduce((acc, ref) => {
+        const type = ref.type;
+        if (!acc[type]) acc[type] = [];
+        acc[type].push(ref);
+        return acc;
+      }, {} as Record<string, Reference[]>)
+    : null;
+
+  return (
+    <Page size="A4" style={styles.bibliographyPage} wrap>
+      {/* Bibliography Header */}
+      <View style={styles.bibliographyHeader} wrap={false}>
+        <Text style={styles.bibliographyTitle}>Bibliography</Text>
+        <View style={styles.bibliographyDivider} />
+      </View>
+
+      {/* References List */}
+      {groupedRefs ? (
+        // Grouped by type
+        Object.entries(groupedRefs).map(([type, refs]) => (
+          <View key={type} wrap={false}>
+            <Text style={styles.bibliographyTypeHeading}>
+              {type.charAt(0).toUpperCase() + type.slice(1)}s
+            </Text>
+            {refs.map((ref, index) => (
+              <View key={ref.id} style={styles.referenceEntry} wrap={false}>
+                <Text style={styles.referenceText}>
+                  {formatRefText(ref, index)}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))
+      ) : (
+        // Single list
+        sortedReferences.map((ref, index) => (
+          <View key={ref.id} style={styles.referenceEntry} wrap={false}>
+            <Text style={styles.referenceText}>
+              {formatRefText(ref, index)}
+            </Text>
+          </View>
+        ))
+      )}
+
+      {/* Citation style note */}
+      <Text style={styles.bibliographyNote}>
+        References formatted in {config.citationStyle} style.
+      </Text>
+
+      {/* Page number */}
+      <View style={styles.pageNumberContainer} fixed>
+        <Text
+          style={styles.pageNumberText}
+          render={({ pageNumber }) => {
+            const contentPageNumber = pageNumber - frontMatterPages;
+            return contentPageNumber > 0 ? String(contentPageNumber) : '';
+          }}
+        />
+      </View>
+    </Page>
   );
 };
 

@@ -4,6 +4,8 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Page
 import { pdf } from '@react-pdf/renderer';
 import PDFDocument from './pdf-document';
 import { registerFonts } from './pdf-fonts';
+import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
+import { CitationService } from './citation-service';
 
 interface BookExport {
   title: string;
@@ -16,6 +18,11 @@ interface BookExport {
   }>;
   description?: string;
   genre?: string;
+  bibliography?: {
+    config: BibliographyConfig;
+    references: Reference[];
+    chapterReferences?: ChapterReferences[];
+  };
 }
 
 interface OutlineExport {
@@ -371,12 +378,155 @@ export class ExportServiceAdvanced {
                 }),
               ];
             }),
+            
+            // === BIBLIOGRAPHY SECTION ===
+            ...this.generateDOCXBibliography(book),
           ],
         },
       ],
     });
 
     return await Packer.toBuffer(doc);
+  }
+
+  /**
+   * Generate bibliography section for DOCX
+   */
+  private static generateDOCXBibliography(book: BookExport): Paragraph[] {
+    if (!book.bibliography?.config.enabled || !book.bibliography.references.length) {
+      return [];
+    }
+
+    const { config, references } = book.bibliography;
+    const paragraphs: Paragraph[] = [];
+
+    // Page break before bibliography
+    paragraphs.push(
+      new Paragraph({
+        children: [new PageBreak()],
+      })
+    );
+
+    // Bibliography title
+    paragraphs.push(
+      new Paragraph({
+        text: 'Bibliography',
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 400, after: 400 },
+      })
+    );
+
+    // Decorative line
+    paragraphs.push(
+      new Paragraph({
+        text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+        alignment: AlignmentType.CENTER,
+        spacing: { after: 400 },
+      })
+    );
+
+    // Sort references
+    const sortedReferences = CitationService.sortReferences(
+      references,
+      config.sortBy,
+      config.sortDirection
+    );
+
+    // Group by type if configured
+    if (config.groupByType) {
+      const grouped: Record<string, Reference[]> = {};
+      sortedReferences.forEach(ref => {
+        const type = ref.type;
+        if (!grouped[type]) grouped[type] = [];
+        grouped[type].push(ref);
+      });
+
+      Object.entries(grouped).forEach(([type, refs]) => {
+        // Type heading
+        const typeLabel = type.charAt(0).toUpperCase() + type.slice(1) + 's';
+        paragraphs.push(
+          new Paragraph({
+            text: typeLabel,
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 300, after: 200 },
+          })
+        );
+
+        refs.forEach((ref, index) => {
+          const formatted = CitationService.formatReference(ref, config.citationStyle, index + 1);
+          // Remove HTML tags for DOCX
+          const plainText = formatted.replace(/<[^>]*>/g, '');
+          
+          // Add numbering if configured
+          let refText = plainText;
+          if (config.numberingStyle === 'numeric') {
+            refText = `${index + 1}. ${plainText}`;
+          } else if (config.numberingStyle === 'alphabetic') {
+            refText = `${String.fromCharCode(65 + index)}. ${plainText}`;
+          }
+
+          paragraphs.push(
+            new Paragraph({
+              children: [
+                new TextRun({
+                  text: refText,
+                }),
+              ],
+              spacing: { after: 150 },
+              indent: config.hangingIndent ? { hanging: 720, left: 720 } : undefined,
+            })
+          );
+        });
+      });
+    } else {
+      // Single list without grouping
+      sortedReferences.forEach((ref, index) => {
+        const formatted = CitationService.formatReference(ref, config.citationStyle, index + 1);
+        // Remove HTML tags for DOCX
+        const plainText = formatted.replace(/<[^>]*>/g, '');
+        
+        // Add numbering if configured
+        let refText = plainText;
+        if (config.numberingStyle === 'numeric') {
+          refText = `${index + 1}. ${plainText}`;
+        } else if (config.numberingStyle === 'alphabetic') {
+          refText = `${String.fromCharCode(65 + index)}. ${plainText}`;
+        }
+
+        paragraphs.push(
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: refText,
+              }),
+            ],
+            spacing: { after: 150 },
+            indent: config.hangingIndent ? { hanging: 720, left: 720 } : undefined,
+          })
+        );
+      });
+    }
+
+    // Citation style note
+    paragraphs.push(
+      new Paragraph({
+        text: '',
+        spacing: { before: 400 },
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: `References formatted in ${config.citationStyle} style.`,
+            italics: true,
+            size: 20, // 10pt
+          }),
+        ],
+        alignment: AlignmentType.CENTER,
+      })
+    );
+
+    return paragraphs;
   }
 
   /**

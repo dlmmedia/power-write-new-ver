@@ -1,8 +1,11 @@
 // TTS Service for Audiobook Generation using OpenAI TTS
 import { put } from '@vercel/blob';
 
+// OpenAI TTS supports 11 voices (as of 2024)
+export type VoiceId = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+
 export interface TTSConfig {
-  voice?: 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+  voice?: VoiceId;
   speed?: number; // 0.25 to 4.0
   model?: 'tts-1' | 'tts-1-hd';
 }
