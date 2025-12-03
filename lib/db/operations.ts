@@ -341,12 +341,21 @@ export async function getUserBookStats(userId: string): Promise<{
 // ============ BIBLIOGRAPHY OPERATIONS ============
 
 export async function getBibliographyConfig(bookId: number): Promise<BibliographyConfigDB | null> {
-  const [config] = await db
-    .select()
-    .from(bibliographyConfigs)
-    .where(eq(bibliographyConfigs.bookId, bookId))
-    .limit(1);
-  return config || null;
+  try {
+    const [config] = await db
+      .select()
+      .from(bibliographyConfigs)
+      .where(eq(bibliographyConfigs.bookId, bookId))
+      .limit(1);
+    return config || null;
+  } catch (error: any) {
+    // Handle case where table doesn't exist (code 42P01)
+    if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
+      console.warn('Bibliography configs table does not exist, skipping');
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function createBibliographyConfig(data: InsertBibliographyConfig): Promise<BibliographyConfigDB> {
@@ -376,11 +385,20 @@ export async function upsertBibliographyConfig(data: InsertBibliographyConfig): 
 }
 
 export async function getBibliographyReferences(bookId: number): Promise<BibliographyReference[]> {
-  return await db
-    .select()
-    .from(bibliographyReferences)
-    .where(eq(bibliographyReferences.bookId, bookId))
-    .orderBy(bibliographyReferences.createdAt);
+  try {
+    return await db
+      .select()
+      .from(bibliographyReferences)
+      .where(eq(bibliographyReferences.bookId, bookId))
+      .orderBy(bibliographyReferences.createdAt);
+  } catch (error: any) {
+    // Handle case where table doesn't exist (code 42P01)
+    if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
+      console.warn('Bibliography references table does not exist, skipping');
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function createBibliographyReference(data: InsertBibliographyReference): Promise<BibliographyReference> {
@@ -405,19 +423,37 @@ export async function deleteBibliographyReference(id: string): Promise<void> {
 }
 
 export async function getBookCitations(bookId: number): Promise<Citation[]> {
-  return await db
-    .select()
-    .from(citations)
-    .where(eq(citations.bookId, bookId))
-    .orderBy(citations.createdAt);
+  try {
+    return await db
+      .select()
+      .from(citations)
+      .where(eq(citations.bookId, bookId))
+      .orderBy(citations.createdAt);
+  } catch (error: any) {
+    // Handle case where table doesn't exist (code 42P01)
+    if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
+      console.warn('Citations table does not exist, skipping');
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function getChapterCitations(chapterId: number): Promise<Citation[]> {
-  return await db
-    .select()
-    .from(citations)
-    .where(eq(citations.chapterId, chapterId))
-    .orderBy(citations.position);
+  try {
+    return await db
+      .select()
+      .from(citations)
+      .where(eq(citations.chapterId, chapterId))
+      .orderBy(citations.position);
+  } catch (error: any) {
+    // Handle case where table doesn't exist (code 42P01)
+    if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
+      console.warn('Citations table does not exist, skipping');
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function createCitation(data: InsertCitation): Promise<Citation> {
