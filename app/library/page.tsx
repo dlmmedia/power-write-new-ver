@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -17,9 +17,12 @@ interface BookListItem {
   status: string;
   coverUrl?: string;
   createdAt: string;
+  outline?: any;
+  config?: any;
   metadata: {
     wordCount: number;
     chapters: number;
+    modelUsed?: string;
   };
 }
 
@@ -31,6 +34,8 @@ export default function LibraryPage() {
   const [filterGenre, setFilterGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
+  const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
+  const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string }>>({});
 
   useEffect(() => {
     fetchBooks();
@@ -90,6 +95,94 @@ export default function LibraryPage() {
     }
   };
 
+  // Continue generating a book that was interrupted
+  const handleContinueGeneration = useCallback(async (book: BookListItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    if (!book.outline || !book.config) {
+      alert('Unable to continue: Book outline or config is missing');
+      return;
+    }
+
+    setContinuingBooks(prev => new Set(prev).add(book.id));
+    setGenerationProgress(prev => ({
+      ...prev,
+      [book.id]: { progress: 0, message: 'Resuming generation...' }
+    }));
+
+    const chapterModel = book.metadata?.modelUsed || 'anthropic/claude-sonnet-4';
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 3;
+
+    try {
+      while (true) {
+        const response = await fetch('/api/generate/book-incremental', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: getDemoUserId(),
+            outline: book.outline,
+            config: book.config,
+            modelId: chapterModel,
+            bookId: book.id,
+          }),
+        });
+
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          throw new Error('Server error');
+        }
+
+        if (!data.success) {
+          consecutiveErrors++;
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            throw new Error(data.details || data.error || 'Generation failed');
+          }
+          setGenerationProgress(prev => ({
+            ...prev,
+            [book.id]: { progress: prev[book.id]?.progress || 0, message: `Retrying... (${consecutiveErrors}/${maxConsecutiveErrors})` }
+          }));
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
+        }
+
+        consecutiveErrors = 0;
+        setGenerationProgress(prev => ({
+          ...prev,
+          [book.id]: { progress: data.progress, message: data.message }
+        }));
+
+        if (data.phase === 'completed') {
+          // Refresh the books list
+          await fetchBooks();
+          setGenerationProgress(prev => {
+            const newState = { ...prev };
+            delete newState[book.id];
+            return newState;
+          });
+          break;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } catch (error) {
+      console.error('Error continuing generation:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setGenerationProgress(prev => ({
+        ...prev,
+        [book.id]: { progress: prev[book.id]?.progress || 0, message: `Error: ${errorMessage}` }
+      }));
+    } finally {
+      setContinuingBooks(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(book.id);
+        return newSet;
+      });
+    }
+  }, []);
 
   const filteredAndSortedBooks = books
     .filter((book) => {
@@ -261,34 +354,71 @@ export default function LibraryPage() {
                       <div className="text-center px-4">
                         <h3 className="font-bold text-lg text-white mb-2 line-clamp-3">{book.title}</h3>
                         <p className="text-sm text-gray-400 mb-4">by {book.author}</p>
-                        {/* Generate Cover Button */}
-                        <button
-                          onClick={(e) => handleGenerateCover(book.id, e)}
-                          disabled={generatingCovers.has(book.id)}
-                          className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                        >
-                          {generatingCovers.has(book.id) ? (
-                            <span className="flex items-center gap-2">
-                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                              </svg>
-                              Generating...
-                            </span>
-                          ) : (
-                            '🎨 Generate Cover'
-                          )}
-                        </button>
+                        
+                        {/* Continue Generation Button for books in progress */}
+                        {book.status === 'generating' ? (
+                          <div className="space-y-2">
+                            {generationProgress[book.id] && (
+                              <div className="mb-2">
+                                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className="h-full bg-yellow-400 transition-all duration-300"
+                                    style={{ width: `${generationProgress[book.id].progress}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-gray-400 mt-1">
+                                  {generationProgress[book.id].message}
+                                </p>
+                              </div>
+                            )}
+                            <button
+                              onClick={(e) => handleContinueGeneration(book, e)}
+                              disabled={continuingBooks.has(book.id)}
+                              className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-yellow-600 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {continuingBooks.has(book.id) ? (
+                                <span className="flex items-center gap-2">
+                                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                  </svg>
+                                  Generating...
+                                </span>
+                              ) : (
+                                '▶️ Continue Generation'
+                              )}
+                            </button>
+                          </div>
+                        ) : (
+                          /* Generate Cover Button */
+                          <button
+                            onClick={(e) => handleGenerateCover(book.id, e)}
+                            disabled={generatingCovers.has(book.id)}
+                            className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                          >
+                            {generatingCovers.has(book.id) ? (
+                              <span className="flex items-center gap-2">
+                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                </svg>
+                                Generating...
+                              </span>
+                            ) : (
+                              '🎨 Generate Cover'
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   )}
                   {/* Status badge overlay */}
                   <div className="absolute top-2 right-2">
                     <Badge 
-                      variant={book.status === 'completed' ? 'success' : 'default'}
+                      variant={book.status === 'completed' ? 'success' : book.status === 'generating' ? 'warning' : 'default'}
                       size="sm"
                     >
-                      {book.status}
+                      {book.status === 'generating' ? 'In Progress' : book.status}
                     </Badge>
                   </div>
                 </div>

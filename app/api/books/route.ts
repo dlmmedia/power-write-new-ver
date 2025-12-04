@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
     // Format books for response
     const books = userBooks.map(book => {
       const metadata = book.metadata as any || {};
-      return {
+      const bookData: any = {
         id: book.id,
         title: book.title,
         author: book.author,
@@ -38,8 +38,17 @@ export async function GET(request: NextRequest) {
           chapters: metadata.chapters || 0,
           targetWordCount: metadata.targetWordCount || 0,
           description: book.summary || '',
+          modelUsed: metadata.modelUsed || undefined,
         },
       };
+      
+      // Include outline and config for books still being generated (needed for resume)
+      if (book.status === 'generating') {
+        bookData.outline = book.outline;
+        bookData.config = book.config;
+      }
+      
+      return bookData;
     });
 
     return NextResponse.json({

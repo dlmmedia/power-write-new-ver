@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useBookStore } from '@/lib/store/book-store';
 import { useStudioStore } from '@/lib/store/studio-store';
@@ -20,6 +20,16 @@ import { getDemoUserId, canGenerateBook } from '@/lib/services/demo-account';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
+
+// Progress state for incremental generation
+interface GenerationProgress {
+  phase: 'idle' | 'creating' | 'generating' | 'cover' | 'completed' | 'error';
+  bookId?: number;
+  chaptersCompleted: number;
+  totalChapters: number;
+  progress: number;
+  message: string;
+}
 
 type ConfigTab = 
   | 'prompt'
@@ -47,6 +57,14 @@ export default function StudioPage() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedReferenceId, setSelectedReferenceId] = useState<string>('');
   const [showSuccessBanner, setShowSuccessBanner] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgress>({
+    phase: 'idle',
+    chaptersCompleted: 0,
+    totalChapters: 0,
+    progress: 0,
+    message: '',
+  });
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const tabs = [
     { id: 'prompt' as ConfigTab, label: 'Smart Prompt', icon: '✨' },
@@ -58,7 +76,8 @@ export default function StudioPage() {
     { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
   ];
 
-  const handleGenerateBook = async () => {
+  // Incremental book generation with progress tracking
+  const handleGenerateBook = useCallback(async () => {
     if (!outline) {
       alert('Please generate an outline first');
       return;
@@ -70,77 +89,185 @@ export default function StudioPage() {
       return;
     }
 
-    // Get selected model
     const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+    const totalChapters = outline.chapters.length;
 
     const confirmed = confirm(
       `Generate full book: "${outline.title}"?\n\n` +
-      `This will generate ${outline.chapters.length} chapters using ${chapterModel} and may take several minutes.\n\n` +
+      `This will generate ${totalChapters} chapters using ${chapterModel}.\n` +
+      `The book will be generated in batches to ensure reliable completion.\n\n` +
       `Continue?`
     );
 
     if (!confirmed) return;
 
     setIsGenerating(true);
+    abortControllerRef.current = new AbortController();
+
+    // Initialize progress
+    setGenerationProgress({
+      phase: 'creating',
+      chaptersCompleted: 0,
+      totalChapters,
+      progress: 0,
+      message: 'Creating book...',
+    });
+
+    let currentBookId: number | undefined;
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 3;
+
     try {
-      const response = await fetch('/api/generate/book', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: getDemoUserId(),
-          outline: outline,
-          config: config,
-          modelId: chapterModel,
-        }),
-      });
-
-      // Handle non-JSON responses (e.g., middleware errors)
-      let data;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        console.error('Non-JSON response:', text);
-        throw new Error(`Server returned non-JSON response: ${text.substring(0, 100)}`);
-      }
-
-      if (data.success && data.book) {
-        // Clear any cached book data to ensure fresh data is loaded
-        if (typeof window !== 'undefined' && 'caches' in window) {
-          try {
-            const cacheNames = await caches.keys();
-            const bookCacheNames = cacheNames.filter(name => 
-              name.includes('books') || name.includes('powerwrite-books')
-            );
-            await Promise.all(bookCacheNames.map(name => caches.delete(name)));
-            console.log('Cleared book caches after generation');
-          } catch (error) {
-            console.error('Failed to clear caches:', error);
-          }
+      // Keep generating until complete
+      while (true) {
+        // Check if aborted
+        if (abortControllerRef.current?.signal.aborted) {
+          throw new Error('Generation cancelled by user');
         }
 
-        alert(
-          `Book generated successfully!\n\n` +
-          `Title: ${data.book.title}\n` +
-          `Chapters: ${data.book.chapters}\n` +
-          `Words: ${data.book.wordCount.toLocaleString()}\n\n` +
-          `Book ID: ${data.book.id}`
-        );
-        // Redirect to library or book detail
-        router.push(`/library`);
-      } else {
-        const errorMsg = data.error || 'Unknown error';
-        const errorDetails = data.details ? `\n\n${data.details}` : '';
-        alert(`Failed to generate book: ${errorMsg}${errorDetails}`);
+        const response = await fetch('/api/generate/book-incremental', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: getDemoUserId(),
+            outline: outline,
+            config: config,
+            modelId: chapterModel,
+            bookId: currentBookId,
+          }),
+          signal: abortControllerRef.current?.signal,
+        });
+
+        let data;
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          const text = await response.text();
+          console.error('Non-JSON response:', text);
+          throw new Error(`Server error: ${text.substring(0, 100)}`);
+        }
+
+        if (!data.success) {
+          consecutiveErrors++;
+          console.error('Generation error:', data.error, data.details);
+          
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            throw new Error(data.details || data.error || 'Generation failed after multiple attempts');
+          }
+          
+          // Update progress to show error but continue trying
+          setGenerationProgress(prev => ({
+            ...prev,
+            message: `Error: ${data.error}. Retrying... (${consecutiveErrors}/${maxConsecutiveErrors})`,
+          }));
+          
+          // Wait before retry
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          continue;
+        }
+
+        // Reset error counter on success
+        consecutiveErrors = 0;
+
+        // Update progress
+        currentBookId = data.bookId;
+        setGenerationProgress({
+          phase: data.phase,
+          bookId: data.bookId,
+          chaptersCompleted: data.chaptersCompleted,
+          totalChapters: data.totalChapters,
+          progress: data.progress,
+          message: data.message,
+        });
+
+        // Check if complete
+        if (data.phase === 'completed' && data.book) {
+          // Clear caches
+          if (typeof window !== 'undefined' && 'caches' in window) {
+            try {
+              const cacheNames = await caches.keys();
+              const bookCacheNames = cacheNames.filter(name => 
+                name.includes('books') || name.includes('powerwrite-books')
+              );
+              await Promise.all(bookCacheNames.map(name => caches.delete(name)));
+            } catch (error) {
+              console.error('Failed to clear caches:', error);
+            }
+          }
+
+          // Success!
+          setGenerationProgress({
+            phase: 'completed',
+            bookId: data.book.id,
+            chaptersCompleted: data.totalChapters,
+            totalChapters: data.totalChapters,
+            progress: 100,
+            message: 'Book generated successfully!',
+          });
+
+          // Show success message and redirect after a short delay
+          setTimeout(() => {
+            alert(
+              `Book generated successfully!\n\n` +
+              `Title: ${data.book.title}\n` +
+              `Chapters: ${data.book.chapters}\n` +
+              `Words: ${data.book.wordCount.toLocaleString()}\n\n` +
+              `Book ID: ${data.book.id}`
+            );
+            router.push(`/library`);
+          }, 500);
+          
+          break;
+        }
+
+        // Small delay between batches to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
     } catch (error) {
       console.error('Error generating book:', error);
-      alert('Failed to generate book. Please try again.');
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      setGenerationProgress(prev => ({
+        ...prev,
+        phase: 'error',
+        message: `Error: ${errorMessage}`,
+      }));
+
+      // If we have a partial book, offer to continue
+      if (currentBookId) {
+        const retry = confirm(
+          `Generation encountered an error: ${errorMessage}\n\n` +
+          `Progress has been saved (${generationProgress.chaptersCompleted}/${generationProgress.totalChapters} chapters).\n\n` +
+          `Would you like to retry and continue from where you left off?`
+        );
+        
+        if (retry) {
+          // Recursive call to continue
+          handleGenerateBook();
+          return;
+        }
+      } else {
+        alert(`Failed to generate book: ${errorMessage}`);
+      }
     } finally {
       setIsGenerating(false);
+      abortControllerRef.current = null;
     }
-  };
+  }, [outline, config, router, generationProgress.chaptersCompleted, generationProgress.totalChapters]);
+
+  // Cancel generation
+  const handleCancelGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setGenerationProgress(prev => ({
+        ...prev,
+        phase: 'error',
+        message: 'Generation cancelled. Progress has been saved.',
+      }));
+    }
+  }, []);
 
   const handleAutoPopulate = () => {
     if (!selectedReferenceId) {
@@ -556,6 +683,110 @@ export default function StudioPage() {
           setShowUploadModal(false);
         }}
       />
+
+      {/* Generation Progress Modal */}
+      {isGenerating && generationProgress.phase !== 'idle' && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="text-4xl mb-3">
+                {generationProgress.phase === 'creating' && '📚'}
+                {generationProgress.phase === 'generating' && '✍️'}
+                {generationProgress.phase === 'cover' && '🎨'}
+                {generationProgress.phase === 'completed' && '✅'}
+                {generationProgress.phase === 'error' && '⚠️'}
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {generationProgress.phase === 'creating' && 'Creating Book...'}
+                {generationProgress.phase === 'generating' && 'Generating Chapters...'}
+                {generationProgress.phase === 'cover' && 'Creating Cover...'}
+                {generationProgress.phase === 'completed' && 'Complete!'}
+                {generationProgress.phase === 'error' && 'Error'}
+              </h3>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                <span>Progress</span>
+                <span>{generationProgress.progress}%</span>
+              </div>
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-500 ease-out rounded-full ${
+                    generationProgress.phase === 'error' 
+                      ? 'bg-red-500' 
+                      : generationProgress.phase === 'completed'
+                        ? 'bg-green-500'
+                        : 'bg-yellow-500'
+                  }`}
+                  style={{ width: `${generationProgress.progress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Chapter Progress */}
+            {generationProgress.totalChapters > 0 && (
+              <div className="mb-4 text-center">
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {generationProgress.chaptersCompleted} / {generationProgress.totalChapters}
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  chapters completed
+                </div>
+              </div>
+            )}
+
+            {/* Message */}
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
+              {generationProgress.message}
+            </p>
+
+            {/* Cancel Button */}
+            {generationProgress.phase !== 'completed' && generationProgress.phase !== 'error' && (
+              <div className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCancelGeneration}
+                  className="text-gray-500 hover:text-red-500"
+                >
+                  Cancel Generation
+                </Button>
+                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                  Progress is saved automatically. You can continue later.
+                </p>
+              </div>
+            )}
+
+            {/* Completed State */}
+            {generationProgress.phase === 'completed' && (
+              <div className="text-center">
+                <p className="text-green-600 dark:text-green-400 font-medium">
+                  Redirecting to library...
+                </p>
+              </div>
+            )}
+
+            {/* Error State with Book ID */}
+            {generationProgress.phase === 'error' && generationProgress.bookId && (
+              <div className="text-center">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                  Book ID: {generationProgress.bookId}
+                </p>
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={handleGenerateBook}
+                >
+                  Continue Generation
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
