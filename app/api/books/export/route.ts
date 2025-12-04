@@ -120,13 +120,17 @@ export async function POST(request: NextRequest) {
       console.log(`Book has bibliography enabled with ${convertedReferences.length} references`);
     }
 
+    // Get backCoverUrl from metadata (since column not yet in database)
+    const bookMetadata = (book.metadata as any) || {};
+    
     // Prepare export data
     const exportData = {
       title: book.title,
       author: book.author || 'Unknown Author',
       description: book.summary || '',
       genre: book.genre || 'Unknown Genre',
-      coverUrl: book.coverUrl || undefined, // Include cover image URL if available
+      coverUrl: book.coverUrl || undefined, // Include front cover image URL if available
+      backCoverUrl: bookMetadata.backCoverUrl || undefined, // Include back cover image URL from metadata
       chapters: book.chapters
         .sort((a, b) => a.chapterNumber - b.chapterNumber)
         .map(ch => ({

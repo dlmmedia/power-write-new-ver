@@ -439,34 +439,51 @@ export function AudioGenerator({
   };
 
   // Direct download function - fetches blob and triggers download
-  const downloadAudioFile = async (audioUrl: string, filename: string) => {
+  // Must fetch as blob first because cross-origin URLs ignore the download attribute
+  const downloadAudioFile = async (audioUrl: string, filename: string): Promise<boolean> => {
     try {
-      const response = await fetch(audioUrl);
-      if (!response.ok) throw new Error('Failed to fetch audio file');
+      console.log(`[Download] Fetching audio file: ${filename}`);
+      
+      const response = await fetch(audioUrl, {
+        method: 'GET',
+        credentials: 'same-origin',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
       
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
+      console.log(`[Download] Blob received: ${blob.size} bytes, type: ${blob.type}`);
+      
+      if (blob.size === 0) {
+        throw new Error('Downloaded file is empty');
+      }
+      
+      // Create a blob URL (same-origin) which respects the download attribute
+      const blobUrl = window.URL.createObjectURL(blob);
       
       const link = document.createElement('a');
-      link.href = url;
+      link.href = blobUrl;
       link.download = filename;
       link.style.display = 'none';
       document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
       
-      // Clean up the blob URL
-      setTimeout(() => window.URL.revokeObjectURL(url), 100);
-    } catch (error) {
-      console.error('Download error:', error);
-      // Fallback to direct link
-      const link = document.createElement('a');
-      link.href = audioUrl;
-      link.download = filename;
-      link.target = '_blank';
-      document.body.appendChild(link);
+      // Trigger the download
       link.click();
+      
+      // Clean up
       document.body.removeChild(link);
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+      
+      console.log(`[Download] Successfully triggered download: ${filename}`);
+      return true;
+    } catch (error) {
+      console.error('[Download] Error:', error);
+      // Fallback: open in new tab where user can right-click to save
+      alert(`Direct download failed. Opening audio in new tab - use right-click > "Save As" to download.\n\nError: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      window.open(audioUrl, '_blank');
+      return false;
     }
   };
 
@@ -479,7 +496,10 @@ export function AudioGenerator({
   const handleDownloadAllAudio = async () => {
     const chaptersWithAudioData = chaptersData.filter(ch => ch.audioUrl);
     
-    if (chaptersWithAudioData.length === 0) return;
+    if (chaptersWithAudioData.length === 0) {
+      alert('No audio files available to download.');
+      return;
+    }
     
     // If only one file, download directly
     if (chaptersWithAudioData.length === 1) {
@@ -494,38 +514,91 @@ export function AudioGenerator({
     
     try {
       const zip = new JSZip();
-      const audioFolder = zip.folder(`${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Audiobook`);
+      const folderName = `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Audiobook`;
+      const audioFolder = zip.folder(folderName);
       
       if (!audioFolder) throw new Error('Failed to create ZIP folder');
       
       let completed = 0;
+      let successCount = 0;
       const total = chaptersWithAudioData.length;
+      const failedChapters: number[] = [];
+      
+      console.log(`[AudioDownload] Starting download of ${total} audio files...`);
       
       // Fetch all audio files
       for (const chapter of chaptersWithAudioData) {
-        if (!chapter.audioUrl) continue;
-        
-        try {
-          const response = await fetch(chapter.audioUrl);
-          if (!response.ok) continue;
-          
-          const blob = await response.blob();
-          const filename = `Chapter_${String(chapter.number).padStart(2, '0')}_${chapter.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
-          audioFolder.file(filename, blob);
-          
+        if (!chapter.audioUrl) {
           completed++;
           setDownloadProgress(Math.round((completed / total) * 100));
+          continue;
+        }
+        
+        try {
+          console.log(`[AudioDownload] Fetching chapter ${chapter.number}: ${chapter.audioUrl}`);
+          
+          const response = await fetch(chapter.audioUrl, {
+            method: 'GET',
+            credentials: 'same-origin',
+          });
+          
+          if (!response.ok) {
+            console.error(`[AudioDownload] Failed to fetch chapter ${chapter.number}: HTTP ${response.status}`);
+            failedChapters.push(chapter.number);
+            completed++;
+            setDownloadProgress(Math.round((completed / total) * 100));
+            continue;
+          }
+          
+          const blob = await response.blob();
+          console.log(`[AudioDownload] Chapter ${chapter.number} blob size: ${blob.size} bytes, type: ${blob.type}`);
+          
+          if (blob.size === 0) {
+            console.error(`[AudioDownload] Chapter ${chapter.number} has empty blob`);
+            failedChapters.push(chapter.number);
+            completed++;
+            setDownloadProgress(Math.round((completed / total) * 100));
+            continue;
+          }
+          
+          const filename = `Chapter_${String(chapter.number).padStart(2, '0')}_${chapter.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+          
+          // Convert blob to ArrayBuffer for more reliable ZIP handling
+          const arrayBuffer = await blob.arrayBuffer();
+          audioFolder.file(filename, arrayBuffer);
+          
+          successCount++;
+          completed++;
+          setDownloadProgress(Math.round((completed / total) * 100));
+          console.log(`[AudioDownload] Successfully added chapter ${chapter.number} to ZIP`);
         } catch (err) {
-          console.error(`Failed to fetch chapter ${chapter.number}:`, err);
+          console.error(`[AudioDownload] Error fetching chapter ${chapter.number}:`, err);
+          failedChapters.push(chapter.number);
+          completed++;
+          setDownloadProgress(Math.round((completed / total) * 100));
         }
       }
       
+      console.log(`[AudioDownload] Fetching complete. Success: ${successCount}, Failed: ${failedChapters.length}`);
+      
+      // Check if we have any files to zip
+      if (successCount === 0) {
+        throw new Error(`Failed to fetch any audio files. All ${total} chapters failed to download.`);
+      }
+      
       // Generate and download ZIP
+      console.log(`[AudioDownload] Generating ZIP with ${successCount} files...`);
       const zipBlob = await zip.generateAsync({ 
         type: 'blob',
         compression: 'DEFLATE',
         compressionOptions: { level: 6 }
       });
+      
+      console.log(`[AudioDownload] ZIP generated, size: ${zipBlob.size} bytes`);
+      
+      if (zipBlob.size < 100) {
+        throw new Error('Generated ZIP file is too small - something went wrong');
+      }
       
       const url = window.URL.createObjectURL(zipBlob);
       const link = document.createElement('a');
@@ -537,15 +610,25 @@ export function AudioGenerator({
       document.body.removeChild(link);
       
       setTimeout(() => window.URL.revokeObjectURL(url), 100);
+      
+      // Notify about partial success if some chapters failed
+      if (failedChapters.length > 0) {
+        alert(`Download complete! ${successCount} chapters included.\n\nNote: ${failedChapters.length} chapter(s) failed to download: Chapter ${failedChapters.join(', ')}`);
+      }
     } catch (error) {
-      console.error('ZIP creation error:', error);
-      alert('Failed to create ZIP archive. Downloading files individually...');
+      console.error('[AudioDownload] ZIP creation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to create ZIP archive: ${errorMessage}\n\nDownloading files individually...`);
       
       // Fallback to individual downloads
       for (const chapter of chaptersWithAudioData) {
         if (chapter.audioUrl) {
-          await handleDownloadChapter(chapter.audioUrl, chapter.number, chapter.title);
-          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            await handleDownloadChapter(chapter.audioUrl, chapter.number, chapter.title);
+            await new Promise(resolve => setTimeout(resolve, 500));
+          } catch (downloadErr) {
+            console.error(`[AudioDownload] Individual download failed for chapter ${chapter.number}:`, downloadErr);
+          }
         }
       }
     } finally {

@@ -34,6 +34,7 @@ interface BookExport {
   title: string;
   author: string;
   coverUrl?: string;
+  backCoverUrl?: string;
   chapters: Array<{
     number: number;
     title: string;
@@ -405,30 +406,30 @@ const styles = StyleSheet.create({
   },
 
   // =============================================
-  // PAGE NUMBERS - Fixed at bottom center
+  // PAGE NUMBERS - Fixed at bottom right
   // =============================================
   pageNumberContainer: {
     position: 'absolute',
     bottom: 36,
-    left: 0,
-    right: 0,
+    right: 72,
+    left: 72,
   },
   pageNumberText: {
     fontFamily: BODY_FONT,
     fontWeight: 400,
     fontSize: 10,
     color: colors.pageNum,
-    textAlign: 'center',
+    textAlign: 'right',
   },
   
-  // Front matter page number (roman numerals)
+  // Front matter page number (roman numerals) - bottom right
   frontMatterPageNumText: {
     fontFamily: BODY_FONT,
     fontWeight: 400,
     fontStyle: 'italic',
     fontSize: 10,
     color: colors.muted,
-    textAlign: 'center',
+    textAlign: 'right',
   },
   
   // Running header for continuation pages
@@ -872,6 +873,15 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
           frontMatterPages={FRONT_MATTER_PAGES}
           totalChapters={book.chapters.length}
         />
+      )}
+
+      {/* ========================================== */}
+      {/* BACK COVER - Final page of the book */}
+      {/* ========================================== */}
+      {book.backCoverUrl && (
+        <Page size="A4" style={styles.coverPage}>
+          <Image src={book.backCoverUrl} style={styles.coverImage} />
+        </Page>
       )}
     </Document>
   );

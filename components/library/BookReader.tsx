@@ -158,14 +158,31 @@ export const BookReader: React.FC<BookReaderProps> = ({
     }
   };
 
-  const handleDownloadAudio = () => {
-    if (currentChapter.audioUrl) {
+  const handleDownloadAudio = async () => {
+    if (!currentChapter.audioUrl) return;
+    
+    try {
+      // Fetch the file as a blob to force download (cross-origin URLs won't download directly)
+      const response = await fetch(currentChapter.audioUrl);
+      if (!response.ok) throw new Error('Failed to fetch audio');
+      
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      
       const link = document.createElement('a');
-      link.href = currentChapter.audioUrl;
+      link.href = blobUrl;
       link.download = `${bookTitle.replace(/[^a-z0-9]/gi, '_')}_Chapter_${currentChapter.number}_${currentChapter.title.replace(/[^a-z0-9]/gi, '_')}.mp3`;
+      link.style.display = 'none';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+      
+      // Clean up blob URL after download starts
+      setTimeout(() => window.URL.revokeObjectURL(blobUrl), 1000);
+    } catch (error) {
+      console.error('Download failed:', error);
+      // Fallback: open in new tab where user can manually save
+      window.open(currentChapter.audioUrl, '_blank');
     }
   };
 

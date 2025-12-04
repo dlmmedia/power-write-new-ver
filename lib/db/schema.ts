@@ -55,7 +55,8 @@ export const generatedBooks = pgTable("generated_books", {
   metadata: jsonb("metadata"), // word count, pages, reading time
   sourceBookData: jsonb("source_book_data"), // original book metadata used for generation
   referenceBooks: jsonb("reference_books"), // multiple reference books
-  coverUrl: text("cover_url"), // URL to generated cover image
+  coverUrl: text("cover_url"), // URL to generated front cover image
+  // backCoverUrl: text("back_cover_url"), // URL to generated back cover image - REQUIRES DB MIGRATION
   coverMetadata: jsonb("cover_metadata"), // cover design options and metadata
   pdfUrl: text("pdf_url"), // URL to generated PDF
   audioUrl: text("audio_url"), // URL to generated audiobook

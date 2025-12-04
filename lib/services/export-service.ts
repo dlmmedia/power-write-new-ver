@@ -5,7 +5,8 @@ import { CitationService } from './citation-service';
 interface BookExport {
   title: string;
   author: string;
-  coverUrl?: string; // URL to cover image
+  coverUrl?: string; // URL to front cover image
+  backCoverUrl?: string; // URL to back cover image
   description?: string;
   genre?: string;
   chapters: Array<{
@@ -434,7 +435,7 @@ export class ExportService {
         }
         
         /* ============================================= */
-        /* PRINT STYLES - Perfect page numbers */
+        /* PRINT STYLES - Perfect page numbers at bottom right */
         /* ============================================= */
         @media print {
             @page {
@@ -451,9 +452,9 @@ export class ExportService {
                 counter-increment: page-counter;
             }
             
-            /* Footer with page numbers */
+            /* Footer with page numbers at bottom right */
             @page {
-                @bottom-center {
+                @bottom-right {
                     content: counter(page);
                     font-family: Georgia, serif;
                     font-size: 10pt;
@@ -463,7 +464,7 @@ export class ExportService {
             
             /* No page number on cover */
             @page :first {
-                @bottom-center {
+                @bottom-right {
                     content: none;
                 }
             }
@@ -690,6 +691,14 @@ export class ExportService {
     </div>`;
     }
     
+    // Add back cover page at the end if available
+    if (book.backCoverUrl) {
+      html += `
+    <div class="cover-page back-cover-page" style="page-break-before: always;">
+        <img src="${book.backCoverUrl}" alt="${book.title} Back Cover" />
+    </div>`;
+    }
+    
     html += `
 </body>
 </html>`;
@@ -748,13 +757,14 @@ export class ExportService {
       }
     }
 
-    // Helper function to add page numbers
+    // Helper function to add page numbers at bottom right
     const addPageNumber = () => {
       if (pageNumber > 0) { // Don't add page number on cover
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.setTextColor(128, 128, 128);
-        doc.text(pageNumber.toString(), pageWidth / 2, pageHeight - 10, { align: 'center' });
+        // Position at bottom right (pageWidth - margin for right alignment)
+        doc.text(pageNumber.toString(), pageWidth - margin, pageHeight - 15, { align: 'right' });
         doc.setTextColor(0, 0, 0); // Reset to black
       }
     };
@@ -996,6 +1006,24 @@ export class ExportService {
 
     // Add page number to last page
     addPageNumber();
+
+    // Add back cover as the last page if available
+    if (book.backCoverUrl) {
+      try {
+        console.log('Adding back cover page to PDF...');
+        doc.addPage();
+        
+        // Add back cover image to fill the entire last page
+        const backCoverWidth = pageWidth;
+        const backCoverHeight = pageHeight;
+        
+        await this.addImageToPDF(doc, book.backCoverUrl, 0, 0, backCoverWidth, backCoverHeight);
+        console.log('Back cover added successfully');
+      } catch (error) {
+        console.error('Failed to add back cover to PDF:', error);
+        // Continue without back cover if it fails
+      }
+    }
 
     return doc.output('blob');
   }

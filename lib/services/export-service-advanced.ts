@@ -34,7 +34,8 @@ import { CitationService } from './citation-service';
 interface BookExport {
   title: string;
   author: string;
-  coverUrl?: string; // URL to cover image
+  coverUrl?: string; // URL to front cover image
+  backCoverUrl?: string; // URL to back cover image
   chapters: Array<{
     number: number;
     title: string;
@@ -489,7 +490,7 @@ export class ExportServiceAdvanced {
         default: new Footer({
           children: [
             new Paragraph({
-              alignment: AlignmentType.CENTER,
+              alignment: AlignmentType.RIGHT,
               children: [
                 new TextRun({ children: [PageNumber.CURRENT], font: FONTS.label, size: SIZES.pageNum, color: COLORS.muted }),
               ],
@@ -602,6 +603,34 @@ export class ExportServiceAdvanced {
     // Add bibliography if enabled
     mainContentChildren.push(...this.generateDOCXBibliography(book));
 
+    // Add back cover if available
+    let backCoverImageBuffer: Buffer | null = null;
+    if (book.backCoverUrl) {
+      try {
+        console.log('Fetching back cover image for DOCX:', book.backCoverUrl);
+        backCoverImageBuffer = await this.fetchImageAsBuffer(book.backCoverUrl);
+        console.log('Back cover image fetched successfully for DOCX');
+        
+        // Add back cover page
+        mainContentChildren.push(
+          new Paragraph({ children: [new PageBreak()] }),
+          new Paragraph({
+            alignment: AlignmentType.CENTER,
+            children: [
+              new ImageRun({
+                type: this.detectImageType(backCoverImageBuffer),
+                data: backCoverImageBuffer,
+                transformation: { width: 450, height: 650 },
+              }),
+            ],
+            spacing: { before: 100 },
+          })
+        );
+      } catch (error) {
+        console.error('Error fetching back cover image for DOCX:', error);
+      }
+    }
+
     // Main content section configuration
     const mainContentSection = {
       properties: {
@@ -632,11 +661,9 @@ export class ExportServiceAdvanced {
         default: new Footer({
           children: [
             new Paragraph({
-              alignment: AlignmentType.CENTER,
+              alignment: AlignmentType.RIGHT,
               children: [
-                new TextRun({ text: '— ', font: FONTS.label, size: SIZES.pageNum, color: COLORS.muted }),
                 new TextRun({ children: [PageNumber.CURRENT], font: FONTS.label, size: SIZES.pageNum, color: COLORS.primary }),
-                new TextRun({ text: ' —', font: FONTS.label, size: SIZES.pageNum, color: COLORS.muted }),
               ],
             }),
           ],

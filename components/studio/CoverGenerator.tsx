@@ -14,7 +14,9 @@ interface CoverGeneratorProps {
   targetAudience: string;
   themes?: string[];
   currentCoverUrl?: string;
+  currentBackCoverUrl?: string;
   onCoverGenerated: (coverUrl: string, metadata: any) => void;
+  onBackCoverGenerated?: (backCoverUrl: string, metadata: any) => void;
 }
 
 export default function CoverGenerator({
@@ -26,13 +28,18 @@ export default function CoverGenerator({
   targetAudience,
   themes = [],
   currentCoverUrl,
+  currentBackCoverUrl,
   onCoverGenerated,
+  onBackCoverGenerated,
 }: CoverGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingBack, setIsGeneratingBack] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [coverUrl, setCoverUrl] = useState<string | undefined>(currentCoverUrl);
+  const [backCoverUrl, setBackCoverUrl] = useState<string | undefined>(currentBackCoverUrl);
   const [error, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'cover' | 'mockup'>('cover');
+  const [coverType, setCoverType] = useState<'front' | 'back'>('front');
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL);
   const [coverMode, setCoverMode] = useState<'generate' | 'upload'>('generate');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,6 +101,55 @@ export default function CoverGenerator({
       setError(err instanceof Error ? err.message : 'Failed to generate cover');
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateBackCover = async () => {
+    if (!title || !description) {
+      setError('Please fill in title and description first');
+      return;
+    }
+
+    setIsGeneratingBack(true);
+    setError(null);
+
+    try {
+      const userId = 'demo_user';
+
+      const response = await fetch('/api/generate/back-cover', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          userId,
+          bookId,
+          title,
+          author,
+          genre,
+          description,
+          style: designOptions.style || 'photographic',
+          imageModel,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.details || 'Failed to generate back cover');
+      }
+
+      if (data.coverUrl) {
+        setBackCoverUrl(data.coverUrl);
+        onBackCoverGenerated?.(data.coverUrl, data.metadata);
+      } else {
+        throw new Error('No back cover URL returned');
+      }
+    } catch (err) {
+      console.error('Back cover generation error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate back cover');
+    } finally {
+      setIsGeneratingBack(false);
     }
   };
 
@@ -210,6 +266,14 @@ export default function CoverGenerator({
     '#ffffff'
   );
 
+  // Generate back cover preview SVG
+  const backCoverPreviewDataUrl = CoverService.generateBackCoverPreviewDataURL(
+    title || 'Book Title',
+    description || 'Your book description will appear here...',
+    '#1a1a1a',
+    '#ffffff'
+  );
+
   return (
     <div className="space-y-6">
       {/* Mode Toggle */}
@@ -238,10 +302,38 @@ export default function CoverGenerator({
         </div>
       </div>
 
+      {/* Cover Type Toggle */}
+      <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCoverType('front')}
+            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all text-sm ${
+              coverType === 'front'
+                ? 'bg-yellow-400 text-black'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            📖 Front Cover
+          </button>
+          <button
+            onClick={() => setCoverType('back')}
+            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all text-sm ${
+              coverType === 'back'
+                ? 'bg-yellow-400 text-black'
+                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            📄 Back Cover
+          </button>
+        </div>
+      </div>
+
       {/* Cover Preview */}
       <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">Book Cover</h3>
+          <h3 className="text-lg font-semibold text-white">
+            {coverType === 'front' ? 'Front Cover' : 'Back Cover'}
+          </h3>
           <div className="flex gap-2">
             <button
               onClick={() => setPreviewMode('cover')}
@@ -269,18 +361,34 @@ export default function CoverGenerator({
         <div className="flex justify-center">
           {previewMode === 'cover' ? (
             <div className="relative w-64 h-96 bg-gray-800 rounded shadow-2xl overflow-hidden">
-              {coverUrl ? (
-                <img
-                  src={coverUrl}
-                  alt="Book cover"
-                  className="w-full h-full object-cover"
-                />
+              {coverType === 'front' ? (
+                coverUrl ? (
+                  <img
+                    src={coverUrl}
+                    alt="Front cover"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <img
+                    src={previewDataUrl}
+                    alt="Front cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                )
               ) : (
-                <img
-                  src={previewDataUrl}
-                  alt="Cover preview"
-                  className="w-full h-full object-cover"
-                />
+                backCoverUrl ? (
+                  <img
+                    src={backCoverUrl}
+                    alt="Back cover"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <img
+                    src={backCoverPreviewDataUrl}
+                    alt="Back cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                )
               )}
             </div>
           ) : (
@@ -289,22 +397,38 @@ export default function CoverGenerator({
               <div
                 className="w-64 h-96 bg-gray-800 rounded shadow-2xl"
                 style={{
-                  transform: 'rotateY(-15deg) rotateX(5deg)',
+                  transform: coverType === 'front' ? 'rotateY(-15deg) rotateX(5deg)' : 'rotateY(15deg) rotateX(5deg)',
                   transformStyle: 'preserve-3d',
                 }}
               >
-                {coverUrl ? (
-                  <img
-                    src={coverUrl}
-                    alt="Book cover"
-                    className="w-full h-full object-cover rounded"
-                  />
+                {coverType === 'front' ? (
+                  coverUrl ? (
+                    <img
+                      src={coverUrl}
+                      alt="Front cover"
+                      className="w-full h-full object-cover rounded"
+                    />
+                  ) : (
+                    <img
+                      src={previewDataUrl}
+                      alt="Front cover preview"
+                      className="w-full h-full object-cover rounded"
+                    />
+                  )
                 ) : (
-                  <img
-                    src={previewDataUrl}
-                    alt="Cover preview"
-                    className="w-full h-full object-cover rounded"
-                  />
+                  backCoverUrl ? (
+                    <img
+                      src={backCoverUrl}
+                      alt="Back cover"
+                      className="w-full h-full object-cover rounded"
+                    />
+                  ) : (
+                    <img
+                      src={backCoverPreviewDataUrl}
+                      alt="Back cover preview"
+                      className="w-full h-full object-cover rounded"
+                    />
+                  )
                 )}
               </div>
             </div>
@@ -517,41 +641,79 @@ export default function CoverGenerator({
 
       {/* Generate / Upload Button */}
       {coverMode === 'generate' ? (
-        <button
-          onClick={handleGenerateCover}
-          disabled={isGenerating || !title || !author}
-          className={`w-full py-3 rounded-lg font-semibold transition-colors ${
-            isGenerating || !title || !author
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-yellow-400 text-black hover:bg-yellow-500'
-          }`}
-        >
-          {isGenerating ? (
-            <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-              Generating Cover...
-            </span>
-          ) : coverUrl ? (
-            '🔄 Regenerate Cover'
-          ) : (
-            '✨ Generate Cover'
-          )}
-        </button>
+        coverType === 'front' ? (
+          <button
+            onClick={handleGenerateCover}
+            disabled={isGenerating || !title || !author}
+            className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+              isGenerating || !title || !author
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-yellow-400 text-black hover:bg-yellow-500'
+            }`}
+          >
+            {isGenerating ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Generating Front Cover...
+              </span>
+            ) : coverUrl ? (
+              '🔄 Regenerate Front Cover'
+            ) : (
+              '✨ Generate Front Cover'
+            )}
+          </button>
+        ) : (
+          <button
+            onClick={handleGenerateBackCover}
+            disabled={isGeneratingBack || !title || !description}
+            className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+              isGeneratingBack || !title || !description
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-yellow-400 text-black hover:bg-yellow-500'
+            }`}
+          >
+            {isGeneratingBack ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+                Generating Back Cover...
+              </span>
+            ) : backCoverUrl ? (
+              '🔄 Regenerate Back Cover'
+            ) : (
+              '✨ Generate Back Cover'
+            )}
+          </button>
+        )
       ) : (
         <button
           onClick={() => fileInputRef.current?.click()}
@@ -590,21 +752,40 @@ export default function CoverGenerator({
         </button>
       )}
 
-      {coverUrl && (
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              // Download cover
-              const link = document.createElement('a');
-              link.href = coverUrl;
-              link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_cover.png`;
-              link.click();
-            }}
-            className="flex-1 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
-          >
-            ⬇️ Download Cover
-          </button>
-          {coverUrl && coverMode === 'generate' && (
+      {/* Download buttons for both covers */}
+      {(coverUrl || backCoverUrl) && (
+        <div className="flex flex-col gap-2">
+          {coverUrl && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = coverUrl;
+                  link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_front_cover.png`;
+                  link.click();
+                }}
+                className="flex-1 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
+              >
+                ⬇️ Download Front Cover
+              </button>
+            </div>
+          )}
+          {backCoverUrl && (
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  const link = document.createElement('a');
+                  link.href = backCoverUrl;
+                  link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_back_cover.png`;
+                  link.click();
+                }}
+                className="flex-1 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
+              >
+                ⬇️ Download Back Cover
+              </button>
+            </div>
+          )}
+          {coverMode === 'generate' && (
             <button
               onClick={() => setCoverMode('upload')}
               className="py-2 px-4 bg-gray-800 text-gray-400 rounded-lg hover:bg-gray-700 text-sm font-medium"
