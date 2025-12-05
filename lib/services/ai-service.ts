@@ -111,6 +111,30 @@ export interface BookOutline {
   }>;
 }
 
+// Bibliography configuration for chapter generation
+export interface BibliographyGenerationConfig {
+  enabled: boolean;
+  citationStyle: 'APA' | 'MLA' | 'Chicago' | 'Harvard' | 'IEEE' | 'Vancouver' | 'AMA';
+  sourceVerification?: 'strict' | 'moderate' | 'relaxed';
+}
+
+// Generated reference structure
+export interface GeneratedReference {
+  id: string;
+  type: 'book' | 'journal' | 'website' | 'report' | 'conference';
+  title: string;
+  authors: Array<{ firstName?: string; lastName: string }>;
+  year?: number;
+  publisher?: string;
+  url?: string;
+  doi?: string;
+  journalTitle?: string;
+  volume?: string;
+  issue?: string;
+  pages?: string;
+  accessDate?: string;
+}
+
 export interface BookGenerationConfig {
   title?: string;
   author: string;
@@ -786,7 +810,8 @@ Return ONLY valid JSON in this format:
     outline: BookOutline,
     chapterNumber: number,
     previousChapters?: string,
-    modelId?: string
+    modelId?: string,
+    bibliographyConfig?: BibliographyGenerationConfig
   ): Promise<{ title: string; content: string; wordCount: number }> {
     try {
       const model = modelId || this.chapterModel;
@@ -801,6 +826,11 @@ Return ONLY valid JSON in this format:
 
       const isNonFiction = !outline.characters || outline.characters.length === 0;
 
+      // Build bibliography citation instructions if enabled
+      const citationInstructions = bibliographyConfig?.enabled && isNonFiction
+        ? this.buildCitationInstructions(bibliographyConfig.citationStyle)
+        : '';
+
       const prompt = isNonFiction
         ? `Write Chapter ${chapter.number} of the NON-FICTION book "${outline.title}" by ${outline.author}.
 
@@ -812,6 +842,7 @@ Chapter Details:
 
 Themes: ${outline.themes?.join(', ') || 'General themes'}
 ${contextPrompt}
+${citationInstructions}
 
 Write a complete, informative chapter targeting ${chapter.wordCount} words (minimum 1500 words). 
 - Create well-developed paragraphs (6-10 sentences each)
@@ -819,7 +850,7 @@ Write a complete, informative chapter targeting ${chapter.wordCount} words (mini
 - Use double line breaks between paragraphs
 - NO markdown formatting
 - Write in plain text
-- Focus on educational and informative content
+- Focus on educational and informative content${bibliographyConfig?.enabled ? '\n- Include in-text citations using the specified format' : ''}
 - End with [END CHAPTER] on a new line`
         : `Write Chapter ${chapter.number} of "${outline.title}" by ${outline.author}.
 
@@ -845,10 +876,10 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
 - End with [END CHAPTER] on a new line`;
 
       const systemPrompt = isNonFiction
-        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.`
+        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.${bibliographyConfig?.enabled ? ' Include properly formatted in-text citations to support your points.' : ''}`
         : `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.`;
 
-      console.log(`Generating chapter ${chapterNumber} with model: ${model}`);
+      console.log(`Generating chapter ${chapterNumber} with model: ${model}${bibliographyConfig?.enabled ? ' (with bibliography)' : ''}`);
 
       const result = await generateText({
         model: getModel(model),
@@ -872,6 +903,179 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
     } catch (error) {
       console.error('Error generating chapter:', error);
       throw new Error(`Failed to generate chapter ${chapterNumber}`);
+    }
+  }
+
+  /**
+   * Build citation instructions for the specified style
+   */
+  private buildCitationInstructions(style: string): string {
+    const styleGuides: Record<string, string> = {
+      'APA': `
+CITATION REQUIREMENTS (APA 7th Edition):
+- Include in-text citations for all factual claims, statistics, and expert opinions
+- Format: (Author, Year) or (Author, Year, p. X) for direct quotes
+- For multiple authors: (Author1 & Author2, Year) or (Author1 et al., Year) for 3+ authors
+- When author is mentioned in text: Author (Year) states...
+- Example: "Research shows that..." (Smith, 2023) or Smith (2023) found that...
+- Use credible, realistic sources (academic journals, reputable publishers, established organizations)`,
+      'MLA': `
+CITATION REQUIREMENTS (MLA 9th Edition):
+- Include in-text citations for all factual claims and quoted material
+- Format: (Author Page) - no comma between author and page
+- For multiple authors: (Author1 and Author2 Page) or (Author1 et al. Page) for 3+ authors
+- Example: "Quote here" (Johnson 45) or According to Johnson, "..." (45)
+- Use credible, realistic sources`,
+      'Chicago': `
+CITATION REQUIREMENTS (Chicago Manual of Style):
+- Include footnote-style citations for important claims
+- Format: (Author Year, Page) for author-date style
+- Or use superscript numbers¹ referencing endnotes
+- Example: (Williams 2022, 78) or Williams argues that...¹
+- Use credible, realistic sources`,
+      'Harvard': `
+CITATION REQUIREMENTS (Harvard Style):
+- Include in-text citations for all factual claims
+- Format: (Author Year) or (Author Year, p. X) for specific pages
+- Example: (Brown 2023) or Brown (2023) suggests that...
+- Use credible, realistic sources`,
+      'IEEE': `
+CITATION REQUIREMENTS (IEEE Style):
+- Include numbered citations in square brackets
+- Format: [1], [2], [3-5] for ranges
+- Example: According to recent studies [1], [2]...
+- Use credible technical and academic sources`,
+      'Vancouver': `
+CITATION REQUIREMENTS (Vancouver Style):
+- Include numbered citations in superscript or parentheses
+- Format: text¹ or text (1)
+- Example: Studies have shown¹⁻³ or Studies have shown (1-3)
+- Use credible medical and scientific sources`,
+      'AMA': `
+CITATION REQUIREMENTS (AMA Style):
+- Include numbered superscript citations
+- Format: text¹ for single, text¹⁻³ for ranges
+- Example: Recent findings¹ suggest...
+- Use credible medical sources`
+    };
+
+    return styleGuides[style] || styleGuides['APA'];
+  }
+
+  /**
+   * Generate bibliography references for a completed book
+   * Analyzes the book content and generates appropriate academic references
+   */
+  async generateBibliographyReferences(
+    outline: BookOutline,
+    chapterContents: string[],
+    bibliographyConfig: BibliographyGenerationConfig,
+    modelId?: string
+  ): Promise<GeneratedReference[]> {
+    try {
+      const model = modelId || this.outlineModel;
+      const isNonFiction = !outline.characters || outline.characters.length === 0;
+      
+      if (!isNonFiction) {
+        console.log('Bibliography generation skipped for fiction book');
+        return [];
+      }
+
+      // Combine chapter summaries for context
+      const bookContext = chapterContents.map((content, i) => 
+        `Chapter ${i + 1}: ${content.substring(0, 500)}...`
+      ).join('\n\n');
+
+      const prompt = `Generate a realistic bibliography for the non-fiction book "${outline.title}" by ${outline.author}.
+
+Book Topic: ${outline.description}
+Genre: ${outline.genre}
+Themes: ${outline.themes?.join(', ') || 'General themes'}
+
+Sample Content from Chapters:
+${bookContext}
+
+Generate 8-15 realistic, credible references that would support this book's content.
+Include a mix of:
+- Books (3-5 references)
+- Journal articles (3-5 references)
+- Websites/online sources (2-3 references)
+- Reports or conference papers (1-2 references)
+
+IMPORTANT:
+- Create realistic author names (mix of common and uncommon)
+- Use plausible publication years (2010-2024 for most, some older classics)
+- Generate believable titles that match the book's topics
+- Include realistic publishers (academic presses, major publishers)
+- For journals, use realistic journal names relevant to the field
+
+Return ONLY valid JSON array in this exact format:
+[
+  {
+    "type": "book",
+    "title": "Book Title Here",
+    "authors": [{"firstName": "John", "lastName": "Smith"}],
+    "year": 2020,
+    "publisher": "Publisher Name",
+    "isbn": "978-0-000-00000-0"
+  },
+  {
+    "type": "journal",
+    "title": "Article Title",
+    "authors": [{"firstName": "Jane", "lastName": "Doe"}, {"firstName": "Robert", "lastName": "Johnson"}],
+    "year": 2022,
+    "journalTitle": "Journal Name",
+    "volume": "45",
+    "issue": "3",
+    "pages": "123-145",
+    "doi": "10.1000/example.2022.001"
+  },
+  {
+    "type": "website",
+    "title": "Web Article Title",
+    "authors": [{"lastName": "Organization Name"}],
+    "year": 2023,
+    "url": "https://example.org/article",
+    "accessDate": "${new Date().toISOString().split('T')[0]}"
+  }
+]`;
+
+      console.log('Generating bibliography references...');
+
+      const result = await generateText({
+        model: getModel(model),
+        messages: [
+          { 
+            role: 'system', 
+            content: `You are an expert academic researcher and librarian. Generate realistic, credible bibliography references that would support non-fiction books. Always return valid JSON array format.` 
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
+      });
+
+      // Parse the JSON response
+      let jsonText = result.text.trim();
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      const references = JSON.parse(jsonText) as GeneratedReference[];
+      
+      // Add IDs to each reference
+      const referencesWithIds = references.map((ref, index) => ({
+        ...ref,
+        id: `ref_${Date.now()}_${index}_${Math.random().toString(36).substring(7)}`
+      }));
+
+      console.log(`Generated ${referencesWithIds.length} bibliography references`);
+      return referencesWithIds;
+    } catch (error) {
+      console.error('Error generating bibliography references:', error);
+      // Return empty array on error - bibliography is not critical
+      return [];
     }
   }
 
@@ -928,7 +1132,8 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     genre: string,
     description: string,
     style: string = 'vivid',
-    imageModelId?: string
+    imageModelId?: string,
+    customEnhancedPrompt?: string // New parameter for custom prompts from CoverService
   ): Promise<string> {
     try {
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -942,15 +1147,18 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
       const provider: ImageProvider = imageModel?.provider || 'nanobanana-pro';
       
       console.log(`Generating cover with ${imageModel?.name || modelId}...`);
+      if (customEnhancedPrompt) {
+        console.log('Using custom enhanced prompt for cover generation');
+      }
 
       let imageUrl: string;
 
       if (provider === 'dalle') {
         // Use DALL-E 3 via OpenAI
-        imageUrl = await this.generateWithDallE(title, author, genre, description, style);
+        imageUrl = await this.generateWithDallE(title, author, genre, description, style, customEnhancedPrompt);
       } else {
         // Use Nano Banana / Nano Banana Pro via OpenRouter (Gemini image models)
-        imageUrl = await this.generateWithNanoBanana(title, author, genre, description, style, modelId);
+        imageUrl = await this.generateWithNanoBanana(title, author, genre, description, style, modelId, customEnhancedPrompt);
       }
 
       // Upload to blob storage
@@ -989,14 +1197,15 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     author: string,
     genre: string,
     description: string,
-    style: string
+    style: string,
+    customPrompt?: string
   ): Promise<string> {
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is required for DALL-E image generation');
     }
 
-    // Use the same professional cover prompt for consistency
-    const prompt = this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    // Use custom prompt if provided, otherwise build the standard one
+    const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
     
     console.log('Using DALL-E 3...');
     
@@ -1040,14 +1249,15 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     genre: string,
     description: string,
     style: string,
-    modelId: string
+    modelId: string,
+    customPrompt?: string
   ): Promise<string> {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY is required for Nano Banana Pro image generation. Set it in your environment variables.');
     }
 
-    // Build a professional book cover prompt with proper text layout
-    const prompt = this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    // Use custom prompt if provided, otherwise build the standard one
+    const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
 
     // Use the model ID directly - it should be one of:
     // - google/gemini-3-pro-image-preview (Nano Banana Pro)
@@ -1203,20 +1413,21 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
   async generateFullBook(
     outline: BookOutline,
     onProgress?: (chapter: number, total: number) => void,
-    modelId?: string
-  ): Promise<{ chapters: Array<{ title: string; content: string; wordCount: number }> }> {
+    modelId?: string,
+    bibliographyConfig?: BibliographyGenerationConfig
+  ): Promise<{ chapters: Array<{ title: string; content: string; wordCount: number }>; references: GeneratedReference[] }> {
     const chapters = [];
     let previousChapters = '';
 
     for (let i = 0; i < outline.chapters.length; i++) {
       const chapterNum = i + 1;
-      console.log(`Generating chapter ${chapterNum}/${outline.chapters.length}`);
+      console.log(`Generating chapter ${chapterNum}/${outline.chapters.length}${bibliographyConfig?.enabled ? ' (with citations)' : ''}`);
 
       if (onProgress) {
         onProgress(chapterNum, outline.chapters.length);
       }
 
-      const chapter = await this.generateChapter(outline, chapterNum, previousChapters, modelId);
+      const chapter = await this.generateChapter(outline, chapterNum, previousChapters, modelId, bibliographyConfig);
       chapters.push(chapter);
 
       const recentChapters = chapters.slice(-2);
@@ -1225,7 +1436,19 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
         .join('\n\n');
     }
 
-    return { chapters };
+    // Generate bibliography references if enabled
+    let references: GeneratedReference[] = [];
+    if (bibliographyConfig?.enabled) {
+      const chapterContents = chapters.map(ch => ch.content);
+      references = await this.generateBibliographyReferences(
+        outline,
+        chapterContents,
+        bibliographyConfig,
+        modelId
+      );
+    }
+
+    return { chapters, references };
   }
 }
 

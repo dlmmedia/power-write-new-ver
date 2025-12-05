@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
+import { AIChapterModal } from './AIChapterModal';
 
 interface Chapter {
   id: number;
@@ -20,29 +21,182 @@ interface BookEditorProps {
   bookId: number;
   bookTitle: string;
   author: string;
+  genre?: string;
   chapters: Chapter[];
   onClose?: () => void;
   onSave?: (updatedChapters: Chapter[]) => void;
+}
+
+interface FindReplaceState {
+  isOpen: boolean;
+  findText: string;
+  replaceText: string;
+  matchCase: boolean;
+  wholeWord: boolean;
+  currentMatchIndex: number;
+  totalMatches: number;
+}
+
+interface UndoHistoryEntry {
+  chapters: Chapter[];
+  currentChapterIndex: number;
+  timestamp: number;
 }
 
 export const BookEditor: React.FC<BookEditorProps> = ({
   bookId,
   bookTitle,
   author,
+  genre = 'Fiction',
   chapters: initialChapters,
   onClose,
   onSave,
 }) => {
   const [chapters, setChapters] = useState<Chapter[]>(initialChapters);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
-  const [editMode, setEditMode] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showChapterList, setShowChapterList] = useState(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('base');
+  const [showAIChapterModal, setShowAIChapterModal] = useState(false);
+  
+  // Find and Replace state
+  const [findReplace, setFindReplace] = useState<FindReplaceState>({
+    isOpen: false,
+    findText: '',
+    replaceText: '',
+    matchCase: false,
+    wholeWord: false,
+    currentMatchIndex: 0,
+    totalMatches: 0,
+  });
 
+  // Undo/Redo history
+  const [undoHistory, setUndoHistory] = useState<UndoHistoryEntry[]>([]);
+  const [redoHistory, setRedoHistory] = useState<UndoHistoryEntry[]>([]);
+  const maxHistoryLength = 50;
+
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const currentChapter = chapters[currentChapterIndex];
 
+  // Save state for undo
+  const saveToHistory = useCallback(() => {
+    const entry: UndoHistoryEntry = {
+      chapters: JSON.parse(JSON.stringify(chapters)),
+      currentChapterIndex,
+      timestamp: Date.now(),
+    };
+    setUndoHistory(prev => [...prev.slice(-maxHistoryLength + 1), entry]);
+    setRedoHistory([]); // Clear redo when new action is performed
+  }, [chapters, currentChapterIndex]);
+
+  // Undo action
+  const undo = useCallback(() => {
+    if (undoHistory.length === 0) return;
+    
+    const previousState = undoHistory[undoHistory.length - 1];
+    
+    // Save current state to redo
+    setRedoHistory(prev => [...prev, {
+      chapters: JSON.parse(JSON.stringify(chapters)),
+      currentChapterIndex,
+      timestamp: Date.now(),
+    }]);
+    
+    setChapters(previousState.chapters);
+    setCurrentChapterIndex(previousState.currentChapterIndex);
+    setUndoHistory(prev => prev.slice(0, -1));
+    setHasUnsavedChanges(true);
+  }, [undoHistory, chapters, currentChapterIndex]);
+
+  // Redo action
+  const redo = useCallback(() => {
+    if (redoHistory.length === 0) return;
+    
+    const nextState = redoHistory[redoHistory.length - 1];
+    
+    // Save current state to undo
+    setUndoHistory(prev => [...prev, {
+      chapters: JSON.parse(JSON.stringify(chapters)),
+      currentChapterIndex,
+      timestamp: Date.now(),
+    }]);
+    
+    setChapters(nextState.chapters);
+    setCurrentChapterIndex(nextState.currentChapterIndex);
+    setRedoHistory(prev => prev.slice(0, -1));
+    setHasUnsavedChanges(true);
+  }, [redoHistory, chapters, currentChapterIndex]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+      // Ctrl/Cmd + S - Save
+      if (modKey && e.key === 's') {
+        e.preventDefault();
+        if (hasUnsavedChanges) handleSave();
+        return;
+      }
+
+      // Ctrl/Cmd + F - Find
+      if (modKey && e.key === 'f') {
+        e.preventDefault();
+        setFindReplace(prev => ({ ...prev, isOpen: true }));
+        return;
+      }
+
+      // Ctrl/Cmd + H - Find and Replace
+      if (modKey && e.key === 'h') {
+        e.preventDefault();
+        setFindReplace(prev => ({ ...prev, isOpen: true }));
+        return;
+      }
+
+      // Ctrl/Cmd + Z - Undo
+      if (modKey && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+        return;
+      }
+
+      // Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y - Redo
+      if ((modKey && e.shiftKey && e.key === 'z') || (modKey && e.key === 'y')) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      // Ctrl/Cmd + B - Bold
+      if (modKey && e.key === 'b') {
+        e.preventDefault();
+        applyFormatting('bold');
+        return;
+      }
+
+      // Ctrl/Cmd + I - Italic
+      if (modKey && e.key === 'i') {
+        e.preventDefault();
+        applyFormatting('italic');
+        return;
+      }
+
+      // Escape - Close find/replace or modals
+      if (e.key === 'Escape') {
+        if (findReplace.isOpen) {
+          setFindReplace(prev => ({ ...prev, isOpen: false }));
+        }
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [hasUnsavedChanges, undo, redo, findReplace.isOpen]);
+
+  // Unsaved changes warning
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       if (hasUnsavedChanges) {
@@ -55,7 +209,38 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
 
-  const updateChapterContent = (content: string) => {
+  // Find matches in current chapter
+  useEffect(() => {
+    if (!findReplace.findText) {
+      setFindReplace(prev => ({ ...prev, totalMatches: 0, currentMatchIndex: 0 }));
+      return;
+    }
+
+    const flags = findReplace.matchCase ? 'g' : 'gi';
+    const searchText = findReplace.wholeWord
+      ? `\\b${escapeRegex(findReplace.findText)}\\b`
+      : escapeRegex(findReplace.findText);
+    
+    try {
+      const regex = new RegExp(searchText, flags);
+      const matches = currentChapter.content.match(regex);
+      setFindReplace(prev => ({
+        ...prev,
+        totalMatches: matches ? matches.length : 0,
+        currentMatchIndex: Math.min(prev.currentMatchIndex, matches ? matches.length - 1 : 0),
+      }));
+    } catch {
+      setFindReplace(prev => ({ ...prev, totalMatches: 0 }));
+    }
+  }, [findReplace.findText, findReplace.matchCase, findReplace.wholeWord, currentChapter.content]);
+
+  const escapeRegex = (string: string) => {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  };
+
+  const updateChapterContent = (content: string, saveHistory = true) => {
+    if (saveHistory) saveToHistory();
+    
     const updatedChapters = [...chapters];
     const wordCount = content.trim().split(/\s+/).filter(Boolean).length;
     
@@ -71,6 +256,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   };
 
   const updateChapterTitle = (title: string) => {
+    saveToHistory();
     const updatedChapters = [...chapters];
     updatedChapters[currentChapterIndex] = {
       ...currentChapter,
@@ -83,9 +269,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   };
 
   const addChapter = () => {
+    saveToHistory();
     const newChapterNumber = chapters.length + 1;
     const newChapter: Chapter = {
-      id: Date.now(), // Temporary ID
+      id: Date.now(),
       number: newChapterNumber,
       title: `New Chapter ${newChapterNumber}`,
       content: '',
@@ -95,6 +282,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     };
 
     setChapters([...chapters, newChapter]);
+    setCurrentChapterIndex(chapters.length);
+    setHasUnsavedChanges(true);
+  };
+
+  const addAIChapter = (chapter: Chapter) => {
+    saveToHistory();
+    setChapters([...chapters, chapter]);
     setCurrentChapterIndex(chapters.length);
     setHasUnsavedChanges(true);
   };
@@ -109,8 +303,8 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       return;
     }
 
+    saveToHistory();
     const updatedChapters = chapters.filter((_, i) => i !== index);
-    // Renumber chapters
     updatedChapters.forEach((ch, i) => {
       ch.number = i + 1;
     });
@@ -121,13 +315,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   };
 
   const insertTextAtCursor = (textarea: HTMLTextAreaElement, text: string) => {
+    saveToHistory();
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const content = currentChapter.content;
     const newContent = content.substring(0, start) + text + content.substring(end);
-    updateChapterContent(newContent);
+    updateChapterContent(newContent, false);
     
-    // Set cursor position after inserted text
     setTimeout(() => {
       textarea.selectionStart = textarea.selectionEnd = start + text.length;
       textarea.focus();
@@ -135,7 +329,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   };
 
   const applyFormatting = (type: 'bold' | 'italic' | 'underline' | 'quote' | 'list') => {
-    const textarea = document.getElementById('chapter-content') as HTMLTextAreaElement;
+    const textarea = textareaRef.current;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
@@ -147,6 +341,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       return;
     }
 
+    saveToHistory();
     let formattedText = '';
     switch (type) {
       case 'bold':
@@ -171,7 +366,167 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       formattedText + 
       currentChapter.content.substring(end);
     
-    updateChapterContent(newContent);
+    updateChapterContent(newContent, false);
+  };
+
+  // Find and Replace functions
+  const findNext = () => {
+    if (!findReplace.findText || findReplace.totalMatches === 0) return;
+
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const flags = findReplace.matchCase ? 'g' : 'gi';
+    const searchText = findReplace.wholeWord
+      ? `\\b${escapeRegex(findReplace.findText)}\\b`
+      : escapeRegex(findReplace.findText);
+    
+    const regex = new RegExp(searchText, flags);
+    const content = currentChapter.content;
+    
+    let match;
+    let matchIndex = 0;
+    const targetIndex = (findReplace.currentMatchIndex + 1) % findReplace.totalMatches;
+    
+    while ((match = regex.exec(content)) !== null) {
+      if (matchIndex === targetIndex) {
+        textarea.focus();
+        textarea.setSelectionRange(match.index, match.index + match[0].length);
+        setFindReplace(prev => ({ ...prev, currentMatchIndex: targetIndex }));
+        
+        // Scroll the match into view
+        const lineHeight = parseInt(getComputedStyle(textarea).lineHeight);
+        const textBeforeMatch = content.substring(0, match.index);
+        const linesBeforeMatch = textBeforeMatch.split('\n').length;
+        textarea.scrollTop = (linesBeforeMatch - 5) * lineHeight;
+        break;
+      }
+      matchIndex++;
+    }
+  };
+
+  const findPrevious = () => {
+    if (!findReplace.findText || findReplace.totalMatches === 0) return;
+
+    const newIndex = findReplace.currentMatchIndex === 0 
+      ? findReplace.totalMatches - 1 
+      : findReplace.currentMatchIndex - 1;
+    
+    setFindReplace(prev => ({ ...prev, currentMatchIndex: newIndex }));
+
+    // Navigate to that match
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const flags = findReplace.matchCase ? 'g' : 'gi';
+    const searchText = findReplace.wholeWord
+      ? `\\b${escapeRegex(findReplace.findText)}\\b`
+      : escapeRegex(findReplace.findText);
+    
+    const regex = new RegExp(searchText, flags);
+    const content = currentChapter.content;
+    
+    let match;
+    let matchIndex = 0;
+    
+    while ((match = regex.exec(content)) !== null) {
+      if (matchIndex === newIndex) {
+        textarea.focus();
+        textarea.setSelectionRange(match.index, match.index + match[0].length);
+        break;
+      }
+      matchIndex++;
+    }
+  };
+
+  const replaceOne = () => {
+    if (!findReplace.findText || findReplace.totalMatches === 0) return;
+    
+    saveToHistory();
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = currentChapter.content.substring(start, end);
+    
+    // Check if current selection matches
+    const flags = findReplace.matchCase ? '' : 'i';
+    const searchText = findReplace.wholeWord
+      ? `^${escapeRegex(findReplace.findText)}$`
+      : `^${escapeRegex(findReplace.findText)}$`;
+    
+    const regex = new RegExp(searchText, flags);
+    
+    if (regex.test(selectedText)) {
+      const newContent = 
+        currentChapter.content.substring(0, start) + 
+        findReplace.replaceText + 
+        currentChapter.content.substring(end);
+      
+      updateChapterContent(newContent, false);
+      
+      // Find next match
+      setTimeout(findNext, 10);
+    } else {
+      // If not on a match, find the next one first
+      findNext();
+    }
+  };
+
+  const replaceAll = () => {
+    if (!findReplace.findText || findReplace.totalMatches === 0) return;
+    
+    saveToHistory();
+    const flags = findReplace.matchCase ? 'g' : 'gi';
+    const searchText = findReplace.wholeWord
+      ? `\\b${escapeRegex(findReplace.findText)}\\b`
+      : escapeRegex(findReplace.findText);
+    
+    const regex = new RegExp(searchText, flags);
+    const newContent = currentChapter.content.replace(regex, findReplace.replaceText);
+    
+    const replacedCount = findReplace.totalMatches;
+    updateChapterContent(newContent, false);
+    
+    alert(`Replaced ${replacedCount} occurrence${replacedCount !== 1 ? 's' : ''}`);
+  };
+
+  // Replace in all chapters
+  const replaceInAllChapters = () => {
+    if (!findReplace.findText) return;
+    
+    if (!confirm(`Replace all occurrences of "${findReplace.findText}" in ALL chapters?`)) {
+      return;
+    }
+
+    saveToHistory();
+    const flags = findReplace.matchCase ? 'g' : 'gi';
+    const searchText = findReplace.wholeWord
+      ? `\\b${escapeRegex(findReplace.findText)}\\b`
+      : escapeRegex(findReplace.findText);
+    
+    const regex = new RegExp(searchText, flags);
+    let totalReplaced = 0;
+
+    const updatedChapters = chapters.map(chapter => {
+      const matches = chapter.content.match(regex);
+      if (matches) {
+        totalReplaced += matches.length;
+        return {
+          ...chapter,
+          content: chapter.content.replace(regex, findReplace.replaceText),
+          wordCount: chapter.content.replace(regex, findReplace.replaceText).trim().split(/\s+/).filter(Boolean).length,
+          isEdited: true,
+        };
+      }
+      return chapter;
+    });
+
+    setChapters(updatedChapters);
+    setHasUnsavedChanges(true);
+    
+    alert(`Replaced ${totalReplaced} occurrence${totalReplaced !== 1 ? 's' : ''} across all chapters`);
   };
 
   const handleSave = async () => {
@@ -195,6 +550,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       }
 
       setHasUnsavedChanges(false);
+      
+      // Clear undo/redo history after save
+      setUndoHistory([]);
+      setRedoHistory([]);
       
       if (onSave) {
         onSave(chapters);
@@ -255,6 +614,39 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
           <div className="flex items-center gap-3">
             <ThemeToggleCompact />
+            
+            {/* Undo/Redo buttons */}
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 rounded px-1 py-1">
+              <button
+                onClick={undo}
+                disabled={undoHistory.length === 0}
+                className={`p-2 rounded transition-colors ${
+                  undoHistory.length > 0 
+                    ? 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300' 
+                    : 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                }`}
+                title="Undo (Ctrl+Z)"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                </svg>
+              </button>
+              <button
+                onClick={redo}
+                disabled={redoHistory.length === 0}
+                className={`p-2 rounded transition-colors ${
+                  redoHistory.length > 0 
+                    ? 'hover:bg-gray-200 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300' 
+                    : 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                }`}
+                title="Redo (Ctrl+Shift+Z)"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+                </svg>
+              </button>
+            </div>
+
             <Button
               variant={hasUnsavedChanges ? 'primary' : 'outline'}
               onClick={handleSave}
@@ -276,9 +668,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                 <button
                   key={size}
                   onClick={() => setFontSize(size)}
-                  className={`px-2 py-1 text-${size} rounded ${
+                  className={`px-2 py-1 rounded ${
                     fontSize === size ? 'bg-yellow-400 text-black' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
+                  style={{ fontSize: size === 'sm' ? '0.75rem' : size === 'base' ? '0.875rem' : size === 'lg' ? '1rem' : '1.125rem' }}
                 >
                   A
                 </button>
@@ -307,14 +700,26 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             <div className="p-2">
               <div className="flex items-center justify-between px-2 py-1 mb-2">
                 <h3 className="font-semibold text-sm text-gray-600 dark:text-gray-400">Chapters</h3>
-                <Button variant="outline" size="sm" onClick={addChapter}>
-                  + Add Chapter
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={addChapter}>
+                    + Add Chapter
+                  </Button>
+                  <Button 
+                    variant="primary" 
+                    size="sm" 
+                    onClick={() => {
+                      setShowChapterList(false);
+                      setShowAIChapterModal(true);
+                    }}
+                  >
+                    ✨ AI Chapter
+                  </Button>
+                </div>
               </div>
               {chapters.map((chapter, index) => (
                 <div
                   key={chapter.id}
-                  className={`group rounded mb-1 ${
+                  className={`group relative rounded mb-1 ${
                     index === currentChapterIndex ? 'bg-yellow-400/10 border-l-2 border-yellow-400' : ''
                   }`}
                 >
@@ -358,7 +763,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             variant="outline"
             size="sm"
             onClick={() => applyFormatting('bold')}
-            title="Bold (select text first)"
+            title="Bold (Ctrl+B)"
           >
             <strong>B</strong>
           </Button>
@@ -366,7 +771,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             variant="outline"
             size="sm"
             onClick={() => applyFormatting('italic')}
-            title="Italic (select text first)"
+            title="Italic (Ctrl+I)"
           >
             <em>I</em>
           </Button>
@@ -374,7 +779,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             variant="outline"
             size="sm"
             onClick={() => applyFormatting('underline')}
-            title="Underline (select text first)"
+            title="Underline"
           >
             <u>U</u>
           </Button>
@@ -383,36 +788,141 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             variant="outline"
             size="sm"
             onClick={() => applyFormatting('quote')}
-            title="Quote (select text first)"
+            title="Quote"
           >
-            " "
+            &quot; &quot;
           </Button>
           <Button
             variant="outline"
             size="sm"
             onClick={() => applyFormatting('list')}
-            title="Bullet list (select text first)"
+            title="Bullet list"
           >
             •••
           </Button>
-          <div className="w-px h-6 bg-gray-700 mx-2" />
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
           <Button
             variant="outline"
             size="sm"
             onClick={() => {
-              const textarea = document.getElementById('chapter-content') as HTMLTextAreaElement;
+              const textarea = textareaRef.current;
               if (textarea) insertTextAtCursor(textarea, '\n\n---\n\n');
             }}
             title="Insert scene break"
           >
             ---
           </Button>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
+          
+          {/* Find and Replace Toggle */}
+          <Button
+            variant={findReplace.isOpen ? 'primary' : 'outline'}
+            size="sm"
+            onClick={() => setFindReplace(prev => ({ ...prev, isOpen: !prev.isOpen }))}
+            title="Find and Replace (Ctrl+F)"
+          >
+            🔍 Find & Replace
+          </Button>
+
           <div className="flex-1" />
-          <span className="text-xs text-gray-600 dark:text-gray-400">
-            {currentChapter.wordCount.toLocaleString()} words in this chapter
-          </span>
+          
+          {/* Word count and keyboard shortcuts hint */}
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-gray-500 dark:text-gray-500 hidden md:block">
+              Ctrl+S: Save | Ctrl+Z: Undo | Ctrl+F: Find
+            </span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">
+              {currentChapter.wordCount.toLocaleString()} words in this chapter
+            </span>
+          </div>
         </div>
       </div>
+
+      {/* Find and Replace Panel */}
+      {findReplace.isOpen && (
+        <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-900/50 px-4 py-3">
+          <div className="container mx-auto">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Input
+                  type="text"
+                  placeholder="Find..."
+                  value={findReplace.findText}
+                  onChange={(e) => setFindReplace(prev => ({ ...prev, findText: e.target.value, currentMatchIndex: 0 }))}
+                  className="w-48"
+                />
+                <Input
+                  type="text"
+                  placeholder="Replace with..."
+                  value={findReplace.replaceText}
+                  onChange={(e) => setFindReplace(prev => ({ ...prev, replaceText: e.target.value }))}
+                  className="w-48"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={findReplace.matchCase}
+                    onChange={(e) => setFindReplace(prev => ({ ...prev, matchCase: e.target.checked }))}
+                    className="rounded"
+                  />
+                  Match case
+                </label>
+                <label className="flex items-center gap-1 text-sm text-gray-600 dark:text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={findReplace.wholeWord}
+                    onChange={(e) => setFindReplace(prev => ({ ...prev, wholeWord: e.target.checked }))}
+                    className="rounded"
+                  />
+                  Whole word
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={findPrevious} disabled={findReplace.totalMatches === 0}>
+                  ← Prev
+                </Button>
+                <span className="text-sm text-gray-600 dark:text-gray-400 min-w-[80px] text-center">
+                  {findReplace.totalMatches > 0 
+                    ? `${findReplace.currentMatchIndex + 1} of ${findReplace.totalMatches}`
+                    : 'No matches'}
+                </span>
+                <Button variant="outline" size="sm" onClick={findNext} disabled={findReplace.totalMatches === 0}>
+                  Next →
+                </Button>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={replaceOne} disabled={findReplace.totalMatches === 0}>
+                  Replace
+                </Button>
+                <Button variant="outline" size="sm" onClick={replaceAll} disabled={findReplace.totalMatches === 0}>
+                  Replace All
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={replaceInAllChapters} 
+                  disabled={!findReplace.findText}
+                  className="text-orange-600 dark:text-orange-400 border-orange-300 dark:border-orange-700"
+                >
+                  Replace in All Chapters
+                </Button>
+              </div>
+
+              <button
+                onClick={() => setFindReplace(prev => ({ ...prev, isOpen: false }))}
+                className="ml-auto text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Editor */}
       <div className="flex-1 overflow-y-auto">
@@ -437,6 +947,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               Content
             </label>
             <textarea
+              ref={textareaRef}
               id="chapter-content"
               value={currentChapter.content}
               onChange={(e) => updateChapterContent(e.target.value)}
@@ -464,6 +975,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             <div className="flex gap-2">
               <Button variant="outline" onClick={addChapter}>
                 + Add New Chapter
+              </Button>
+              <Button 
+                variant="primary" 
+                onClick={() => setShowAIChapterModal(true)}
+                className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
+              >
+                ✨ Add AI Chapter
               </Button>
               <Button
                 variant="outline"
@@ -493,10 +1011,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       {/* Bottom Bar */}
       <div className="border-t border-gray-800 bg-gray-900 px-4 py-3">
         <div className="container mx-auto flex items-center justify-between">
-          <div className="text-sm text-gray-400">
+          <div className="text-sm text-gray-400 flex items-center gap-4">
             {hasUnsavedChanges && (
               <span className="text-yellow-400">● Unsaved changes</span>
             )}
+            <span className="text-gray-500">
+              {undoHistory.length > 0 && `${undoHistory.length} undo step${undoHistory.length !== 1 ? 's' : ''}`}
+            </span>
           </div>
           <div className="flex items-center gap-3">
             <Button variant="outline" onClick={handleClose}>
@@ -512,6 +1033,24 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           </div>
         </div>
       </div>
+
+      {/* AI Chapter Generation Modal */}
+      {showAIChapterModal && (
+        <AIChapterModal
+          bookId={bookId}
+          bookTitle={bookTitle}
+          bookGenre={genre}
+          bookAuthor={author}
+          existingChapters={chapters.map(ch => ({
+            number: ch.number,
+            title: ch.title,
+            content: ch.content,
+          }))}
+          nextChapterNumber={chapters.length + 1}
+          onClose={() => setShowAIChapterModal(false)}
+          onChapterGenerated={addAIChapter}
+        />
+      )}
     </div>
   );
 };

@@ -4,15 +4,336 @@ import {
   CoverGenerationRequest,
   GENRE_COVER_DEFAULTS,
   COVER_DIMENSIONS,
-  CoverDimensionPreset 
+  CoverDimensionPreset,
+  CoverTextCustomization,
+  CoverTypographyOptions,
+  CoverLayoutOptions,
+  CoverVisualOptions,
+  COLOR_PALETTES,
 } from '../types/cover';
 
 export class CoverService {
   /**
-   * Generate AI prompt for professional FRONT book cover
+   * Generate ENHANCED AI prompt for professional FRONT book cover
+   * Now supports full customization of text, typography, layout, and visuals
+   */
+  static generateEnhancedAIPrompt(request: CoverGenerationRequest): string {
+    const { 
+      title, 
+      author,
+      genre, 
+      description, 
+      themes = [], 
+      mood,
+      textCustomization,
+      typographyOptions,
+      layoutOptions,
+      visualOptions,
+      customPrompt,
+      referenceStyle,
+    } = request;
+    
+    // Determine final text values (custom overrides defaults)
+    const displayTitle = textCustomization?.customTitle || title;
+    const displayAuthor = textCustomization?.customAuthor || 'PowerWrite';
+    const subtitle = textCustomization?.subtitle;
+    const tagline = textCustomization?.tagline;
+    const publisherName = textCustomization?.publisherName || 'DLM Media';
+    const seriesInfo = textCustomization?.seriesName 
+      ? `${textCustomization.seriesName}${textCustomization.seriesNumber ? ` Book ${textCustomization.seriesNumber}` : ''}` 
+      : null;
+    const awardBadge = textCustomization?.awardBadge;
+    
+    // Typography descriptions
+    const fontDescriptions: Record<string, string> = {
+      'serif': 'elegant serif fonts (like Garamond, Baskerville)',
+      'sans-serif': 'clean modern sans-serif fonts (like Helvetica, Futura)',
+      'display': 'bold impactful display fonts',
+      'script': 'elegant flowing script fonts',
+      'gothic': 'gothic blackletter or dark decorative fonts',
+      'modern': 'contemporary geometric sans-serif',
+      'handwritten': 'organic handwritten or brush fonts',
+    };
+    
+    const weightDescriptions: Record<string, string> = {
+      'light': 'light and airy',
+      'normal': 'regular weight',
+      'bold': 'bold and strong',
+      'black': 'extra bold/black weight',
+    };
+    
+    const styleDescriptions: Record<string, string> = {
+      'normal': 'regular style',
+      'italic': 'italicized',
+      'uppercase': 'ALL CAPS',
+      'small-caps': 'elegant small capitals',
+    };
+    
+    const effectDescriptions: Record<string, string> = {
+      'none': '',
+      'shadow': 'with subtle drop shadow',
+      'outline': 'with outlined/stroked text',
+      'glow': 'with glowing effect',
+      'embossed': 'with embossed 3D effect',
+      '3d': 'with three-dimensional appearance',
+    };
+    
+    // Build typography instruction
+    let typographyInstruction = '';
+    if (typographyOptions) {
+      const titleFont = fontDescriptions[typographyOptions.titleFont] || 'elegant fonts';
+      const titleWeight = weightDescriptions[typographyOptions.titleWeight] || 'bold';
+      const titleStyle = styleDescriptions[typographyOptions.titleStyle] || '';
+      const titleEffect = typographyOptions.titleEffect ? effectDescriptions[typographyOptions.titleEffect] : '';
+      
+      typographyInstruction = `
+TYPOGRAPHY SPECIFICATIONS:
+- Title Font: ${titleFont}, ${titleWeight}${titleStyle ? `, ${titleStyle}` : ''}${titleEffect ? ` ${titleEffect}` : ''}
+- Title Size: ${typographyOptions.titleSize || 'large'} (dominating the cover)
+- Author Font: ${fontDescriptions[typographyOptions.authorFont] || 'clean sans-serif'}
+- Author Style: ${styleDescriptions[typographyOptions.authorStyle] || 'normal'}
+- Text Alignment: ${typographyOptions.alignment || 'center'}-aligned
+- Vertical Position: Text positioned ${typographyOptions.verticalPosition || 'center'} of cover`;
+    }
+    
+    // Build layout instruction
+    let layoutInstruction = '';
+    if (layoutOptions) {
+      const layoutDescriptions: Record<string, string> = {
+        'classic': 'Traditional centered book cover layout with balanced composition',
+        'modern': 'Contemporary asymmetrical design with creative text placement',
+        'bold': 'High-impact design with oversized typography and strong contrast',
+        'elegant': 'Refined, sophisticated layout with graceful spacing',
+        'dramatic': 'Cinematic, high-drama composition with dynamic elements',
+        'minimalist': 'Clean, sparse design with maximum white space',
+        'split': 'Divided composition with distinct image and text zones',
+        'border': 'Design featuring decorative border or frame elements',
+        'full-bleed': 'Edge-to-edge imagery with integrated floating text',
+      };
+      
+      layoutInstruction = `
+LAYOUT SPECIFICATIONS:
+- Layout Style: ${layoutDescriptions[layoutOptions.layout] || 'Classic balanced layout'}
+- Image Position: ${layoutOptions.imagePosition || 'background'}
+${layoutOptions.borderStyle && layoutOptions.borderStyle !== 'none' ? `- Border: ${layoutOptions.borderStyle} style border` : ''}
+${layoutOptions.overlayType && layoutOptions.overlayType !== 'none' ? `- Overlay: ${layoutOptions.overlayType} overlay at ${layoutOptions.overlayOpacity || 50}% opacity` : ''}
+${layoutOptions.textZone ? `- Text Zone: ${layoutOptions.textZone} of the cover` : ''}`;
+    }
+    
+    // Build visual instruction
+    let visualInstruction = '';
+    if (visualOptions) {
+      const styleDescriptionsVisual: Record<string, string> = {
+        'minimalist': 'clean, minimal with negative space',
+        'illustrative': 'hand-crafted illustrated artwork',
+        'photographic': 'professional photography-based',
+        'abstract': 'abstract conceptual imagery',
+        'typographic': 'typography as the main visual element',
+        'cinematic': 'movie poster style dramatic imagery',
+        'vintage': 'retro/vintage aesthetic with aged textures',
+        'retro': '70s/80s inspired retro design',
+        'futuristic': 'sci-fi futuristic high-tech aesthetic',
+      };
+      
+      visualInstruction = `
+VISUAL STYLE:
+- Style: ${styleDescriptionsVisual[visualOptions.style] || visualOptions.style}
+- Atmosphere: ${visualOptions.atmosphere || 'balanced'} mood
+${visualOptions.mood ? `- Overall Mood: ${visualOptions.mood}` : ''}`;
+      
+      // Add color palette if custom
+      if (visualOptions.colorScheme === 'custom' && visualOptions.customColors) {
+        visualInstruction += `
+- Primary Color: ${visualOptions.customColors.primary}
+- Secondary Color: ${visualOptions.customColors.secondary}
+- Accent Color: ${visualOptions.customColors.accent}
+- Text Color: ${visualOptions.customColors.text}
+${visualOptions.customColors.background ? `- Background: ${visualOptions.customColors.background}` : ''}`;
+      } else {
+        visualInstruction += `\n- Color Scheme: ${visualOptions.colorScheme || 'balanced and genre-appropriate'}`;
+      }
+      
+      // Add visual elements
+      if (visualOptions.visualElements && visualOptions.visualElements.length > 0) {
+        visualInstruction += `\n- Include Elements: ${visualOptions.visualElements.join(', ')}`;
+      }
+      if (visualOptions.avoidElements && visualOptions.avoidElements.length > 0) {
+        visualInstruction += `\n- Avoid Elements: ${visualOptions.avoidElements.join(', ')}`;
+      }
+      if (visualOptions.mainSubject) {
+        visualInstruction += `\n- Main Subject: ${visualOptions.mainSubject}`;
+      }
+      if (visualOptions.backgroundDescription) {
+        visualInstruction += `\n- Background: ${visualOptions.backgroundDescription}`;
+      }
+    }
+    
+    // Extract visual keywords from description
+    const visualKeywords = this.extractVisualKeywords(description, genre);
+    
+    // Genre-specific defaults (used when not customized)
+    const genreCharacteristics: Record<string, { typography: string; atmosphere: string }> = {
+      'Fantasy': { typography: 'ornate serif or elegant display fonts', atmosphere: 'magical and epic' },
+      'Science Fiction': { typography: 'modern sans-serif or futuristic fonts', atmosphere: 'sleek and technological' },
+      'Romance': { typography: 'elegant script or refined serif fonts', atmosphere: 'warm and passionate' },
+      'Thriller': { typography: 'bold sans-serif or impactful display fonts', atmosphere: 'tense and gripping' },
+      'Mystery': { typography: 'classic serif or noir-style fonts', atmosphere: 'intriguing and shadowy' },
+      'Horror': { typography: 'distressed or gothic display fonts', atmosphere: 'dark and unsettling' },
+      'Literary Fiction': { typography: 'sophisticated serif fonts', atmosphere: 'artistic and thoughtful' },
+      'Non-Fiction': { typography: 'clean professional sans-serif fonts', atmosphere: 'authoritative and clear' },
+      'Biography': { typography: 'classic elegant serif fonts', atmosphere: 'dignified and personal' },
+      'Self-Help': { typography: 'modern uplifting sans-serif fonts', atmosphere: 'inspiring and positive' },
+      'Young Adult': { typography: 'contemporary bold display fonts', atmosphere: 'dynamic and trendy' }
+    };
+    
+    const genreStyle = genreCharacteristics[genre] || genreCharacteristics['Literary Fiction'];
+    
+    // Build the comprehensive prompt
+    let prompt = `Create a COMPLETE professional FRONT book cover ready for publication.
+
+=== TEXT ELEMENTS (IN ORDER OF PROMINENCE) ===
+`;
+
+    // Series info if provided
+    if (seriesInfo) {
+      prompt += `\n0. SERIES: "${seriesInfo}"
+   - Small text at very top
+   - Elegant, understated styling\n`;
+    }
+    
+    // Award badge if provided
+    if (awardBadge) {
+      prompt += `\n0. AWARD BADGE: "${awardBadge}"
+   - Gold/metallic badge or seal
+   - Upper corner placement\n`;
+    }
+
+    prompt += `
+1. BOOK TITLE: "${displayTitle}"
+   - MAIN focal point of the cover
+   - ${typographyOptions ? '' : `Use ${genreStyle.typography}`}
+   - Large, bold, perfectly legible
+   - Most prominent text element
+`;
+
+    // Subtitle if provided
+    if (subtitle) {
+      prompt += `
+2. SUBTITLE: "${subtitle}"
+   - Below the title
+   - Smaller, complementary typography
+   - Clear hierarchy below title
+`;
+    }
+
+    prompt += `
+${subtitle ? '3' : '2'}. AUTHOR: "Written by ${displayAuthor}"
+   - Below title${subtitle ? '/subtitle' : ''}
+   - Elegant, professional styling
+   - Medium-sized text
+`;
+
+    // Tagline if provided
+    if (tagline) {
+      prompt += `
+${subtitle ? '4' : '3'}. TAGLINE: "${tagline}"
+   - Italicized or distinctive styling
+   - Smaller accent text
+`;
+    }
+
+    prompt += `
+PUBLISHER: "${publisherName}"
+   - Small text at bottom edge
+   - Professional, subtle placement
+   - Do NOT duplicate - show ONLY ONCE
+
+=== IMPORTANT TEXT RULES ===
+- Display ALL text elements exactly as specified
+- Maintain clear visual hierarchy (Title largest → Author → Publisher smallest)
+- All text must be perfectly legible with strong contrast
+- Do NOT duplicate any text elements
+`;
+
+    // Add typography specifications if provided
+    if (typographyInstruction) {
+      prompt += typographyInstruction;
+    } else {
+      prompt += `
+TYPOGRAPHY (Default):
+- Use ${genreStyle.typography}
+- Strong title-author hierarchy`;
+    }
+    
+    // Add layout specifications if provided
+    if (layoutInstruction) {
+      prompt += layoutInstruction;
+    }
+    
+    // Add visual specifications if provided
+    if (visualInstruction) {
+      prompt += visualInstruction;
+    } else {
+      prompt += `
+VISUAL STYLE (Default):
+- Genre: ${genre}
+- Atmosphere: ${genreStyle.atmosphere}
+${mood ? `- Mood: ${mood}` : ''}`;
+    }
+    
+    // Add themes if provided
+    if (themes.length > 0) {
+      prompt += `\n- Themes: ${themes.join(', ')}`;
+    }
+    
+    // Add visual keywords from description
+    if (visualKeywords.length > 0) {
+      prompt += `\n- Key Visual Elements: ${visualKeywords.join(', ')}`;
+    }
+    
+    // Add reference style if provided
+    if (referenceStyle) {
+      prompt += `
+
+STYLE REFERENCE:
+- Design inspiration: ${referenceStyle}
+- Match the professional quality and aesthetic of this style`;
+    }
+    
+    // Add custom prompt if provided
+    if (customPrompt) {
+      prompt += `
+
+=== ADDITIONAL CUSTOM INSTRUCTIONS ===
+${customPrompt}`;
+    }
+    
+    // Technical requirements
+    prompt += `
+
+=== TECHNICAL REQUIREMENTS ===
+- Aspect Ratio: Portrait 2:3 (standard book cover dimensions)
+- Quality: Professional bookstore-ready, comparable to major publishers
+- Resolution: High quality, suitable for print
+- Text: Crystal clear with perfect contrast and readability
+- Composition: Balanced, professional visual hierarchy
+- Standard: Match the quality of bestselling books at major retailers
+
+Generate a complete, publication-ready front cover with all specified text elements beautifully integrated.`;
+    
+    return prompt;
+  }
+
+  /**
+   * Generate AI prompt for professional FRONT book cover (Legacy method)
    * Creates covers with title, "Written by PowerWrite", and DLM Media publisher branding
    */
   static generateAIPrompt(request: CoverGenerationRequest, options: CoverDesignOptions): string {
+    // If new customization options are provided, use enhanced method
+    if (request.textCustomization || request.typographyOptions || request.layoutOptions || request.visualOptions || request.customPrompt) {
+      return this.generateEnhancedAIPrompt(request);
+    }
+    
     const { title, genre, description, themes = [], mood } = request;
     const { style, colorScheme } = options;
 

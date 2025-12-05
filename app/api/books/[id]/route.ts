@@ -28,12 +28,14 @@ export async function GET(
       subgenre: '',
       status: bookWithChapters.status,
       coverUrl: bookWithChapters.coverUrl || undefined, // Include cover URL
+      backCoverUrl: metadata.backCoverUrl || undefined, // Include back cover URL from metadata
       createdAt: bookWithChapters.createdAt?.toISOString() || new Date().toISOString(),
       metadata: {
         wordCount: metadata.wordCount || 0,
         chapters: bookWithChapters.chapters.length,
         targetWordCount: metadata.targetWordCount || 0,
         description: bookWithChapters.summary || '',
+        backCoverUrl: metadata.backCoverUrl || undefined, // Also include in metadata for reference
       },
       chapters: bookWithChapters.chapters.map(ch => ({
         id: ch.id,

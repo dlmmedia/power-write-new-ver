@@ -383,10 +383,22 @@ export function AudioGenerator({
 
       console.log('[AudioGenerator] Starting audio generation:', requestBody);
       console.log('[AudioGenerator] This may take several minutes...');
+      console.log('[AudioGenerator] Using voice:', selectedVoice);
+
+      // Build a detailed progress message showing which chapters are being generated
+      const sortedChapters = [...selectedChapters].sort((a, b) => a - b);
+      const chapterList = sortedChapters.length <= 3 
+        ? sortedChapters.map(n => `Chapter ${n}`).join(', ')
+        : `Chapters ${sortedChapters[0]}-${sortedChapters[sortedChapters.length - 1]}`;
+      
+      // Set the first chapter being generated for display
+      if (generationMode === 'chapters' && sortedChapters.length > 0) {
+        setGeneratingChapter(sortedChapters[0]);
+      }
 
       setGenerationProgress(
         generationMode === 'chapters' 
-          ? `Generating audio for ${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''}...`
+          ? `Generating ${chapterList} (${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''})...`
           : 'Generating full audiobook...'
       );
 
@@ -1313,9 +1325,19 @@ export function AudioGenerator({
                     <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-1">
                       {generationProgress || 'Generating audio...'}
                     </p>
+                    {generatingChapter && (
+                      <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-1">
+                        Currently processing: <span className="font-semibold">Chapter {generatingChapter}</span>
+                      </p>
+                    )}
                     <p className="text-xs text-yellow-700 dark:text-yellow-400">
                       This may take several minutes. Please don't close this page.
                     </p>
+                    {selectedVoiceInfo && (
+                      <p className="text-xs text-yellow-700 dark:text-yellow-400 mt-1">
+                        Voice: <span className="font-medium">{selectedVoiceInfo.name}</span>
+                      </p>
+                    )}
                   </div>
                 </div>
               </motion.div>

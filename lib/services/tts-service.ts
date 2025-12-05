@@ -102,9 +102,11 @@ export class TTSService {
       const combinedBuffer = Buffer.concat(audioBuffers);
 
       // Upload to Vercel Blob
+      // Include timestamp in filename to prevent browser caching issues when regenerating
+      const timestamp = Date.now();
       const filename = bookTitle 
-        ? `audiobooks/${this.sanitizeFilename(bookTitle)}-full.mp3`
-        : `audiobooks/book-${Date.now()}.mp3`;
+        ? `audiobooks/${this.sanitizeFilename(bookTitle)}-full-${timestamp}.mp3`
+        : `audiobooks/book-${timestamp}.mp3`;
       
       // Validate blob token before upload
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -117,7 +119,7 @@ export class TTSService {
         contentType: 'audio/mpeg',
         token: process.env.BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false, // Don't add random suffix
-        allowOverwrite: true, // Allow overwriting for regeneration
+        allowOverwrite: false, // New file each time with timestamp
       });
 
       // Estimate duration (rough: 150 words per minute, 5 chars per word)
@@ -191,7 +193,9 @@ export class TTSService {
       const combinedBuffer = Buffer.concat(audioBuffers);
 
       // Upload to Vercel Blob
-      const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}.mp3`;
+      // Include timestamp in filename to prevent browser caching issues when regenerating
+      const timestamp = Date.now();
+      const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}-${timestamp}.mp3`;
       
       // Validate blob token before upload
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -204,7 +208,7 @@ export class TTSService {
         contentType: 'audio/mpeg',
         token: process.env.BLOB_READ_WRITE_TOKEN,
         addRandomSuffix: false, // Don't add random suffix
-        allowOverwrite: true, // Allow overwriting for regeneration
+        allowOverwrite: false, // New file each time with timestamp
       });
 
       const estimatedDuration = Math.ceil((chapterText.length / 5) / 150 * 60);

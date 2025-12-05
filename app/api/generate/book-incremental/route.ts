@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AIService } from '@/lib/services/ai-service';
+import { AIService, BibliographyGenerationConfig } from '@/lib/services/ai-service';
 import { 
   createBook, 
   createMultipleChapters, 
   ensureDemoUser, 
   upsertBibliographyConfig,
+  createBibliographyReference,
   getBook,
   getBookChapters,
   updateBook
@@ -135,12 +136,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
 
     if (chaptersToGenerate.length === 0) {
       // All chapters are done, move to cover generation
-      console.log(`[Incremental] All chapters complete, generating cover...`);
+      console.log(`[Incremental] All chapters complete, generating covers...`);
       
       const aiService = new AIService(config.aiSettings?.model, chapterModel);
       
+      // Generate front cover
       let coverUrl: string | undefined;
       try {
+        console.log('[Incremental] Generating front cover...');
         coverUrl = await aiService.generateCoverImage(
           outline.title,
           outline.author,
@@ -148,16 +151,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
           outline.description,
           'vivid'
         );
-        console.log('[Incremental] Cover generated successfully');
+        console.log('[Incremental] Front cover generated successfully');
       } catch (coverError) {
-        console.error('[Incremental] Failed to generate cover:', coverError);
+        console.error('[Incremental] Failed to generate front cover:', coverError);
+      }
+
+      // Generate back cover
+      let backCoverUrl: string | undefined;
+      try {
+        console.log('[Incremental] Generating back cover...');
+        backCoverUrl = await aiService.generateBackCoverImage(
+          outline.title,
+          outline.author,
+          outline.genre,
+          outline.description,
+          'photographic'
+        );
+        console.log('[Incremental] Back cover generated successfully');
+      } catch (backCoverError) {
+        console.error('[Incremental] Failed to generate back cover:', backCoverError);
       }
 
       // Calculate final metadata
       const allChapters = await getBookChapters(currentBookId);
       const totalWords = allChapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
 
-      // Update book to completed
+      // Update book to completed - include backCoverUrl in metadata
       await updateBook(currentBookId, {
         status: 'completed',
         coverUrl,
@@ -169,12 +188,14 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
           generatedAt: new Date(),
           lastModified: new Date(),
           modelUsed: chapterModel,
+          backCoverUrl: backCoverUrl, // Store back cover URL in metadata
         } as any,
       });
 
-      // Create bibliography config if enabled
+      // Create bibliography config and generate references if enabled
       if (config.bibliography?.include) {
         try {
+          console.log('[Incremental] Creating bibliography config...');
           await upsertBibliographyConfig({
             bookId: currentBookId,
             enabled: true,
@@ -194,8 +215,54 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
             showURL: true,
             showAccessDate: true,
           });
+
+          // Generate bibliography references for non-fiction books
+          console.log('[Incremental] Generating bibliography references...');
+          const chapterContents = allChapters.map(ch => ch.content || '');
+          const bibliographyGenerationConfig: BibliographyGenerationConfig = {
+            enabled: true,
+            citationStyle: (config.bibliography.citationStyle as any) || 'APA',
+            sourceVerification: config.bibliography.sourceVerification || 'moderate',
+          };
+
+          const generatedRefs = await aiService.generateBibliographyReferences(
+            outline,
+            chapterContents,
+            bibliographyGenerationConfig,
+            chapterModel
+          );
+
+          // Save generated references to database
+          if (generatedRefs.length > 0) {
+            console.log(`[Incremental] Saving ${generatedRefs.length} bibliography references...`);
+            for (const ref of generatedRefs) {
+              try {
+                await createBibliographyReference({
+                  id: ref.id,
+                  bookId: currentBookId,
+                  type: ref.type,
+                  title: ref.title,
+                  authors: ref.authors,
+                  year: ref.year,
+                  publisher: ref.publisher,
+                  url: ref.url,
+                  doi: ref.doi,
+                  typeSpecificData: {
+                    journalTitle: ref.journalTitle,
+                    volume: ref.volume,
+                    issue: ref.issue,
+                    pages: ref.pages,
+                  },
+                  accessDate: ref.accessDate,
+                });
+              } catch (refError) {
+                console.error('[Incremental] Failed to save reference:', refError);
+              }
+            }
+            console.log('[Incremental] Bibliography references saved successfully');
+          }
         } catch (bibError) {
-          console.error('[Incremental] Failed to create bibliography config:', bibError);
+          console.error('[Incremental] Failed to create bibliography:', bibError);
         }
       }
 
@@ -241,11 +308,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
       chapterNumber: number;
     }> = [];
 
+    // Build bibliography config if enabled
+    const bibliographyConfig: BibliographyGenerationConfig | undefined = config.bibliography?.include
+      ? {
+          enabled: true,
+          citationStyle: (config.bibliography.citationStyle as any) || 'APA',
+          sourceVerification: config.bibliography.sourceVerification || 'moderate',
+        }
+      : undefined;
+
     for (const chapterNum of batchChapters) {
-      console.log(`[Incremental] Generating chapter ${chapterNum}/${totalChapters}`);
+      console.log(`[Incremental] Generating chapter ${chapterNum}/${totalChapters}${bibliographyConfig ? ' (with citations)' : ''}`);
       
       try {
-        const chapter = await aiService.generateChapter(outline, chapterNum, previousChapters, chapterModel);
+        const chapter = await aiService.generateChapter(outline, chapterNum, previousChapters, chapterModel, bibliographyConfig);
         
         const sanitizedContent = sanitizeChapter(chapter.content);
         const wordCount = countWords(sanitizedContent);

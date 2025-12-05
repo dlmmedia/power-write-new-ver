@@ -31,6 +31,16 @@ interface GenerationProgress {
   message: string;
 }
 
+// Outline generation progress state
+interface OutlineProgress {
+  phase: 'idle' | 'analyzing' | 'structuring' | 'detailing' | 'completed' | 'error';
+  progress: number;
+  message: string;
+}
+
+// Generation type to track what's being generated
+type GenerationType = 'none' | 'outline' | 'book';
+
 type ConfigTab = 
   | 'prompt'
   | 'basic' 
@@ -64,6 +74,13 @@ export default function StudioPage() {
     progress: 0,
     message: '',
   });
+  const [outlineProgress, setOutlineProgress] = useState<OutlineProgress>({
+    phase: 'idle',
+    progress: 0,
+    message: '',
+  });
+  const [generationType, setGenerationType] = useState<GenerationType>('none');
+  const [showNoOutlineConfirm, setShowNoOutlineConfirm] = useState(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const tabs = [
@@ -76,24 +93,40 @@ export default function StudioPage() {
     { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
   ];
 
-  // Incremental book generation with progress tracking
-  const handleGenerateBook = useCallback(async () => {
+  // Handle generate book click - check for outline first
+  const handleGenerateBookClick = useCallback(() => {
     if (!outline) {
-      alert('Please generate an outline first');
+      setShowNoOutlineConfirm(true);
       return;
     }
+    handleGenerateBook();
+  }, [outline]);
 
+  // Incremental book generation with progress tracking
+  const handleGenerateBook = useCallback(async () => {
     const canGenerate = canGenerateBook();
     if (!canGenerate.allowed) {
       alert(canGenerate.reason);
       return;
     }
 
+    // If no outline, generate one first or use basic config
+    const workingOutline = outline || {
+      title: config.basicInfo?.title || 'Untitled Book',
+      chapters: Array.from({ length: config.contentSettings?.chapterCount || 10 }, (_, i) => ({
+        chapterNumber: i + 1,
+        title: `Chapter ${i + 1}`,
+        synopsis: `Content for chapter ${i + 1}`,
+        scenes: [],
+        estimatedWordCount: config.contentSettings?.wordsPerChapter || 3000,
+      })),
+    };
+
     const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
-    const totalChapters = outline.chapters.length;
+    const totalChapters = workingOutline.chapters.length;
 
     const confirmed = confirm(
-      `Generate full book: "${outline.title}"?\n\n` +
+      `Generate full book: "${workingOutline.title}"?\n\n` +
       `This will generate ${totalChapters} chapters using ${chapterModel}.\n` +
       `The book will be generated in batches to ensure reliable completion.\n\n` +
       `Continue?`
@@ -102,6 +135,7 @@ export default function StudioPage() {
     if (!confirmed) return;
 
     setIsGenerating(true);
+    setGenerationType('book');
     abortControllerRef.current = new AbortController();
 
     // Initialize progress
@@ -130,7 +164,7 @@ export default function StudioPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: getDemoUserId(),
-            outline: outline,
+            outline: workingOutline,
             config: config,
             modelId: chapterModel,
             bookId: currentBookId,
@@ -253,6 +287,7 @@ export default function StudioPage() {
       }
     } finally {
       setIsGenerating(false);
+      setGenerationType('none');
       abortControllerRef.current = null;
     }
   }, [outline, config, router, generationProgress.chaptersCompleted, generationProgress.totalChapters]);
@@ -302,6 +337,40 @@ export default function StudioPage() {
     const outlineModel = config.aiSettings?.model || 'gpt-4o-mini';
 
     setIsGenerating(true);
+    setGenerationType('outline');
+    
+    // Start outline progress animation
+    setOutlineProgress({
+      phase: 'analyzing',
+      progress: 0,
+      message: 'Analyzing your book configuration...',
+    });
+
+    // Simulate progress stages while waiting for API
+    const progressInterval = setInterval(() => {
+      setOutlineProgress(prev => {
+        if (prev.phase === 'analyzing' && prev.progress >= 30) {
+          return {
+            phase: 'structuring',
+            progress: 35,
+            message: 'Structuring your book chapters...',
+          };
+        } else if (prev.phase === 'structuring' && prev.progress >= 65) {
+          return {
+            phase: 'detailing',
+            progress: 70,
+            message: 'Adding chapter details and scenes...',
+          };
+        } else if (prev.progress < 90) {
+          return {
+            ...prev,
+            progress: Math.min(prev.progress + Math.random() * 5 + 2, 90),
+          };
+        }
+        return prev;
+      });
+    }, 800);
+
     try {
       const response = await fetch('/api/generate/outline', {
         method: 'POST',
@@ -314,21 +383,46 @@ export default function StudioPage() {
         }),
       });
 
+      clearInterval(progressInterval);
+
       const data = await response.json();
       if (data.success && data.outline) {
+        // Complete progress
+        setOutlineProgress({
+          phase: 'completed',
+          progress: 100,
+          message: 'Outline generated successfully!',
+        });
+        
         // Save outline to store
         const { setOutline } = useStudioStore.getState();
         setOutline(data.outline);
-        setViewMode('outline');
-        alert(`Outline generated successfully!\n\nTitle: ${data.outline.title}\nChapters: ${data.outline.chapters.length}`);
+        
+        // Short delay to show completion before switching
+        setTimeout(() => {
+          setViewMode('outline');
+          setOutlineProgress({ phase: 'idle', progress: 0, message: '' });
+        }, 1500);
       } else {
+        setOutlineProgress({
+          phase: 'error',
+          progress: 0,
+          message: data.error || 'Unknown error occurred',
+        });
         alert('Failed to generate outline: ' + (data.error || 'Unknown error'));
       }
     } catch (error) {
+      clearInterval(progressInterval);
       console.error('Error generating outline:', error);
+      setOutlineProgress({
+        phase: 'error',
+        progress: 0,
+        message: 'Failed to connect to server',
+      });
       alert('Failed to generate outline. Please try again.');
     } finally {
       setIsGenerating(false);
+      setGenerationType('none');
     }
   };
 
@@ -387,17 +481,17 @@ export default function StudioPage() {
                 variant="outline"
                 size="md"
                 onClick={handleGenerateOutline}
-                isLoading={isGenerating}
-                disabled={!config.basicInfo?.title || !config.basicInfo?.author}
+                isLoading={generationType === 'outline'}
+                disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
               >
                 {outline ? 'Regenerate Outline' : 'Generate Outline'}
               </Button>
               <Button
                 variant="primary"
                 size="md"
-                onClick={handleGenerateBook}
-                isLoading={isGenerating}
-                disabled={!outline}
+                onClick={handleGenerateBookClick}
+                isLoading={generationType === 'book'}
+                disabled={isGenerating}
               >
                 Generate Book
               </Button>
@@ -655,8 +749,8 @@ export default function StudioPage() {
             variant="outline"
             size="md"
             onClick={handleGenerateOutline}
-            isLoading={isGenerating}
-            disabled={!config.basicInfo?.title || !config.basicInfo?.author}
+            isLoading={generationType === 'outline'}
+            disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
             className="shadow-lg"
           >
             {outline ? 'Regenerate' : 'Generate'} Outline
@@ -664,9 +758,9 @@ export default function StudioPage() {
           <Button
             variant="primary"
             size="md"
-            onClick={handleGenerateBook}
-            isLoading={isGenerating}
-            disabled={!outline}
+            onClick={handleGenerateBookClick}
+            isLoading={generationType === 'book'}
+            disabled={isGenerating}
             className="shadow-lg"
           >
             Generate Book
@@ -684,25 +778,195 @@ export default function StudioPage() {
         }}
       />
 
-      {/* Generation Progress Modal */}
-      {isGenerating && generationProgress.phase !== 'idle' && (
+      {/* No Outline Confirmation Modal */}
+      {showNoOutlineConfirm && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-4">⚠️</div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                No Outline Generated
+              </h3>
+              <p className="text-gray-600 dark:text-gray-400">
+                You haven&apos;t generated an outline yet. An outline helps structure your book and ensures better quality chapters.
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              <Button
+                variant="primary"
+                size="md"
+                className="w-full"
+                onClick={() => {
+                  setShowNoOutlineConfirm(false);
+                  handleGenerateOutline();
+                }}
+              >
+                ✨ Generate Outline First
+              </Button>
+              
+              <Button
+                variant="outline"
+                size="md"
+                className="w-full"
+                onClick={() => {
+                  setShowNoOutlineConfirm(false);
+                  handleGenerateBook();
+                }}
+              >
+                Skip & Generate Book Anyway
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => setShowNoOutlineConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+            
+            <p className="text-xs text-center text-gray-500 dark:text-gray-500 mt-4">
+              💡 Tip: Books with outlines typically have better structure and coherence.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Outline Generation Progress Modal */}
+      {generationType === 'outline' && outlineProgress.phase !== 'idle' && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             {/* Header */}
             <div className="text-center mb-6">
-              <div className="text-4xl mb-3">
-                {generationProgress.phase === 'creating' && '📚'}
-                {generationProgress.phase === 'generating' && '✍️'}
-                {generationProgress.phase === 'cover' && '🎨'}
-                {generationProgress.phase === 'completed' && '✅'}
-                {generationProgress.phase === 'error' && '⚠️'}
+              <div className="relative w-24 h-24 mx-auto mb-4">
+                {/* Animated rings */}
+                <div className="absolute inset-0 rounded-full border-4 border-yellow-200 dark:border-yellow-900 animate-ping opacity-20"></div>
+                <div className="absolute inset-2 rounded-full border-4 border-yellow-300 dark:border-yellow-800 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
+                <div className="absolute inset-4 rounded-full border-4 border-yellow-400 dark:border-yellow-700 animate-ping opacity-40" style={{ animationDelay: '0.4s' }}></div>
+                {/* Center icon */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-4xl animate-bounce">
+                    {outlineProgress.phase === 'analyzing' && '🔍'}
+                    {outlineProgress.phase === 'structuring' && '📐'}
+                    {outlineProgress.phase === 'detailing' && '✏️'}
+                    {outlineProgress.phase === 'completed' && '✅'}
+                    {outlineProgress.phase === 'error' && '❌'}
+                  </span>
+                </div>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {outlineProgress.phase === 'analyzing' && 'Analyzing Configuration'}
+                {outlineProgress.phase === 'structuring' && 'Structuring Chapters'}
+                {outlineProgress.phase === 'detailing' && 'Adding Details'}
+                {outlineProgress.phase === 'completed' && 'Outline Complete!'}
+                {outlineProgress.phase === 'error' && 'Generation Failed'}
+              </h3>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+                <span>Progress</span>
+                <span>{Math.round(outlineProgress.progress)}%</span>
+              </div>
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full transition-all duration-500 ease-out rounded-full ${
+                    outlineProgress.phase === 'error' 
+                      ? 'bg-red-500' 
+                      : outlineProgress.phase === 'completed'
+                        ? 'bg-green-500'
+                        : 'bg-gradient-to-r from-yellow-400 to-yellow-500'
+                  }`}
+                  style={{ width: `${outlineProgress.progress}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Status Steps */}
+            <div className="space-y-2 mb-6">
+              <div className={`flex items-center gap-3 ${outlineProgress.phase === 'analyzing' || outlineProgress.progress >= 30 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  outlineProgress.progress >= 30 ? 'bg-green-500 text-white' : 
+                  outlineProgress.phase === 'analyzing' ? 'bg-yellow-400 text-black animate-pulse' : 
+                  'bg-gray-200 dark:bg-gray-700'
+                }`}>
+                  {outlineProgress.progress >= 30 ? '✓' : '1'}
+                </span>
+                <span>Analyze book configuration</span>
+              </div>
+              <div className={`flex items-center gap-3 ${outlineProgress.phase === 'structuring' || outlineProgress.progress >= 65 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  outlineProgress.progress >= 65 ? 'bg-green-500 text-white' : 
+                  outlineProgress.phase === 'structuring' ? 'bg-yellow-400 text-black animate-pulse' : 
+                  'bg-gray-200 dark:bg-gray-700'
+                }`}>
+                  {outlineProgress.progress >= 65 ? '✓' : '2'}
+                </span>
+                <span>Structure chapter flow</span>
+              </div>
+              <div className={`flex items-center gap-3 ${outlineProgress.phase === 'detailing' || outlineProgress.phase === 'completed' ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                  outlineProgress.phase === 'completed' ? 'bg-green-500 text-white' : 
+                  outlineProgress.phase === 'detailing' ? 'bg-yellow-400 text-black animate-pulse' : 
+                  'bg-gray-200 dark:bg-gray-700'
+                }`}>
+                  {outlineProgress.phase === 'completed' ? '✓' : '3'}
+                </span>
+                <span>Generate chapter details</span>
+              </div>
+            </div>
+
+            {/* Message */}
+            <p className="text-center text-gray-600 dark:text-gray-400 text-sm">
+              {outlineProgress.message}
+            </p>
+
+            {/* Completed Message */}
+            {outlineProgress.phase === 'completed' && (
+              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg text-center">
+                <p className="text-green-700 dark:text-green-400 font-medium">
+                  ✨ Your outline is ready! Switching to outline view...
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Book Generation Progress Modal */}
+      {generationType === 'book' && generationProgress.phase !== 'idle' && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+            {/* Header */}
+            <div className="text-center mb-6">
+              <div className="relative w-24 h-24 mx-auto mb-4">
+                {/* Animated rings for generating state */}
+                {(generationProgress.phase === 'creating' || generationProgress.phase === 'generating' || generationProgress.phase === 'cover') && (
+                  <>
+                    <div className="absolute inset-0 rounded-full border-4 border-yellow-200 dark:border-yellow-900 animate-ping opacity-20"></div>
+                    <div className="absolute inset-2 rounded-full border-4 border-yellow-300 dark:border-yellow-800 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
+                  </>
+                )}
+                {/* Center icon */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={`text-4xl ${generationProgress.phase !== 'completed' && generationProgress.phase !== 'error' ? 'animate-bounce' : ''}`}>
+                    {generationProgress.phase === 'creating' && '📚'}
+                    {generationProgress.phase === 'generating' && '✍️'}
+                    {generationProgress.phase === 'cover' && '🎨'}
+                    {generationProgress.phase === 'completed' && '✅'}
+                    {generationProgress.phase === 'error' && '⚠️'}
+                  </span>
+                </div>
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">
                 {generationProgress.phase === 'creating' && 'Creating Book...'}
-                {generationProgress.phase === 'generating' && 'Generating Chapters...'}
-                {generationProgress.phase === 'cover' && 'Creating Cover...'}
-                {generationProgress.phase === 'completed' && 'Complete!'}
-                {generationProgress.phase === 'error' && 'Error'}
+                {generationProgress.phase === 'generating' && 'Writing Chapters...'}
+                {generationProgress.phase === 'cover' && 'Designing Cover...'}
+                {generationProgress.phase === 'completed' && 'Book Complete!'}
+                {generationProgress.phase === 'error' && 'Generation Error'}
               </h3>
             </div>
 
@@ -728,12 +992,36 @@ export default function StudioPage() {
 
             {/* Chapter Progress */}
             {generationProgress.totalChapters > 0 && (
-              <div className="mb-4 text-center">
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                  {generationProgress.chaptersCompleted} / {generationProgress.totalChapters}
+              <div className="mb-4">
+                <div className="flex items-center justify-center gap-4 mb-3">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
+                      {generationProgress.chaptersCompleted}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">written</div>
+                  </div>
+                  <div className="text-2xl text-gray-300 dark:text-gray-600">/</div>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-gray-400 dark:text-gray-500">
+                      {generationProgress.totalChapters}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">total</div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  chapters completed
+                {/* Chapter progress dots */}
+                <div className="flex justify-center gap-1 flex-wrap">
+                  {Array.from({ length: generationProgress.totalChapters }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                        i < generationProgress.chaptersCompleted
+                          ? 'bg-green-500'
+                          : i === generationProgress.chaptersCompleted
+                            ? 'bg-yellow-400 animate-pulse'
+                            : 'bg-gray-200 dark:bg-gray-700'
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
             )}

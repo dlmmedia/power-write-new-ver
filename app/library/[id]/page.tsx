@@ -11,6 +11,7 @@ import { AudioGenerator } from '@/components/library/AudioGenerator';
 import { BibliographyManager } from '@/components/library/BibliographyManager';
 import CoverGenerator from '@/components/studio/CoverGenerator';
 import { PublishingSettings } from '@/components/library/publishing';
+import { FlipBookCover } from '@/components/library/FlipBookCover';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
@@ -33,11 +34,13 @@ interface BookDetail {
   status: string;
   createdAt: string;
   coverUrl?: string; // Add cover URL to interface
+  backCoverUrl?: string; // Add back cover URL to interface
   metadata: {
     wordCount: number;
     chapters: number;
     targetWordCount: number;
     description: string;
+    backCoverUrl?: string; // Back cover URL in metadata
   };
   chapters: Chapter[];
 }
@@ -350,6 +353,7 @@ export default function BookDetailPage() {
         bookId={book.id}
         bookTitle={book.title}
         author={book.author}
+        genre={book.genre}
         chapters={book.chapters}
         onClose={() => {
           setIsEditing(false);
@@ -520,24 +524,20 @@ export default function BookDetailPage() {
               {/* Hero Section with Book Info */}
               <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-600/5 dark:from-yellow-400/5 dark:to-yellow-600/10 rounded-xl border border-yellow-400/20 dark:border-yellow-600/30 p-8">
                 <div className="flex flex-col lg:flex-row gap-8">
-                  {/* Book Cover */}
-                  <div className="flex-shrink-0">
-                    {book.coverUrl ? (
-                      <img
-                        src={book.coverUrl}
-                        alt={`${book.title} cover`}
-                        className="w-48 h-72 object-cover rounded-lg shadow-2xl"
-                      />
-                    ) : (
-                      <div className="w-48 h-72 bg-gradient-to-br from-yellow-400 to-yellow-600 rounded-lg shadow-2xl flex items-center justify-center text-black font-bold text-6xl relative overflow-hidden">
-                        <div className="absolute inset-0 bg-black/5 backdrop-blur-sm"></div>
-                        <span className="relative z-10">📖</span>
-                        <div className="absolute bottom-0 left-0 right-0 bg-black/20 p-4 text-xs text-center">
-                          {book.title.substring(0, 30)}{book.title.length > 30 ? '...' : ''}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  {/* Book Cover - Flip Card */}
+                  <FlipBookCover
+                    title={book.title}
+                    author={book.author}
+                    coverUrl={book.coverUrl}
+                    backCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
+                    genre={book.genre}
+                    subgenre={book.subgenre}
+                    wordCount={book.metadata.wordCount}
+                    chapters={book.metadata.chapters}
+                    description={book.metadata.description}
+                    status={book.status}
+                    createdAt={book.createdAt}
+                  />
 
                   {/* Book Details */}
                   <div className="flex-1 space-y-4">
@@ -798,11 +798,22 @@ export default function BookDetailPage() {
                 targetAudience="General"
                 themes={[]}
                 currentCoverUrl={book.coverUrl}
+                currentBackCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
                 onCoverGenerated={(coverUrl, metadata) => {
                   // Update local state with new cover
                   setBook(prev => prev ? { ...prev, coverUrl } : null);
                   // Show success message
-                  alert('✓ Cover generated successfully!');
+                  alert('✓ Front cover generated successfully!');
+                }}
+                onBackCoverGenerated={(backCoverUrl, metadata) => {
+                  // Update local state with new back cover
+                  setBook(prev => prev ? { 
+                    ...prev, 
+                    backCoverUrl,
+                    metadata: { ...prev.metadata, backCoverUrl }
+                  } : null);
+                  // Show success message
+                  alert('✓ Back cover generated successfully!');
                 }}
               />
             </div>

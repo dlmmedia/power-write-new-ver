@@ -29,14 +29,17 @@ interface BookReaderProps {
   onAudioGenerated?: (chapterNumber: number, audioUrl: string, duration: number) => void;
 }
 
-type VoiceType = 'alloy' | 'echo' | 'fable' | 'onyx' | 'nova' | 'shimmer';
+type VoiceType = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
 
 interface VoiceInfo {
   id: VoiceType;
   name: string;
-  character: string;
-  tone: string;
+  title: string;
+  description: string;
+  expertise: string[];
   gender: 'neutral' | 'masculine' | 'feminine';
+  style: string;
+  gradient: string;
 }
 
 export const BookReader: React.FC<BookReaderProps> = ({
@@ -60,14 +63,118 @@ export const BookReader: React.FC<BookReaderProps> = ({
 
   const currentChapter = chaptersData[currentChapterIndex];
 
-  // Voice options with descriptions
+  // Professional voice definitions - All 11 OpenAI voices
   const voices: VoiceInfo[] = [
-    { id: 'nova', name: 'Nova', character: 'The Storyteller', tone: 'Warm & Engaging', gender: 'feminine' },
-    { id: 'alloy', name: 'Alloy', character: 'The Versatile', tone: 'Clear & Balanced', gender: 'neutral' },
-    { id: 'echo', name: 'Echo', character: 'The Philosopher', tone: 'Calm & Thoughtful', gender: 'masculine' },
-    { id: 'fable', name: 'Fable', character: 'The Enchanter', tone: 'Expressive & Theatrical', gender: 'neutral' },
-    { id: 'onyx', name: 'Onyx', character: 'The Commander', tone: 'Deep & Authoritative', gender: 'masculine' },
-    { id: 'shimmer', name: 'Shimmer', character: 'The Gentle Guide', tone: 'Soft & Soothing', gender: 'feminine' },
+    { 
+      id: 'nova', 
+      name: 'Victoria Sterling',
+      title: 'Executive Narrator',
+      description: 'Polished and professional with excellent pacing.',
+      expertise: ['Business', 'Leadership', 'Biography'],
+      gender: 'feminine',
+      style: 'Warm & Professional',
+      gradient: 'from-rose-500 to-pink-600',
+    },
+    { 
+      id: 'alloy', 
+      name: 'Morgan Blake',
+      title: 'Versatile Presenter',
+      description: 'Balanced and adaptable, delivering content with clarity.',
+      expertise: ['Education', 'Training', 'Corporate'],
+      gender: 'neutral',
+      style: 'Clear & Articulate',
+      gradient: 'from-violet-500 to-purple-600',
+    },
+    { 
+      id: 'ash', 
+      name: 'Alexander Grey',
+      title: 'Senior Narrator',
+      description: 'Deep and resonant voice with gravitas.',
+      expertise: ['Drama', 'Thriller', 'Documentary'],
+      gender: 'masculine',
+      style: 'Deep & Commanding',
+      gradient: 'from-stone-500 to-zinc-700',
+    },
+    { 
+      id: 'ballad', 
+      name: 'Sophia Nightingale',
+      title: 'Story Weaver',
+      description: 'Melodic and emotive voice that brings stories to life.',
+      expertise: ['Romance', 'Drama', 'Literary Fiction'],
+      gender: 'feminine',
+      style: 'Melodic & Emotive',
+      gradient: 'from-pink-400 to-rose-600',
+    },
+    { 
+      id: 'coral', 
+      name: 'Camille Rose',
+      title: 'Dynamic Host',
+      description: 'Warm and energetic with infectious enthusiasm.',
+      expertise: ['Adventure', 'Lifestyle', 'Memoir'],
+      gender: 'feminine',
+      style: 'Warm & Energetic',
+      gradient: 'from-orange-400 to-red-500',
+    },
+    { 
+      id: 'echo', 
+      name: 'Sebastian Cross',
+      title: 'Distinguished Scholar',
+      description: 'Refined and contemplative with intellectual depth.',
+      expertise: ['Philosophy', 'Academic', 'Documentary'],
+      gender: 'masculine',
+      style: 'Thoughtful & Measured',
+      gradient: 'from-slate-500 to-gray-600',
+    },
+    { 
+      id: 'fable', 
+      name: 'Aurora Winters',
+      title: 'Creative Director',
+      description: 'Expressive and dynamic with exceptional range.',
+      expertise: ['Fantasy', 'Children\'s', 'Adventure'],
+      gender: 'neutral',
+      style: 'Dynamic & Expressive',
+      gradient: 'from-amber-500 to-orange-600',
+    },
+    { 
+      id: 'onyx', 
+      name: 'Marcus Ashford',
+      title: 'Senior Correspondent',
+      description: 'Commanding presence with authoritative delivery.',
+      expertise: ['Journalism', 'Mystery', 'History'],
+      gender: 'masculine',
+      style: 'Authoritative & Bold',
+      gradient: 'from-emerald-500 to-teal-600',
+    },
+    { 
+      id: 'sage', 
+      name: 'Professor Elena Sage',
+      title: 'Knowledge Guide',
+      description: 'Patient and wise with a natural teaching quality.',
+      expertise: ['Education', 'Science', 'How-To'],
+      gender: 'feminine',
+      style: 'Patient & Wise',
+      gradient: 'from-indigo-500 to-purple-600',
+    },
+    { 
+      id: 'shimmer', 
+      name: 'Isabella Chen',
+      title: 'Wellness Director',
+      description: 'Gentle and soothing with a calming presence.',
+      expertise: ['Wellness', 'Meditation', 'Self-Help'],
+      gender: 'feminine',
+      style: 'Calming & Intimate',
+      gradient: 'from-cyan-500 to-blue-600',
+    },
+    { 
+      id: 'verse', 
+      name: 'Julian Verse',
+      title: 'Literary Artist',
+      description: 'Poetic and artistic with a lyrical quality.',
+      expertise: ['Poetry', 'Literature', 'Arts'],
+      gender: 'masculine',
+      style: 'Poetic & Lyrical',
+      gradient: 'from-fuchsia-500 to-purple-600',
+    },
   ];
 
   // Sync chapters data when prop changes
@@ -101,6 +208,8 @@ export const BookReader: React.FC<BookReaderProps> = ({
   const handleGenerateChapterAudio = async (voice: VoiceType = selectedVoice) => {
     setIsGeneratingAudio(true);
     setShowVoiceSelector(false);
+    
+    console.log(`[BookReader] Generating audio for Chapter ${currentChapter.number} with voice: ${voice}`);
     
     try {
       const response = await fetch('/api/generate/audio', {
@@ -268,7 +377,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                 {isGeneratingAudio ? (
                   <>
                     <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span className="text-sm">Generating...</span>
+                    <span className="text-sm">Generating Ch. {currentChapter.number}...</span>
                   </>
                 ) : currentChapter.audioUrl ? (
                   <>
@@ -290,17 +399,21 @@ export const BookReader: React.FC<BookReaderProps> = ({
                     className="fixed inset-0 z-40"
                     onClick={() => setShowVoiceSelector(false)}
                   />
-                  <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                      <h3 className="font-bold text-gray-900 dark:text-white">
-                        {currentChapter.audioUrl ? 'Regenerate Audio' : 'Choose Voice'}
-                      </h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {currentChapter.audioUrl 
-                          ? 'Select a new voice to regenerate this chapter\'s audio'
-                          : 'Select a narrator for this chapter'
-                        }
-                      </p>
+                  <div className="absolute right-0 top-full mt-2 w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
+                          <span className="text-white text-lg">🎙️</span>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-gray-900 dark:text-white">
+                            {currentChapter.audioUrl ? 'Regenerate Audio' : 'Choose Voice'}
+                          </h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Chapter {currentChapter.number}: {currentChapter.title}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="max-h-80 overflow-y-auto">
@@ -310,40 +423,69 @@ export const BookReader: React.FC<BookReaderProps> = ({
                           onClick={() => setSelectedVoice(voice.id)}
                           className={`w-full p-3 text-left transition-all border-b border-gray-100 dark:border-gray-800 last:border-0 ${
                             selectedVoice === voice.id
-                              ? 'bg-yellow-50 dark:bg-yellow-900/20'
+                              ? 'bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-l-yellow-400'
                               : 'hover:bg-gray-50 dark:hover:bg-gray-800'
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${
-                              voice.gender === 'feminine' 
-                                ? 'bg-pink-100 dark:bg-pink-900/30' 
-                                : voice.gender === 'masculine'
-                                ? 'bg-blue-100 dark:bg-blue-900/30'
-                                : 'bg-purple-100 dark:bg-purple-900/30'
-                            }`}>
-                              {voice.gender === 'feminine' ? '👩' : voice.gender === 'masculine' ? '👨' : '🎭'}
+                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br ${voice.gradient} shadow-md`}>
+                              <span className="text-white text-lg">
+                                {voice.gender === 'feminine' ? '👩' : voice.gender === 'masculine' ? '👨' : '🎭'}
+                              </span>
                             </div>
-                            <div className="flex-1">
+                            <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold text-gray-900 dark:text-white">{voice.name}</span>
+                                <span className="font-bold text-gray-900 dark:text-white">{voice.name}</span>
                                 {selectedVoice === voice.id && (
-                                  <span className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-xs text-black">✓</span>
+                                  <span className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-xs text-black font-bold">✓</span>
                                 )}
                               </div>
-                              <div className="text-xs text-yellow-600 dark:text-yellow-400">{voice.character}</div>
-                              <div className="text-xs text-gray-500 dark:text-gray-400">{voice.tone}</div>
+                              <div className="text-xs font-medium text-yellow-600 dark:text-yellow-400">{voice.title}</div>
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{voice.style}</div>
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {voice.expertise.slice(0, 2).map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 rounded text-[10px] font-medium"
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         </button>
                       ))}
                     </div>
 
+                    {/* Selected Voice Preview */}
+                    {selectedVoiceInfo && (
+                      <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${selectedVoiceInfo.gradient} shadow-md`}>
+                            <span className="text-white">
+                              {selectedVoiceInfo.gender === 'feminine' ? '👩' : selectedVoiceInfo.gender === 'masculine' ? '👨' : '🎭'}
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <div className="font-bold text-gray-900 dark:text-white text-sm">{selectedVoiceInfo.name}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">{selectedVoiceInfo.style}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-yellow-500">{selectedSpeed}x</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">speed</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Speed Control */}
-                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Speed</span>
-                        <span className="text-sm font-bold text-yellow-500">{selectedSpeed}x</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Narration Speed</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {selectedSpeed < 0.8 ? 'Slower' : selectedSpeed > 1.2 ? 'Faster' : 'Normal'}
+                        </span>
                       </div>
                       <input
                         type="range"
@@ -354,23 +496,29 @@ export const BookReader: React.FC<BookReaderProps> = ({
                         onChange={(e) => setSelectedSpeed(parseFloat(e.target.value))}
                         className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full appearance-none cursor-pointer accent-yellow-400"
                       />
+                      <div className="flex justify-between text-[10px] text-gray-400 mt-1">
+                        <span>0.5x</span>
+                        <span>1.0x</span>
+                        <span>2.0x</span>
+                      </div>
                     </div>
 
                     {/* Generate/Regenerate Button */}
-                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
                       {currentChapter.audioUrl && (
-                        <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
-                          <p className="text-xs text-yellow-800 dark:text-yellow-300">
-                            ⚠️ This will replace the existing audio file for this chapter.
+                        <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                          <p className="text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                            <span>⚠️</span>
+                            <span>This will replace the existing audio with the new voice.</span>
                           </p>
                         </div>
                       )}
                       <button
                         onClick={() => handleGenerateChapterAudio(selectedVoice)}
-                        className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-bold rounded-lg transition-all flex items-center justify-center gap-2"
+                        className="w-full py-3.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/30"
                       >
                         <span>🎙️</span>
-                        {currentChapter.audioUrl ? 'Regenerate' : 'Generate'} with {selectedVoiceInfo?.name}
+                        <span>{currentChapter.audioUrl ? 'Regenerate' : 'Generate'} with {selectedVoiceInfo?.name}</span>
                       </button>
                     </div>
                   </div>

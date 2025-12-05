@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AIService } from '@/lib/services/ai-service';
-import { createBook, createMultipleChapters, ensureDemoUser, upsertBibliographyConfig } from '@/lib/db/operations';
+import { AIService, BibliographyGenerationConfig } from '@/lib/services/ai-service';
+import { createBook, createMultipleChapters, ensureDemoUser, upsertBibliographyConfig, createBibliographyReference } from '@/lib/db/operations';
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
@@ -39,13 +39,23 @@ export async function POST(request: NextRequest) {
       chapterModel // chapter model
     );
 
-    // Generate all chapters
-    const { chapters } = await aiService.generateFullBook(
+    // Build bibliography config if enabled
+    const bibliographyConfig: BibliographyGenerationConfig | undefined = config.bibliography?.include
+      ? {
+          enabled: true,
+          citationStyle: (config.bibliography.citationStyle as any) || 'APA',
+          sourceVerification: config.bibliography.sourceVerification || 'moderate',
+        }
+      : undefined;
+
+    // Generate all chapters (and bibliography references if enabled)
+    const { chapters, references } = await aiService.generateFullBook(
       outline, 
       (current, total) => {
         console.log(`Progress: Chapter ${current}/${total}`);
       },
-      chapterModel
+      chapterModel,
+      bibliographyConfig
     );
 
     // Sanitize all chapters
@@ -67,10 +77,10 @@ export async function POST(request: NextRequest) {
       modelUsed: chapterModel,
     };
 
-    // Generate cover image automatically (still uses OpenAI DALL-E)
+    // Generate front cover image automatically (still uses OpenAI DALL-E)
     let coverUrl: string | undefined;
     try {
-      console.log('Generating cover image...');
+      console.log('Generating front cover image...');
       coverUrl = await aiService.generateCoverImage(
         outline.title,
         outline.author,
@@ -78,13 +88,35 @@ export async function POST(request: NextRequest) {
         outline.description,
         'vivid'
       );
-      console.log('Cover generated successfully');
+      console.log('Front cover generated successfully');
     } catch (coverError) {
-      console.error('Failed to generate cover, continuing without:', coverError);
+      console.error('Failed to generate front cover, continuing without:', coverError);
       // Continue without cover - not critical
     }
 
-    // Save to database
+    // Generate back cover image automatically
+    let backCoverUrl: string | undefined;
+    try {
+      console.log('Generating back cover image...');
+      backCoverUrl = await aiService.generateBackCoverImage(
+        outline.title,
+        outline.author,
+        outline.genre,
+        outline.description,
+        'photographic' // Default style for back cover
+      );
+      console.log('Back cover generated successfully');
+    } catch (backCoverError) {
+      console.error('Failed to generate back cover, continuing without:', backCoverError);
+      // Continue without back cover - not critical
+    }
+
+    // Save to database - include backCoverUrl in metadata
+    const bookMetadata = {
+      ...metadata,
+      backCoverUrl: backCoverUrl, // Store back cover URL in metadata
+    };
+
     const book = await createBook({
       userId,
       title: outline.title,
@@ -93,7 +125,7 @@ export async function POST(request: NextRequest) {
       summary: outline.description,
       outline: outline as any,
       config: config as any,
-      metadata: metadata as any,
+      metadata: bookMetadata as any,
       coverUrl: coverUrl,
       status: 'completed',
     });
@@ -110,7 +142,7 @@ export async function POST(request: NextRequest) {
 
     await createMultipleChapters(chapterData);
 
-    // Create bibliography config if enabled in studio settings
+    // Create bibliography config and save references if enabled
     if (config.bibliography?.include) {
       console.log('Creating bibliography config for book:', book.id);
       try {
@@ -134,6 +166,36 @@ export async function POST(request: NextRequest) {
           showAccessDate: true,
         });
         console.log('Bibliography config created successfully');
+
+        // Save generated references
+        if (references && references.length > 0) {
+          console.log(`Saving ${references.length} bibliography references...`);
+          for (const ref of references) {
+            try {
+              await createBibliographyReference({
+                id: ref.id,
+                bookId: book.id,
+                type: ref.type,
+                title: ref.title,
+                authors: ref.authors,
+                year: ref.year,
+                publisher: ref.publisher,
+                url: ref.url,
+                doi: ref.doi,
+                typeSpecificData: {
+                  journalTitle: ref.journalTitle,
+                  volume: ref.volume,
+                  issue: ref.issue,
+                  pages: ref.pages,
+                },
+                accessDate: ref.accessDate,
+              });
+            } catch (refError) {
+              console.error('Failed to save reference:', refError);
+            }
+          }
+          console.log('Bibliography references saved successfully');
+        }
       } catch (bibError) {
         console.error('Failed to create bibliography config:', bibError);
         // Continue - not critical
