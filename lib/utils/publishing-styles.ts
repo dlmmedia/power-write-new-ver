@@ -257,7 +257,7 @@ export function generateHTMLStyles(settings: PublishingSettings): string {
       text-transform: ${settings.chapters.chapterTitleCase === 'uppercase' ? 'uppercase' : 
                         settings.chapters.chapterTitleCase === 'lowercase' ? 'lowercase' : 'none'};
       font-weight: normal;
-      font-style: ${settings.chapters.chapterOpeningStyle === 'elegant' ? 'italic' : 'normal'};
+      font-style: ${settings.chapters.chapterOpeningStyle === 'decorated' ? 'italic' : 'normal'};
       margin: 0;
     }
     
