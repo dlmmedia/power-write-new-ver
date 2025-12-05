@@ -131,8 +131,11 @@ const STANDARD_PAGE_SIZES: Record<string, string> = {
   'custom': 'LETTER',              // Default fallback
 };
 
+// Type for react-pdf PageSize
+type PageSizeType = 'A4' | 'A5' | 'A6' | 'B5' | 'LETTER' | 'LEGAL' | [number, number] | { width: number; height: number };
+
 // Get page size in format react-pdf accepts
-const getPageSizeArray = (settings: PublishingSettings): string | { width: number; height: number } => {
+const getPageSizeArray = (settings: PublishingSettings): PageSizeType => {
   const trimSize = settings?.trimSize || 'us-trade-6x9';
   const dims = getPageDimensions(settings);
   
@@ -149,7 +152,7 @@ const getPageSizeArray = (settings: PublishingSettings): string | { width: numbe
   }
   
   // Try to use a standard page size first (better PDF compatibility)
-  const standardSize = STANDARD_PAGE_SIZES[trimSize];
+  const standardSize = STANDARD_PAGE_SIZES[trimSize] as PageSizeType | undefined;
   if (standardSize && trimSize !== 'custom') {
     console.log('Using standard page size:', standardSize);
     return standardSize;
@@ -1125,7 +1128,7 @@ const BibliographySection: React.FC<{
   };
   frontMatterPages: number;
   totalChapters: number;
-  pageSize: string | { width: number; height: number };
+  pageSize: PageSizeType;
 }> = ({ bibliography, frontMatterPages, totalChapters, pageSize }) => {
   const { config, references } = bibliography;
   
