@@ -655,7 +655,7 @@ export class ExportServiceAdvanced {
               text: displayTitle, 
               font: FONTS.heading, 
               size: SIZES.chapterTitle, 
-              italics: settings.chapters.chapterOpeningStyle === 'decorated' || settings.chapters.chapterOpeningStyle === 'elegant',
+              italics: settings.chapters.chapterOpeningStyle === 'decorated',
               color: COLORS.secondary 
             }),
           ],
