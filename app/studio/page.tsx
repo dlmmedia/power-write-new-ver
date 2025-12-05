@@ -113,12 +113,12 @@ export default function StudioPage() {
     // If no outline, generate one first or use basic config
     const workingOutline = outline || {
       title: config.basicInfo?.title || 'Untitled Book',
-      chapters: Array.from({ length: config.contentSettings?.chapterCount || 10 }, (_, i) => ({
+      chapters: Array.from({ length: config.content?.numChapters || 10 }, (_, i) => ({
         chapterNumber: i + 1,
         title: `Chapter ${i + 1}`,
         synopsis: `Content for chapter ${i + 1}`,
         scenes: [],
-        estimatedWordCount: config.contentSettings?.wordsPerChapter || 3000,
+        estimatedWordCount: Math.floor((config.content?.targetWordCount || 30000) / (config.content?.numChapters || 10)),
       })),
     };
 
