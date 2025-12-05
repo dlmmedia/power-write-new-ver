@@ -545,7 +545,7 @@ export class ExportServiceAdvanced {
           size: {
             width: pageWidthTwip,
             height: pageHeightTwip,
-            orientation: settings.orientation === 'landscape' ? 'landscape' : 'portrait',
+            orientation: (settings.orientation === 'landscape' ? 'landscape' : 'portrait') as 'portrait' | 'landscape',
           },
           margin: {
             top: convertInchesToTwip(settings.margins.top),
@@ -782,7 +782,7 @@ export class ExportServiceAdvanced {
           size: {
             width: pageWidthTwip,
             height: pageHeightTwip,
-            orientation: settings.orientation === 'landscape' ? 'landscape' : 'portrait',
+            orientation: (settings.orientation === 'landscape' ? 'landscape' : 'portrait') as 'portrait' | 'landscape',
           },
           margin: {
             top: convertInchesToTwip(settings.margins.top),
