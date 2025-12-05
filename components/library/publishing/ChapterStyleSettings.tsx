@@ -390,7 +390,7 @@ export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSetting
           <h2 
             className="text-2xl font-serif"
             style={{ 
-              textAlign: settings.chapterTitlePosition,
+              textAlign: settings.chapterTitlePosition === 'centered' ? 'center' : settings.chapterTitlePosition,
               textTransform: settings.chapterTitleCase === 'uppercase' ? 'uppercase' : 
                            settings.chapterTitleCase === 'lowercase' ? 'lowercase' : 'none',
             }}
