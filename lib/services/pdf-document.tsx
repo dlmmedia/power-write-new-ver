@@ -1,6 +1,7 @@
 // Professional PDF Document Component using React-PDF
 // Production-ready layout with perfect page numbering and premium typography
 // Implements accurate TOC page numbers and professional formatting
+// Now uses PublishingSettings for full customization
 import React from 'react';
 import {
   Document,
@@ -14,21 +15,23 @@ import {
 import { FontFamilies } from './pdf-fonts';
 import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
+import { 
+  PublishingSettings, 
+  DEFAULT_PUBLISHING_SETTINGS, 
+  TRIM_SIZES 
+} from '@/lib/types/publishing';
+import { 
+  formatChapterNumber, 
+  getSceneBreakSymbol, 
+  getChapterOrnament,
+  getTrimSizeDimensions,
+  inchesToPoints 
+} from '@/lib/utils/publishing-styles';
 
 // Use Google Fonts with built-in fallback
 const BODY_FONT = FontFamilies.primary;      // EBGaramond - elegant book serif
 const HEADING_FONT = FontFamilies.primary;   // EBGaramond for consistency
 const SANS_FONT = FontFamilies.sansSerif;    // Helvetica for labels
-
-// Page dimensions for A4 (in points)
-const PAGE_HEIGHT = 841.89; // A4 height in points
-const PAGE_WIDTH = 595.28;  // A4 width in points
-const MARGIN_TOP = 72;
-const MARGIN_BOTTOM = 100;
-const MARGIN_LEFT = 72;
-const MARGIN_RIGHT = 72;
-const CONTENT_HEIGHT = PAGE_HEIGHT - MARGIN_TOP - MARGIN_BOTTOM - 80; // Account for header/footer
-const CHARS_PER_PAGE = 2800; // Approximate characters per page at 11pt font
 
 interface BookExport {
   title: string;
@@ -47,11 +50,115 @@ interface BookExport {
     references: Reference[];
     chapterReferences?: ChapterReferences[];
   };
+  publishingSettings?: PublishingSettings;
 }
 
 interface PDFDocumentProps {
   book: BookExport;
 }
+
+// Default constants for page estimation (used before settings are loaded)
+const DEFAULT_CHARS_PER_PAGE = 2800;
+
+// Default page dimensions (6x9 inches in points)
+const DEFAULT_PAGE_WIDTH = 432; // 6 inches * 72 points
+const DEFAULT_PAGE_HEIGHT = 648; // 9 inches * 72 points
+const DEFAULT_MARGIN = 72; // 1 inch margin
+
+// Safe number helper - returns default if value is invalid
+const safeNumber = (value: number | undefined | null, defaultValue: number): number => {
+  if (value === undefined || value === null || !isFinite(value) || isNaN(value)) {
+    return defaultValue;
+  }
+  return value;
+};
+
+// Helper to get page dimensions from settings with safety checks
+const getPageDimensions = (settings: PublishingSettings) => {
+  // Get trim size with fallback to default 6x9
+  const trimSize = settings?.trimSize 
+    ? getTrimSizeDimensions(settings.trimSize) 
+    : { width: 6, height: 9 };
+  
+  const rawWidth = inchesToPoints(safeNumber(trimSize.width, 6));
+  const rawHeight = inchesToPoints(safeNumber(trimSize.height, 9));
+  
+  // Ensure valid dimensions
+  const width = safeNumber(rawWidth, DEFAULT_PAGE_WIDTH);
+  const height = safeNumber(rawHeight, DEFAULT_PAGE_HEIGHT);
+  
+  // Check orientation with fallback to portrait
+  const isLandscape = settings?.orientation === 'landscape';
+  
+  // Get margins with fallback values
+  const margins = settings?.margins || {};
+  
+  return {
+    PAGE_WIDTH: isLandscape ? height : width,
+    PAGE_HEIGHT: isLandscape ? width : height,
+    MARGIN_TOP: safeNumber(inchesToPoints(safeNumber(margins.top, 1)), DEFAULT_MARGIN),
+    MARGIN_BOTTOM: safeNumber(inchesToPoints(safeNumber(margins.bottom, 1)), DEFAULT_MARGIN),
+    MARGIN_LEFT: safeNumber(inchesToPoints(safeNumber(margins.inside, 0.875)), DEFAULT_MARGIN),
+    MARGIN_RIGHT: safeNumber(inchesToPoints(safeNumber(margins.outside, 0.625)), DEFAULT_MARGIN),
+  };
+};
+
+// Helper to calculate content area
+const getContentHeight = (settings: PublishingSettings) => {
+  const dims = getPageDimensions(settings);
+  return dims.PAGE_HEIGHT - dims.MARGIN_TOP - dims.MARGIN_BOTTOM - 80;
+};
+
+// Calculate chars per page based on font size
+const getCharsPerPage = (settings: PublishingSettings) => {
+  // Approximate: smaller fonts = more chars per page
+  const baseFontSize = 11;
+  const bodyFontSize = safeNumber(settings?.typography?.bodyFontSize, 11);
+  const ratio = baseFontSize / bodyFontSize;
+  return Math.round(2800 * ratio);
+};
+
+// Standard page sizes mapping
+const STANDARD_PAGE_SIZES: Record<string, string> = {
+  'us-trade-6x9': 'LETTER',        // Close match
+  'us-digest-5.5x8.5': 'A5',       // Close match
+  'us-letter-8.5x11': 'LETTER',
+  'mass-market-4.25x6.87': 'A6',   // Close match
+  'royal-6.14x9.21': 'A5',         // Close match
+  'a4': 'A4',
+  'a5': 'A5',
+  'b5': 'B5',
+  'custom': 'LETTER',              // Default fallback
+};
+
+// Get page size in format react-pdf accepts
+const getPageSizeArray = (settings: PublishingSettings): string | { width: number; height: number } => {
+  const trimSize = settings?.trimSize || 'us-trade-6x9';
+  const dims = getPageDimensions(settings);
+  
+  // Validate dimensions are reasonable (between 100-2000 points)
+  const width = Math.round(dims.PAGE_WIDTH);
+  const height = Math.round(dims.PAGE_HEIGHT);
+  
+  console.log('Page size calculation:', { width, height, trimSize });
+  
+  // If dimensions are invalid, fall back to A4
+  if (!isFinite(width) || !isFinite(height) || width < 100 || width > 2000 || height < 100 || height > 2000) {
+    console.warn('Invalid page dimensions, falling back to A4:', { width, height });
+    return 'A4';
+  }
+  
+  // Try to use a standard page size first (better PDF compatibility)
+  const standardSize = STANDARD_PAGE_SIZES[trimSize];
+  if (standardSize && trimSize !== 'custom') {
+    console.log('Using standard page size:', standardSize);
+    return standardSize;
+  }
+  
+  // For custom sizes, use object format
+  console.log('Using custom page size:', { width, height });
+  return { width, height };
+};
 
 // Professional publishing-quality color palette
 const colors = {
@@ -581,27 +688,30 @@ const toRoman = (num: number): string => {
 
 // Calculate estimated page count for a chapter based on content length
 // This provides accurate TOC page numbers
-const estimateChapterPages = (content: string): number => {
+const estimateChapterPages = (content: string, charsPerPage: number = DEFAULT_CHARS_PER_PAGE): number => {
   // Count characters excluding whitespace-only sections
   const sanitized = sanitizeChapterContent({ number: 0, title: '', content });
   const charCount = sanitized.length;
   
   // Account for chapter header (takes about 1/4 page)
-  const headerSpace = CHARS_PER_PAGE * 0.25;
+  const headerSpace = charsPerPage * 0.25;
   const effectiveChars = charCount + headerSpace;
   
   // Calculate pages, minimum 1 page per chapter
-  return Math.max(1, Math.ceil(effectiveChars / CHARS_PER_PAGE));
+  return Math.max(1, Math.ceil(effectiveChars / charsPerPage));
 };
 
 // Calculate cumulative page numbers for all chapters
-const calculateChapterPageNumbers = (chapters: Array<{ number: number; title: string; content: string }>): number[] => {
+const calculateChapterPageNumbers = (
+  chapters: Array<{ number: number; title: string; content: string }>,
+  charsPerPage: number = DEFAULT_CHARS_PER_PAGE
+): number[] => {
   const pageNumbers: number[] = [];
   let currentPage = 1; // Start at page 1 (after front matter)
   
   chapters.forEach((chapter, index) => {
     pageNumbers.push(currentPage);
-    currentPage += estimateChapterPages(chapter.content);
+    currentPage += estimateChapterPages(chapter.content, charsPerPage);
   });
   
   return pageNumbers;
@@ -610,12 +720,47 @@ const calculateChapterPageNumbers = (chapters: Array<{ number: number; title: st
 const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
   const currentYear = new Date().getFullYear();
   
+  // Get publishing settings (use defaults if not provided)
+  const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
+  
+  // Get page dimensions from settings
+  const pageDims = getPageDimensions(settings);
+  
+  // DEBUG: Log page dimensions to verify they're valid
+  console.log('PDF Page Dimensions:', pageDims);
+  console.log('Trim size setting:', settings?.trimSize);
+  console.log('Margins setting:', settings?.margins);
+  
+  // Page size as [width, height] array for react-pdf
+  // Temporarily using A4 to debug the issue
+  const pageSize = getPageSizeArray(settings);
+  console.log('Computed page size:', pageSize);
+  
+  // Safe access to typography settings with defaults
+  const typography = settings?.typography || {};
+  const chapters = settings?.chapters || {};
+  const headerFooter = settings?.headerFooter || {};
+  
+  // Get formatting values from settings with safety checks
+  const bodyFontSize = safeNumber(typography.bodyFontSize, 11);
+  const lineHeight = safeNumber(typography.bodyLineHeight, 1.7);
+  const chapterTitleSize = safeNumber(typography.chapterTitleSize, 18);
+  const paragraphIndentValue = safeNumber(typography.paragraphIndent, 0.3);
+  const paragraphIndent = typography.paragraphIndentUnit === 'inches' 
+    ? inchesToPoints(paragraphIndentValue)
+    : paragraphIndentValue * bodyFontSize; // em conversion
+  
+  // Get scene break and ornament symbols with safety
+  const sceneBreakSymbol = settings ? getSceneBreakSymbol(settings) : '* * *';
+  const chapterOrnament = settings ? getChapterOrnament(settings) : '';
+  
   // Front matter pages: cover (1) + title (1) + copyright (1) + TOC (1) = 4 pages
   // These don't get Arabic page numbers
   const FRONT_MATTER_PAGES = 4;
   
-  // Pre-calculate page numbers for Table of Contents
-  const chapterPageNumbers = calculateChapterPageNumbers(book.chapters);
+  // Pre-calculate chars per page and page numbers for Table of Contents
+  const charsPerPage = getCharsPerPage(settings);
+  const chapterPageNumbers = calculateChapterPageNumbers(book.chapters, charsPerPage);
 
   return (
     <Document
@@ -628,7 +773,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
       {/* ========================================== */}
       {/* COVER PAGE - No page number */}
       {/* ========================================== */}
-      <Page size="A4" style={styles.coverPage}>
+      <Page size={pageSize} style={styles.coverPage}>
         {book.coverUrl ? (
           <Image src={book.coverUrl} style={styles.coverImage} />
         ) : (
@@ -646,7 +791,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
       {/* ========================================== */}
       {/* TITLE PAGE - Roman numeral i */}
       {/* ========================================== */}
-      <Page size="A4" style={styles.titlePage}>
+      <Page size={pageSize} style={styles.titlePage}>
         <View style={styles.titleContainer}>
           <Text style={styles.titleMain}>{book.title}</Text>
           <View style={styles.titleDivider} />
@@ -674,7 +819,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
       {/* ========================================== */}
       {/* COPYRIGHT PAGE - Roman numeral ii */}
       {/* ========================================== */}
-      <Page size="A4" style={styles.copyrightPage}>
+      <Page size={pageSize} style={styles.copyrightPage}>
         <Text style={styles.copyrightTitle}>{book.title}</Text>
         <Text style={styles.copyrightAuthorLine}>by {book.author}</Text>
         
@@ -718,7 +863,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
       {/* ========================================== */}
       {/* TABLE OF CONTENTS - Simple reliable layout */}
       {/* ========================================== */}
-      <Page size="A4" style={styles.tocPage} wrap>
+      <Page size={pageSize} style={styles.tocPage} wrap>
         <View style={styles.tocHeader}>
           <Text style={styles.tocTitle}>Contents</Text>
           <View style={styles.tocDivider} />
@@ -747,7 +892,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
         {book.bibliography?.config.enabled && book.bibliography.references.length > 0 && (() => {
           const title = 'Bibliography';
           const pageNum = chapterPageNumbers.length > 0 
-            ? chapterPageNumbers[chapterPageNumbers.length - 1] + estimateChapterPages(book.chapters[book.chapters.length - 1]?.content || '')
+            ? chapterPageNumbers[chapterPageNumbers.length - 1] + estimateChapterPages(book.chapters[book.chapters.length - 1]?.content || '', charsPerPage)
             : 1;
           const totalChars = 70;
           const textPart = title;
@@ -777,89 +922,173 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
 
       {/* ========================================== */}
       {/* CHAPTERS - Arabic numerals starting at 1 */}
+      {/* Uses publishing settings for formatting */}
       {/* ========================================== */}
       {book.chapters.map((chapter, chapterIndex) => {
         const sanitizedContent = sanitizeChapterContent(chapter);
         const paragraphs = sanitizedContent.split(/\n\n+/).filter(p => p.trim());
+        
+        // Format chapter number based on settings with safe defaults
+        const numberStyle = chapters.chapterNumberStyle || 'numeric';
+        const chapterNumberDisplay = formatChapterNumber(chapter.number, numberStyle as 'numeric' | 'roman' | 'word' | 'ordinal');
+        
+        // Apply title case transformation with safe default
+        let displayTitle = chapter.title;
+        const titleCase = chapters.chapterTitleCase || 'title-case';
+        if (titleCase === 'uppercase') {
+          displayTitle = chapter.title.toUpperCase();
+        } else if (titleCase === 'lowercase') {
+          displayTitle = chapter.title.toLowerCase();
+        }
+        
+        // Dynamic page style based on settings with safe defaults
+        const chapterDropTop = safeNumber(chapters.chapterDropFromTop, 1.5);
+        const chapterPageStyle = {
+          padding: pageDims.MARGIN_LEFT,
+          paddingTop: inchesToPoints(chapterDropTop),
+          paddingBottom: pageDims.MARGIN_BOTTOM,
+          fontFamily: BODY_FONT,
+          fontSize: bodyFontSize,
+          lineHeight: lineHeight,
+          color: colors.primary,
+          backgroundColor: colors.background,
+        };
+        
+        // Dynamic paragraph style with safe defaults
+        const bodyAlign = typography.bodyAlignment || 'justify';
+        const dynamicParagraphStyle = {
+          fontFamily: BODY_FONT,
+          fontWeight: 400 as const,
+          fontSize: bodyFontSize,
+          textAlign: bodyAlign === 'justify' ? 'justify' as const : 
+                     bodyAlign === 'center' ? 'center' as const :
+                     bodyAlign === 'right' ? 'right' as const : 'left' as const,
+          lineHeight: lineHeight,
+          marginBottom: 12,
+          textIndent: safeNumber(paragraphIndent, 0),
+          color: colors.primary,
+        };
 
         return (
           <Page 
             key={chapter.number} 
-            size="A4" 
-            style={styles.chapterOpeningPage}
+            size={pageSize}
+            style={chapterPageStyle}
             wrap
           >
             {/* Running header - shows book title and chapter on continuation pages */}
-            <View style={styles.runningHeader} fixed>
-              <Text
-                style={styles.runningHeaderLeft}
-                render={({ pageNumber }) => {
-                  const chapterStartPage = FRONT_MATTER_PAGES + chapterIndex + 1;
-                  const isFirstPage = pageNumber === chapterStartPage;
-                  return !isFirstPage ? book.title.toUpperCase() : '';
-                }}
-              />
-              <Text
-                style={styles.runningHeaderRight}
-                render={({ pageNumber }) => {
-                  const chapterStartPage = FRONT_MATTER_PAGES + chapterIndex + 1;
-                  const isFirstPage = pageNumber === chapterStartPage;
-                  return !isFirstPage ? `Chapter ${chapter.number}` : '';
-                }}
-              />
-            </View>
+            {headerFooter.headerEnabled && (
+              <View style={styles.runningHeader} fixed>
+                <Text
+                  style={styles.runningHeaderLeft}
+                  render={({ pageNumber }) => {
+                    const chapterStartPage = FRONT_MATTER_PAGES + chapterIndex + 1;
+                    const isFirstPage = pageNumber === chapterStartPage;
+                    if (isFirstPage && !headerFooter.firstPageNumberVisible) return '';
+                    return headerFooter.headerLeftContent === 'title' ? book.title.toUpperCase() :
+                           headerFooter.headerLeftContent === 'author' ? book.author.toUpperCase() :
+                           headerFooter.headerLeftContent === 'chapter' ? `Chapter ${chapter.number}` : '';
+                  }}
+                />
+                <Text
+                  style={styles.runningHeaderRight}
+                  render={({ pageNumber }) => {
+                    const chapterStartPage = FRONT_MATTER_PAGES + chapterIndex + 1;
+                    const isFirstPage = pageNumber === chapterStartPage;
+                    if (isFirstPage && !headerFooter.firstPageNumberVisible) return '';
+                    return headerFooter.headerRightContent === 'title' ? book.title.toUpperCase() :
+                           headerFooter.headerRightContent === 'author' ? book.author.toUpperCase() :
+                           headerFooter.headerRightContent === 'chapter' ? `Chapter ${chapter.number}` : '';
+                  }}
+                />
+              </View>
+            )}
             
-            {/* Chapter header - clean and professional */}
+            {/* Chapter header - based on settings */}
             <View style={styles.chapterHeader} wrap={false}>
-              <Text style={styles.chapterNumberLabel}>Chapter</Text>
-              <Text style={styles.chapterNumber}>{chapter.number}</Text>
+              {chapters.showChapterNumber !== false && chapters.chapterNumberPosition !== 'hidden' && (
+                <>
+                  <Text style={styles.chapterNumberLabel}>{chapters.chapterNumberLabel || 'Chapter'}</Text>
+                  <Text style={{...styles.chapterNumber, fontSize: safeNumber(chapterTitleSize * 1.3, 24)}}>{chapterNumberDisplay}</Text>
+                </>
+              )}
+              
+              {/* Ornament between number and title */}
+              {chapterOrnament && chapters.chapterOrnamentPosition === 'between-number-title' && (
+                <Text style={styles.sceneBreak}>{chapterOrnament}</Text>
+              )}
+              
               <View style={styles.chapterTitleDivider} />
-              <Text style={styles.chapterTitle}>{chapter.title}</Text>
+              <Text style={{
+                ...styles.chapterTitle, 
+                fontSize: safeNumber(chapterTitleSize, 18),
+                textAlign: chapters.chapterTitlePosition === 'left' ? 'left' : 
+                          chapters.chapterTitlePosition === 'right' ? 'right' : 'center',
+              }}>{displayTitle}</Text>
+              
+              {/* Ornament below title */}
+              {chapterOrnament && chapters.chapterOrnamentPosition === 'below-title' && (
+                <Text style={{...styles.sceneBreak, marginTop: 10}}>{chapterOrnament}</Text>
+              )}
             </View>
             
-            {/* Chapter content */}
+            {/* Chapter content with dynamic styling */}
             <View style={styles.paragraphContainer}>
               {paragraphs.map((para, paraIndex) => {
                 const trimmedPara = para.trim();
                 
-                // Handle scene breaks - using simple asterisks
+                // Handle scene breaks - using symbol from settings
                 if (isSceneBreak(trimmedPara)) {
                   return (
                     <Text key={paraIndex} style={styles.sceneBreak}>
-                      * * *
+                      {sceneBreakSymbol || '* * *'}
                     </Text>
                   );
                 }
                 
-                // First paragraph - no indent
+                // First paragraph - indent based on settings
                 if (paraIndex === 0) {
                   return (
-                    <Text key={paraIndex} style={styles.firstParagraph}>
+                    <Text key={paraIndex} style={{
+                      ...dynamicParagraphStyle,
+                      textIndent: settings.typography.firstParagraphIndent ? paragraphIndent : 0,
+                    }}>
                       {trimmedPara}
                     </Text>
                   );
                 }
                 
-                // Regular paragraphs with indent
+                // Regular paragraphs with indent from settings
                 return (
-                  <Text key={paraIndex} style={styles.paragraph}>
+                  <Text key={paraIndex} style={dynamicParagraphStyle}>
                     {trimmedPara}
                   </Text>
                 );
               })}
             </View>
             
-            {/* Page number - FIXED at bottom center for ALL chapter pages */}
-            <View style={styles.pageNumberContainer} fixed>
-              <Text
-                style={styles.pageNumberText}
-                render={({ pageNumber }) => {
-                  // Calculate page number relative to chapter start
-                  const contentPageNumber = pageNumber - FRONT_MATTER_PAGES;
-                  return contentPageNumber > 0 ? String(contentPageNumber) : '';
-                }}
-              />
-            </View>
+            {/* Page number - position based on settings */}
+            {headerFooter.footerEnabled && (
+              <View style={styles.pageNumberContainer} fixed>
+                <Text
+                  style={{
+                    ...styles.pageNumberText,
+                    fontSize: safeNumber(headerFooter.footerFontSize, 10),
+                    textAlign: headerFooter.footerCenterContent === 'page-number' ? 'center' :
+                              headerFooter.footerRightContent === 'page-number' ? 'right' : 'left',
+                  }}
+                  render={({ pageNumber }) => {
+                    const contentPageNumber = pageNumber - FRONT_MATTER_PAGES;
+                    // Hide on first page of chapter if settings say so
+                    if (!headerFooter.firstPageNumberVisible && 
+                        pageNumber === FRONT_MATTER_PAGES + chapterIndex + 1) {
+                      return '';
+                    }
+                    return contentPageNumber > 0 ? String(contentPageNumber) : '';
+                  }}
+                />
+              </View>
+            )}
           </Page>
         );
       })}
@@ -872,6 +1101,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
           bibliography={book.bibliography} 
           frontMatterPages={FRONT_MATTER_PAGES}
           totalChapters={book.chapters.length}
+          pageSize={pageSize}
         />
       )}
 
@@ -879,7 +1109,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
       {/* BACK COVER - Final page of the book */}
       {/* ========================================== */}
       {book.backCoverUrl && (
-        <Page size="A4" style={styles.coverPage}>
+        <Page size={pageSize} style={styles.coverPage}>
           <Image src={book.backCoverUrl} style={styles.coverImage} />
         </Page>
       )}
@@ -895,7 +1125,8 @@ const BibliographySection: React.FC<{
   };
   frontMatterPages: number;
   totalChapters: number;
-}> = ({ bibliography, frontMatterPages, totalChapters }) => {
+  pageSize: string | { width: number; height: number };
+}> = ({ bibliography, frontMatterPages, totalChapters, pageSize }) => {
   const { config, references } = bibliography;
   
   // Sort references
@@ -939,7 +1170,7 @@ const BibliographySection: React.FC<{
     : null;
 
   return (
-    <Page size="A4" style={styles.bibliographyPage} wrap>
+    <Page size={pageSize} style={styles.bibliographyPage} wrap>
       {/* Bibliography Header */}
       <View style={styles.bibliographyHeader} wrap={false}>
         <Text style={styles.bibliographyTitle}>Bibliography</Text>
@@ -994,3 +1225,4 @@ const BibliographySection: React.FC<{
 };
 
 export default PDFDocument;
+// Force recompile Fri Dec  5 20:48:11 PKT 2025

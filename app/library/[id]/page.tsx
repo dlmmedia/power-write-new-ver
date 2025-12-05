@@ -10,6 +10,7 @@ import { BookEditor } from '@/components/library/BookEditor';
 import { AudioGenerator } from '@/components/library/AudioGenerator';
 import { BibliographyManager } from '@/components/library/BibliographyManager';
 import CoverGenerator from '@/components/studio/CoverGenerator';
+import { PublishingSettings } from '@/components/library/publishing';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
@@ -506,6 +507,7 @@ export default function BookDetailPage() {
             { id: 'chapters', label: 'Chapters' },
             { id: 'cover', label: 'Cover' },
             { id: 'audio', label: 'Audio' },
+            { id: 'publishing', label: 'Publishing' },
             { id: 'settings', label: 'Settings' }
           ]}
           activeTab={activeTab}
@@ -826,6 +828,16 @@ export default function BookDetailPage() {
                 ℹ️ No chapters available. Please generate your book first.
               </p>
             </div>
+          )}
+
+          {activeTab === 'publishing' && (
+            <PublishingSettings
+              bookId={book.id}
+              bookTitle={book.title}
+              onSave={() => {
+                alert('✓ Publishing settings saved successfully!');
+              }}
+            />
           )}
 
           {activeTab === 'settings' && (

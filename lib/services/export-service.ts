@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf';
 import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
+import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS } from '@/lib/types/publishing';
+import { generateHTMLStyles, getSceneBreakSymbol, formatChapterNumber, getChapterOrnament } from '@/lib/utils/publishing-styles';
 
 interface BookExport {
   title: string;
@@ -19,6 +21,7 @@ interface BookExport {
     references: Reference[];
     chapterReferences?: ChapterReferences[];
   };
+  publishingSettings?: PublishingSettings;
 }
 
 export class ExportService {
@@ -86,14 +89,28 @@ export class ExportService {
   }
 
   // Export as HTML with professional print styling, TOC with page numbers
+  // Now uses PublishingSettings for dynamic styling
   static exportAsHTML(book: BookExport): string {
+    // Get publishing settings
+    const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
+    
+    // Generate dynamic CSS from publishing settings
+    const dynamicStyles = generateHTMLStyles(settings);
+    
+    // Get scene break and chapter ornament symbols
+    const sceneBreakSymbol = getSceneBreakSymbol(settings);
+    const chapterOrnament = getChapterOrnament(settings);
+    
     let html = `<!DOCTYPE html>
-<html lang="en">
+<html lang="${settings.language || 'en'}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>${book.title}</title>
+    ${settings.export.html.darkModeSupport ? '<meta name="color-scheme" content="light dark">' : ''}
     <style>
+    /* Dynamic styles from publishing settings */
+    ${dynamicStyles}
         /* ============================================= */
         /* BASE STYLES - Screen & Print */
         /* ============================================= */
@@ -618,28 +635,62 @@ export class ExportService {
         </ul>
     </div>`;
     
-    // Chapters
+    // Chapters - using publishing settings for formatting
     book.chapters.forEach(chapter => {
       const sanitizedContent = this.sanitizeChapterContent(chapter);
       // Split into paragraphs and handle scene breaks
       const paragraphs = sanitizedContent.split(/\n\n+/).filter(p => p.trim());
       
+      // Format chapter number based on settings
+      const chapterNumberText = formatChapterNumber(chapter.number, settings.chapters.chapterNumberStyle);
+      
+      // Apply title case transformation
+      let displayTitle = chapter.title;
+      if (settings.chapters.chapterTitleCase === 'uppercase') {
+        displayTitle = chapter.title.toUpperCase();
+      } else if (settings.chapters.chapterTitleCase === 'lowercase') {
+        displayTitle = chapter.title.toLowerCase();
+      }
+      
       html += `
     <div class="chapter" id="chapter-${chapter.number}">
-        <div class="chapter-header">
-            <p class="chapter-number-label">Chapter</p>
-            <p class="chapter-number">${chapter.number}</p>
-            <div class="chapter-title-divider"></div>
-            <h2 class="chapter-title">${chapter.title}</h2>
+        <div class="chapter-header">`;
+      
+      // Add chapter number if enabled
+      if (settings.chapters.showChapterNumber && settings.chapters.chapterNumberPosition !== 'hidden') {
+        html += `
+            <p class="chapter-number-label">${settings.chapters.chapterNumberLabel}</p>
+            <p class="chapter-number">${chapterNumberText}</p>`;
+      }
+      
+      // Add ornament between number and title if configured
+      if (chapterOrnament && settings.chapters.chapterOrnamentPosition === 'between-number-title') {
+        html += `
+            <p class="chapter-ornament">${chapterOrnament}</p>`;
+      } else {
+        html += `
+            <div class="chapter-title-divider"></div>`;
+      }
+      
+      html += `
+            <h2 class="chapter-title">${displayTitle}</h2>`;
+      
+      // Add ornament below title if configured
+      if (chapterOrnament && settings.chapters.chapterOrnamentPosition === 'below-title') {
+        html += `
+            <p class="chapter-ornament">${chapterOrnament}</p>`;
+      }
+      
+      html += `
         </div>
-        <div class="chapter-content">`;
+        <div class="chapter-content chapter-start">`;
       
       paragraphs.forEach((para, index) => {
         const trimmed = para.trim();
         // Check for scene breaks
         if (trimmed === '***' || trimmed === '* * *' || trimmed === '---' || trimmed === '- - -') {
           html += `
-            <p class="scene-break">* * *</p>`;
+            <p class="scene-break">${sceneBreakSymbol || '* * *'}</p>`;
         } else {
           html += `
             <p>${trimmed}</p>`;

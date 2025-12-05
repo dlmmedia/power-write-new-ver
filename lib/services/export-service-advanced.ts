@@ -31,6 +31,16 @@ import { registerFonts } from './pdf-fonts';
 import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
 import epub, { Options as EPubOptions, Chapter as EPubChapter } from 'epub-gen-memory';
+import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS, TRIM_SIZES } from '@/lib/types/publishing';
+import { 
+  getFontFamily, 
+  formatChapterNumber, 
+  getSceneBreakSymbol, 
+  getChapterOrnament,
+  generateEPUBStyles,
+  getTrimSizeDimensions,
+  inchesToPoints
+} from '@/lib/utils/publishing-styles';
 
 interface BookExport {
   title: string;
@@ -49,6 +59,7 @@ interface BookExport {
     references: Reference[];
     chapterReferences?: ChapterReferences[];
   };
+  publishingSettings?: PublishingSettings; // Publishing settings for formatting
 }
 
 interface OutlineExport {
@@ -66,6 +77,39 @@ interface OutlineExport {
 }
 
 export class ExportServiceAdvanced {
+  /**
+   * Convert font ID to DOCX-compatible font name
+   */
+  private static getDOCXFontName(fontId: string): string {
+    const fontMap: Record<string, string> = {
+      'garamond': 'Garamond',
+      'georgia': 'Georgia',
+      'times-new-roman': 'Times New Roman',
+      'palatino': 'Palatino Linotype',
+      'baskerville': 'Baskerville',
+      'caslon': 'Adobe Caslon Pro',
+      'minion': 'Minion Pro',
+      'sabon': 'Sabon',
+      'bembo': 'Bembo',
+      'libre-baskerville': 'Libre Baskerville',
+      'merriweather': 'Merriweather',
+      'source-serif': 'Source Serif Pro',
+      'lora': 'Lora',
+      'helvetica': 'Helvetica',
+      'arial': 'Arial',
+      'open-sans': 'Open Sans',
+      'roboto': 'Roboto',
+      'lato': 'Lato',
+      'montserrat': 'Montserrat',
+      'playfair': 'Playfair Display',
+      'cormorant': 'Cormorant Garamond',
+      'cinzel': 'Cinzel',
+      'philosopher': 'Philosopher',
+      'spectral': 'Spectral',
+    };
+    return fontMap[fontId] || 'Georgia';
+  }
+
   /**
    * Fetch image from URL and convert to Buffer
    */
@@ -175,29 +219,48 @@ export class ExportServiceAdvanced {
   /**
    * Export book as DOCX with professional publishing-quality formatting
    * Features: Multiple fonts, text hierarchy, proper book structure, page numbers
+   * Now uses PublishingSettings for customization
    */
   static async exportBookAsDOCX(book: BookExport): Promise<Buffer> {
+    // Get publishing settings (use defaults if not provided)
+    const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
+    
+    // Get trim size for page dimensions
+    const trimSize = getTrimSizeDimensions(settings.trimSize);
+    const pageWidthTwip = convertInchesToTwip(trimSize.width);
+    const pageHeightTwip = convertInchesToTwip(trimSize.height);
+    
+    // Get font families based on settings
+    const bodyFontName = this.getDOCXFontName(settings.typography.bodyFont);
+    const headingFontName = settings.typography.headingFont === 'inherit' 
+      ? bodyFontName 
+      : this.getDOCXFontName(settings.typography.headingFont);
+    
     // Professional font sizes (in half-points, so 24 = 12pt)
     const FONTS = {
-      // Serif fonts for body and titles
-      title: 'Georgia',
-      heading: 'Georgia',
-      body: 'Georgia',
+      // Use settings-based fonts
+      title: headingFontName,
+      heading: headingFontName,
+      body: bodyFontName,
       // Sans-serif for labels and metadata
       label: 'Calibri',
       toc: 'Calibri',
     };
     
+    // Calculate sizes based on settings (convert pt to half-points)
+    const bodySize = settings.typography.bodyFontSize * 2;
+    const chapterTitleSize = settings.typography.chapterTitleSize * 2;
+    
     const SIZES = {
       bookTitle: 72,        // 36pt - Main book title
-      chapterNumber: 48,    // 24pt - Chapter numbers
-      chapterTitle: 36,     // 18pt - Chapter titles
-      sectionTitle: 32,     // 16pt - Section headings
-      body: 24,             // 12pt - Body text
-      bodyLarge: 26,        // 13pt - First paragraph
+      chapterNumber: Math.round(chapterTitleSize * 1.3),    // Based on chapter title
+      chapterTitle: chapterTitleSize,     // From settings
+      sectionTitle: Math.round(settings.typography.sectionHeadingSize * 2),
+      body: bodySize,             // From settings
+      bodyLarge: bodySize + 2,        // Slightly larger first paragraph
       small: 20,            // 10pt - Small text
       tiny: 18,             // 9pt - Copyright, labels
-      pageNum: 20,          // 10pt - Page numbers
+      pageNum: settings.headerFooter.footerFontSize * 2,
     };
 
     const COLORS = {
@@ -473,17 +536,22 @@ export class ExportServiceAdvanced {
       ] : [])
     );
 
-    // Front matter section configuration
+    // Front matter section configuration - uses publishing settings margins
     const frontMatterSection = {
       properties: {
         type: SectionType.NEXT_PAGE,
         page: {
           pageNumbers: { start: 1, formatType: NumberFormat.LOWER_ROMAN },
+          size: {
+            width: pageWidthTwip,
+            height: pageHeightTwip,
+            orientation: settings.orientation === 'landscape' ? 'landscape' : 'portrait',
+          },
           margin: {
-            top: convertInchesToTwip(1),
-            bottom: convertInchesToTwip(1),
-            left: convertInchesToTwip(1.25),
-            right: convertInchesToTwip(1.25),
+            top: convertInchesToTwip(settings.margins.top),
+            bottom: convertInchesToTwip(settings.margins.bottom),
+            left: convertInchesToTwip(settings.margins.inside), // Gutter margin
+            right: convertInchesToTwip(settings.margins.outside),
           },
         },
       },
@@ -518,40 +586,112 @@ export class ExportServiceAdvanced {
         );
       }
 
-      // Chapter number
+      // Chapter header - using publishing settings
+      const chapterDropSpace = Math.round(convertInchesToTwip(settings.chapters.chapterDropFromTop) * 0.5);
+      const afterTitleSpace = Math.round(convertInchesToTwip(settings.chapters.afterChapterTitleSpace) * 0.5);
+      
+      // Get chapter number in the configured style
+      const chapterNumberText = formatChapterNumber(chapter.number, settings.chapters.chapterNumberStyle);
+      
+      // Get chapter title alignment
+      const titleAlignment = settings.chapters.chapterTitlePosition === 'centered' ? AlignmentType.CENTER :
+                            settings.chapters.chapterTitlePosition === 'left' ? AlignmentType.LEFT :
+                            AlignmentType.RIGHT;
+      
+      // Apply title case transformation
+      let displayTitle = chapter.title;
+      if (settings.chapters.chapterTitleCase === 'uppercase') {
+        displayTitle = chapter.title.toUpperCase();
+      } else if (settings.chapters.chapterTitleCase === 'lowercase') {
+        displayTitle = chapter.title.toLowerCase();
+      }
+      
+      // Get ornament from settings
+      const ornament = getChapterOrnament(settings);
+      
+      // Build chapter header based on settings
       mainContentChildren.push(
-        new Paragraph({ text: '', spacing: { before: 1500 } }),
+        new Paragraph({ text: '', spacing: { before: chapterDropSpace } })
+      );
+      
+      // Add chapter number if enabled
+      if (settings.chapters.showChapterNumber && settings.chapters.chapterNumberPosition !== 'hidden') {
+        mainContentChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: settings.chapters.chapterNumberLabel.toUpperCase(), font: FONTS.label, size: 20, color: COLORS.muted }),
+            ],
+            alignment: titleAlignment,
+            spacing: { after: 100 },
+          }),
+          new Paragraph({
+            children: [
+              new TextRun({ text: chapterNumberText, font: FONTS.heading, size: 60, color: COLORS.primary }),
+            ],
+            alignment: titleAlignment,
+            spacing: { after: 200 },
+          })
+        );
+      }
+      
+      // Add ornament if configured
+      if (ornament && (settings.chapters.chapterOrnamentPosition === 'between-number-title' || settings.chapters.chapterOrnamentPosition === 'above-number')) {
+        mainContentChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: ornament, font: FONTS.label, size: 24, color: COLORS.accent }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+          })
+        );
+      }
+      
+      // Add chapter title
+      mainContentChildren.push(
         new Paragraph({
           children: [
-            new TextRun({ text: 'CHAPTER', font: FONTS.label, size: 20, color: COLORS.muted }),
+            new TextRun({ 
+              text: displayTitle, 
+              font: FONTS.heading, 
+              size: SIZES.chapterTitle, 
+              italics: settings.chapters.chapterOpeningStyle === 'decorated' || settings.chapters.chapterOpeningStyle === 'elegant',
+              color: COLORS.secondary 
+            }),
           ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 100 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: String(chapter.number), font: FONTS.heading, size: 60, color: COLORS.primary }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: '━━━', font: FONTS.label, size: 24, color: COLORS.accent }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 200 },
-        }),
-        new Paragraph({
-          children: [
-            new TextRun({ text: chapter.title, font: FONTS.heading, size: SIZES.chapterTitle, italics: true, color: COLORS.secondary }),
-          ],
-          alignment: AlignmentType.CENTER,
-          spacing: { after: 800 },
+          alignment: titleAlignment,
+          spacing: { after: ornament && settings.chapters.chapterOrnamentPosition === 'below-title' ? 200 : afterTitleSpace },
         })
       );
+      
+      // Add ornament below title if configured
+      if (ornament && settings.chapters.chapterOrnamentPosition === 'below-title') {
+        mainContentChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: ornament, font: FONTS.label, size: 24, color: COLORS.accent }),
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { after: afterTitleSpace },
+          })
+        );
+      }
 
-      // Chapter content
+      // Chapter content - apply publishing settings
+      const lineSpacing = Math.round(settings.typography.bodyLineHeight * 240); // Convert to twips
+      const paragraphIndent = settings.typography.paragraphIndentUnit === 'inches' 
+        ? convertInchesToTwip(settings.typography.paragraphIndent)
+        : settings.typography.paragraphIndent * 20; // em to twips approximation
+      
+      // Get alignment from settings
+      const bodyAlignment = settings.typography.bodyAlignment === 'justify' ? AlignmentType.JUSTIFIED :
+                           settings.typography.bodyAlignment === 'center' ? AlignmentType.CENTER :
+                           settings.typography.bodyAlignment === 'right' ? AlignmentType.RIGHT :
+                           AlignmentType.LEFT;
+      
+      // Get scene break symbol from settings
+      const sceneBreakSymbol = getSceneBreakSymbol(settings);
+      
       paragraphs.forEach((para, paraIndex) => {
         const trimmedPara = para.trim();
 
@@ -560,7 +700,7 @@ export class ExportServiceAdvanced {
           mainContentChildren.push(
             new Paragraph({
               children: [
-                new TextRun({ text: '* * *', font: FONTS.body, size: 24, color: COLORS.muted }),
+                new TextRun({ text: sceneBreakSymbol || '* * *', font: FONTS.body, size: 24, color: COLORS.muted }),
               ],
               alignment: AlignmentType.CENTER,
               spacing: { before: 400, after: 400 },
@@ -569,27 +709,28 @@ export class ExportServiceAdvanced {
           return;
         }
 
-        // First paragraph - no indent, slightly larger
+        // First paragraph - no indent (unless settings say otherwise)
         if (paraIndex === 0) {
           mainContentChildren.push(
             new Paragraph({
               children: [
                 new TextRun({ text: trimmedPara, font: FONTS.body, size: SIZES.bodyLarge, color: COLORS.primary }),
               ],
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 280, line: 360 }, // 1.5 line spacing
+              alignment: bodyAlignment,
+              spacing: { after: 280, line: lineSpacing },
+              indent: settings.typography.firstParagraphIndent ? { firstLine: paragraphIndent } : undefined,
             })
           );
         } else {
-          // Regular paragraphs with first-line indent
+          // Regular paragraphs with first-line indent from settings
           mainContentChildren.push(
             new Paragraph({
               children: [
                 new TextRun({ text: trimmedPara, font: FONTS.body, size: SIZES.body, color: COLORS.primary }),
               ],
-              alignment: AlignmentType.JUSTIFIED,
-              spacing: { after: 240, line: 360 },
-              indent: { firstLine: convertInchesToTwip(0.4) },
+              alignment: bodyAlignment,
+              spacing: { after: 240, line: lineSpacing },
+              indent: { firstLine: paragraphIndent },
             })
           );
         }
@@ -632,17 +773,22 @@ export class ExportServiceAdvanced {
       }
     }
 
-    // Main content section configuration
+    // Main content section configuration - uses publishing settings
     const mainContentSection = {
       properties: {
         type: SectionType.NEXT_PAGE,
         page: {
           pageNumbers: { start: 1, formatType: NumberFormat.DECIMAL },
+          size: {
+            width: pageWidthTwip,
+            height: pageHeightTwip,
+            orientation: settings.orientation === 'landscape' ? 'landscape' : 'portrait',
+          },
           margin: {
-            top: convertInchesToTwip(1),
-            bottom: convertInchesToTwip(1.25),
-            left: convertInchesToTwip(1.25),
-            right: convertInchesToTwip(1.25),
+            top: convertInchesToTwip(settings.margins.top),
+            bottom: convertInchesToTwip(settings.margins.bottom),
+            left: convertInchesToTwip(settings.margins.inside),
+            right: convertInchesToTwip(settings.margins.outside),
           },
         },
       },
@@ -1152,15 +1298,18 @@ export class ExportServiceAdvanced {
   /**
    * Export book as EPUB with KDP-compliant formatting
    * Following Amazon KDP guidelines for optimal Kindle publishing
+   * Now uses PublishingSettings for customization
    */
   static async exportBookAsEPUB(book: BookExport): Promise<Buffer> {
     console.log(`Generating KDP-compliant EPUB for: ${book.title}`);
     console.log(`EPUB has ${book.chapters?.length || 0} chapters`);
 
+    // Get publishing settings
+    const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
+
     try {
-      // KDP-optimized CSS for reflowable content
-      // Using Georgia/Garamond-style fonts, left alignment, first-line indent
-      const kdpStyles = `
+      // Generate CSS from publishing settings for KDP-optimized EPUB
+      const kdpStyles = generateEPUBStyles(settings) + `
         /* KDP-Optimized Styles for Reflowable EPUB */
         
         /* Base body styles */
@@ -1443,23 +1592,56 @@ export class ExportServiceAdvanced {
         beforeToc: true,
       });
 
-      // 4. Book Chapters
+      // 4. Book Chapters - using publishing settings
+      const sceneBreakSymbol = getSceneBreakSymbol(settings);
+      
       for (const chapter of book.chapters) {
         const sanitizedContent = this.sanitizeChapterContent(chapter);
         const paragraphs = sanitizedContent.split('\n\n').filter(p => p.trim());
         
+        // Format chapter number based on settings
+        const chapterNumberText = settings.chapters.showChapterNumber 
+          ? `${settings.chapters.chapterNumberLabel} ${formatChapterNumber(chapter.number, settings.chapters.chapterNumberStyle)}`
+          : '';
+        
+        // Apply title case transformation
+        let displayTitle = chapter.title;
+        if (settings.chapters.chapterTitleCase === 'uppercase') {
+          displayTitle = chapter.title.toUpperCase();
+        } else if (settings.chapters.chapterTitleCase === 'lowercase') {
+          displayTitle = chapter.title.toLowerCase();
+        }
+        
+        // Get ornament
+        const ornament = getChapterOrnament(settings);
+        
         let chapterHtml = `
           <div class="chapter-start" id="chapter-${chapter.number}">
-            <p class="chapter-number">Chapter ${chapter.number}</p>
-            <h1 class="chapter-title">${this.escapeHtml(chapter.title)}</h1>
         `;
+        
+        // Add chapter number if enabled
+        if (settings.chapters.showChapterNumber && settings.chapters.chapterNumberPosition !== 'hidden') {
+          chapterHtml += `<p class="chapter-number">${this.escapeHtml(chapterNumberText)}</p>`;
+        }
+        
+        // Add ornament above title if configured
+        if (ornament && settings.chapters.chapterOrnamentPosition === 'between-number-title') {
+          chapterHtml += `<p class="scene-break">${ornament}</p>`;
+        }
+        
+        chapterHtml += `<h1 class="chapter-title">${this.escapeHtml(displayTitle)}</h1>`;
+        
+        // Add ornament below title if configured
+        if (ornament && settings.chapters.chapterOrnamentPosition === 'below-title') {
+          chapterHtml += `<p class="scene-break">${ornament}</p>`;
+        }
         
         paragraphs.forEach((para, index) => {
           const trimmedPara = para.trim();
           
           // Check for scene breaks
           if (this.isSceneBreak(trimmedPara)) {
-            chapterHtml += '<p class="scene-break">* * *</p>';
+            chapterHtml += `<p class="scene-break">${sceneBreakSymbol || '* * *'}</p>`;
           } else {
             // Convert plain text to HTML paragraphs
             const htmlPara = this.escapeHtml(trimmedPara);
@@ -1470,7 +1652,9 @@ export class ExportServiceAdvanced {
         chapterHtml += '</div>';
         
         epubChapters.push({
-          title: `Chapter ${chapter.number}: ${chapter.title}`,
+          title: settings.chapters.showChapterNumber 
+            ? `${settings.chapters.chapterNumberLabel} ${chapter.number}: ${chapter.title}`
+            : chapter.title,
           content: chapterHtml,
         });
       }

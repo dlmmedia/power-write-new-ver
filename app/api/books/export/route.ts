@@ -3,6 +3,7 @@ import { getBookWithChaptersAndBibliography, ensureDemoUser } from '@/lib/db/ope
 import { ExportService } from '@/lib/services/export-service';
 import { ExportServiceAdvanced } from '@/lib/services/export-service-advanced';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
+import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS } from '@/lib/types/publishing';
 
 // Configure route for longer execution time and Node.js runtime
 export const runtime = 'nodejs';
@@ -120,8 +121,9 @@ export async function POST(request: NextRequest) {
       console.log(`Book has bibliography enabled with ${convertedReferences.length} references`);
     }
 
-    // Get backCoverUrl from metadata (since column not yet in database)
-    const bookMetadata = (book.metadata as any) || {};
+    // Get backCoverUrl and publishingSettings from metadata
+    const bookMetadata = (book.metadata as Record<string, unknown>) || {};
+    const publishingSettings: PublishingSettings = (bookMetadata.publishingSettings as PublishingSettings) || DEFAULT_PUBLISHING_SETTINGS;
     
     // Prepare export data
     const exportData = {
@@ -130,7 +132,7 @@ export async function POST(request: NextRequest) {
       description: book.summary || '',
       genre: book.genre || 'Unknown Genre',
       coverUrl: book.coverUrl || undefined, // Include front cover image URL if available
-      backCoverUrl: bookMetadata.backCoverUrl || undefined, // Include back cover image URL from metadata
+      backCoverUrl: (bookMetadata.backCoverUrl as string) || undefined, // Include back cover image URL from metadata
       chapters: book.chapters
         .sort((a, b) => a.chapterNumber - b.chapterNumber)
         .map(ch => ({
@@ -139,6 +141,7 @@ export async function POST(request: NextRequest) {
           content: ch.content,
         })),
       bibliography: bibliographyData,
+      publishingSettings, // Include publishing settings for formatted exports
     };
 
     const baseFilename = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
