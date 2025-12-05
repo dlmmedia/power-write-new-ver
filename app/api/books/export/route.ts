@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     const { userId, bookId, format } = body as {
       userId: string;
       bookId: string | number;
-      format: 'txt' | 'md' | 'html' | 'pdf' | 'docx';
+      format: 'txt' | 'md' | 'html' | 'pdf' | 'docx' | 'epub';
     };
 
     // Validate required fields
@@ -25,9 +25,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!['txt', 'md', 'html', 'pdf', 'docx'].includes(format)) {
+    if (!['txt', 'md', 'html', 'pdf', 'docx', 'epub'].includes(format)) {
       return NextResponse.json(
-        { error: 'Invalid format. Must be txt, md, html, pdf, or docx' },
+        { error: 'Invalid format. Must be txt, md, html, pdf, docx, or epub' },
         { status: 400 }
       );
     }
@@ -186,6 +186,19 @@ export async function POST(request: NextRequest) {
           mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
           filename = `${baseFilename}.docx`;
           console.log(`DOCX generated successfully, size: ${content.length} bytes`);
+          break;
+
+        case 'epub':
+          try {
+            console.log(`Generating EPUB for book: ${book.title} with ${exportData.chapters.length} chapters`);
+            content = await ExportServiceAdvanced.exportBookAsEPUB(exportData);
+            mimeType = 'application/epub+zip';
+            filename = `${baseFilename}.epub`;
+            console.log(`EPUB generated successfully, size: ${content.length} bytes`);
+          } catch (epubError) {
+            console.error('EPUB generation error details:', epubError);
+            throw new Error(`EPUB generation failed: ${epubError instanceof Error ? epubError.message : 'Unknown error'}`);
+          }
           break;
         
         default:

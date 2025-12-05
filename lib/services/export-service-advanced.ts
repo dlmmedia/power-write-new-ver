@@ -1,4 +1,4 @@
-// Advanced Export Service with PDF and DOCX support
+// Advanced Export Service with PDF, DOCX, and EPUB support
 // Professional formatting with perfect page numbers and TOC
 import React from 'react';
 import { 
@@ -30,6 +30,7 @@ import PDFDocument from './pdf-document';
 import { registerFonts } from './pdf-fonts';
 import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
+import epub, { Options as EPubOptions, Chapter as EPubChapter } from 'epub-gen-memory';
 
 interface BookExport {
   title: string;
@@ -1146,5 +1147,435 @@ export class ExportServiceAdvanced {
         reject(error);
       }
     });
+  }
+
+  /**
+   * Export book as EPUB with KDP-compliant formatting
+   * Following Amazon KDP guidelines for optimal Kindle publishing
+   */
+  static async exportBookAsEPUB(book: BookExport): Promise<Buffer> {
+    console.log(`Generating KDP-compliant EPUB for: ${book.title}`);
+    console.log(`EPUB has ${book.chapters?.length || 0} chapters`);
+
+    try {
+      // KDP-optimized CSS for reflowable content
+      // Using Georgia/Garamond-style fonts, left alignment, first-line indent
+      const kdpStyles = `
+        /* KDP-Optimized Styles for Reflowable EPUB */
+        
+        /* Base body styles */
+        body {
+          font-family: Georgia, "Times New Roman", Times, serif;
+          font-size: 1em;
+          line-height: 1.5;
+          text-align: left;
+          margin: 0;
+          padding: 0;
+        }
+        
+        /* Paragraph formatting - KDP recommended */
+        p {
+          text-indent: 1.5em;
+          margin: 0 0 0.5em 0;
+          text-align: left;
+          orphans: 2;
+          widows: 2;
+        }
+        
+        /* First paragraph after heading - no indent */
+        h1 + p, h2 + p, h3 + p,
+        .chapter-start p:first-of-type {
+          text-indent: 0;
+        }
+        
+        /* Chapter title - Heading 1 for KDP TOC */
+        h1 {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 1.8em;
+          font-weight: bold;
+          text-align: center;
+          margin: 2em 0 1em 0;
+          padding: 0;
+          page-break-before: always;
+          page-break-after: avoid;
+        }
+        
+        /* Section heading - Heading 2 */
+        h2 {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 1.4em;
+          font-weight: bold;
+          text-align: center;
+          margin: 1.5em 0 0.8em 0;
+          page-break-after: avoid;
+        }
+        
+        /* Chapter number styling */
+        .chapter-number {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 0.9em;
+          font-weight: normal;
+          text-transform: uppercase;
+          letter-spacing: 0.2em;
+          text-align: center;
+          margin: 2em 0 0.3em 0;
+          color: #666;
+        }
+        
+        /* Chapter title */
+        .chapter-title {
+          font-family: Georgia, "Times New Roman", serif;
+          font-size: 1.6em;
+          font-style: italic;
+          text-align: center;
+          margin: 0 0 1.5em 0;
+          page-break-after: avoid;
+        }
+        
+        /* Scene break */
+        .scene-break {
+          text-align: center;
+          margin: 1.5em 0;
+          font-size: 1.2em;
+          color: #888;
+        }
+        
+        /* Title page styles */
+        .title-page {
+          text-align: center;
+          margin-top: 20%;
+        }
+        
+        .book-title {
+          font-size: 2.5em;
+          font-weight: bold;
+          margin-bottom: 0.5em;
+        }
+        
+        .book-author {
+          font-size: 1.5em;
+          font-style: italic;
+          margin-bottom: 1em;
+        }
+        
+        .book-genre {
+          font-size: 1em;
+          text-transform: uppercase;
+          letter-spacing: 0.15em;
+          color: #666;
+        }
+        
+        /* Copyright page */
+        .copyright-page {
+          text-align: center;
+          font-size: 0.9em;
+          margin-top: 30%;
+        }
+        
+        .copyright-page p {
+          text-indent: 0;
+          margin: 0.5em 0;
+        }
+        
+        /* TOC styles */
+        .toc {
+          margin: 2em 0;
+        }
+        
+        .toc h1 {
+          margin-bottom: 1.5em;
+        }
+        
+        .toc-entry {
+          text-indent: 0;
+          margin: 0.7em 0;
+        }
+        
+        .toc-entry a {
+          text-decoration: none;
+          color: inherit;
+        }
+        
+        .toc-chapter-num {
+          font-size: 0.85em;
+          color: #666;
+          margin-right: 0.5em;
+        }
+        
+        /* Description/blurb */
+        .description {
+          font-style: italic;
+          text-align: center;
+          margin: 2em 1em;
+          padding: 1em;
+          border-top: 1px solid #ccc;
+          border-bottom: 1px solid #ccc;
+        }
+        
+        /* Bibliography styles */
+        .bibliography {
+          margin-top: 2em;
+        }
+        
+        .bibliography h1 {
+          margin-bottom: 1em;
+        }
+        
+        .bibliography-entry {
+          text-indent: -1.5em;
+          margin-left: 1.5em;
+          margin-bottom: 0.8em;
+        }
+        
+        /* Images - centered, max width */
+        img {
+          max-width: 100%;
+          height: auto;
+          display: block;
+          margin: 1em auto;
+        }
+        
+        /* Cover image */
+        .cover-image {
+          width: 100%;
+          height: auto;
+          margin: 0;
+          padding: 0;
+        }
+        
+        /* Blockquote styling */
+        blockquote {
+          margin: 1em 2em;
+          font-style: italic;
+          border-left: 3px solid #ccc;
+          padding-left: 1em;
+        }
+        
+        /* Emphasis */
+        em, i {
+          font-style: italic;
+        }
+        
+        strong, b {
+          font-weight: bold;
+        }
+      `;
+
+      // Prepare chapters for EPUB
+      const epubChapters: EPubChapter[] = [];
+
+      // 1. Title Page
+      const titlePageContent = `
+        <div class="title-page">
+          <p class="book-title">${this.escapeHtml(book.title)}</p>
+          <p class="book-author">by ${this.escapeHtml(book.author)}</p>
+          ${book.genre ? `<p class="book-genre">${this.escapeHtml(book.genre)}</p>` : ''}
+          ${book.description ? `<div class="description">${this.escapeHtml(book.description)}</div>` : ''}
+        </div>
+      `;
+      
+      epubChapters.push({
+        title: 'Title Page',
+        content: titlePageContent,
+        excludeFromToc: true,
+        beforeToc: true,
+      });
+
+      // 2. Copyright Page
+      const currentYear = new Date().getFullYear();
+      const copyrightContent = `
+        <div class="copyright-page">
+          <p><strong>${this.escapeHtml(book.title)}</strong></p>
+          <p>by ${this.escapeHtml(book.author)}</p>
+          <br/>
+          <p>Copyright © ${currentYear} ${this.escapeHtml(book.author)}</p>
+          <p>All rights reserved.</p>
+          <br/>
+          <p>No part of this publication may be reproduced, stored in a retrieval system,
+          or transmitted in any form or by any means, electronic, mechanical, photocopying,
+          recording, or otherwise, without the prior written permission of the copyright holder.</p>
+          <br/>
+          <p>Published by Dynamic Labs Media</p>
+          <p>dlmworld.com</p>
+          <br/>
+          <p><em>Created with PowerWrite</em></p>
+        </div>
+      `;
+      
+      epubChapters.push({
+        title: 'Copyright',
+        content: copyrightContent,
+        excludeFromToc: true,
+        beforeToc: true,
+      });
+
+      // 3. In-Book Table of Contents (required by KDP)
+      let tocContent = `
+        <div class="toc">
+          <h1>Contents</h1>
+      `;
+      
+      book.chapters.forEach((chapter) => {
+        tocContent += `
+          <p class="toc-entry">
+            <a href="#chapter-${chapter.number}">
+              <span class="toc-chapter-num">Chapter ${chapter.number}</span>
+              ${this.escapeHtml(chapter.title)}
+            </a>
+          </p>
+        `;
+      });
+      
+      if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
+        tocContent += `
+          <p class="toc-entry">
+            <a href="#bibliography">Bibliography</a>
+          </p>
+        `;
+      }
+      
+      tocContent += '</div>';
+      
+      epubChapters.push({
+        title: 'Table of Contents',
+        content: tocContent,
+        excludeFromToc: true,
+        beforeToc: true,
+      });
+
+      // 4. Book Chapters
+      for (const chapter of book.chapters) {
+        const sanitizedContent = this.sanitizeChapterContent(chapter);
+        const paragraphs = sanitizedContent.split('\n\n').filter(p => p.trim());
+        
+        let chapterHtml = `
+          <div class="chapter-start" id="chapter-${chapter.number}">
+            <p class="chapter-number">Chapter ${chapter.number}</p>
+            <h1 class="chapter-title">${this.escapeHtml(chapter.title)}</h1>
+        `;
+        
+        paragraphs.forEach((para, index) => {
+          const trimmedPara = para.trim();
+          
+          // Check for scene breaks
+          if (this.isSceneBreak(trimmedPara)) {
+            chapterHtml += '<p class="scene-break">* * *</p>';
+          } else {
+            // Convert plain text to HTML paragraphs
+            const htmlPara = this.escapeHtml(trimmedPara);
+            chapterHtml += `<p>${htmlPara}</p>`;
+          }
+        });
+        
+        chapterHtml += '</div>';
+        
+        epubChapters.push({
+          title: `Chapter ${chapter.number}: ${chapter.title}`,
+          content: chapterHtml,
+        });
+      }
+
+      // 5. Bibliography (if enabled)
+      if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
+        const { config, references } = book.bibliography;
+        
+        let bibHtml = `
+          <div class="bibliography" id="bibliography">
+            <h1>Bibliography</h1>
+        `;
+        
+        const sortedReferences = CitationService.sortReferences(
+          references,
+          config.sortBy,
+          config.sortDirection
+        );
+        
+        sortedReferences.forEach((ref, index) => {
+          const formatted = CitationService.formatReference(ref, config.citationStyle, index + 1);
+          // Remove HTML tags but preserve the text
+          const plainText = formatted.replace(/<[^>]*>/g, '');
+          
+          let refText = plainText;
+          if (config.numberingStyle === 'numeric') {
+            refText = `${index + 1}. ${plainText}`;
+          } else if (config.numberingStyle === 'alphabetic') {
+            refText = `${String.fromCharCode(65 + index)}. ${plainText}`;
+          }
+          
+          bibHtml += `<p class="bibliography-entry">${this.escapeHtml(refText)}</p>`;
+        });
+        
+        bibHtml += `
+            <p style="text-align: center; margin-top: 2em; font-style: italic; font-size: 0.9em;">
+              References formatted in ${config.citationStyle} style.
+            </p>
+          </div>
+        `;
+        
+        epubChapters.push({
+          title: 'Bibliography',
+          content: bibHtml,
+        });
+      }
+
+      // EPUB options following KDP guidelines
+      const epubOptions: EPubOptions = {
+        title: book.title,
+        author: book.author,
+        publisher: 'Dynamic Labs Media',
+        description: book.description || `${book.title} by ${book.author}`,
+        lang: 'en',
+        tocTitle: 'Table of Contents',
+        prependChapterTitles: false, // We handle chapter titles ourselves
+        css: kdpStyles,
+        verbose: false,
+        // Add cover if available - pass URL string
+        ...(book.coverUrl && {
+          cover: book.coverUrl,
+        }),
+      };
+
+      // Generate EPUB buffer - content is passed as second argument
+      console.log('Generating EPUB buffer...');
+      const epubBuffer = await epub(epubOptions, epubChapters);
+      
+      console.log(`EPUB generated successfully. Size: ${epubBuffer.length} bytes`);
+      
+      // Check file size (KDP recommends under 15-20 MB)
+      const sizeMB = epubBuffer.length / (1024 * 1024);
+      if (sizeMB > 15) {
+        console.warn(`EPUB file size (${sizeMB.toFixed(2)} MB) exceeds KDP recommended limit of 15 MB`);
+      }
+      
+      return epubBuffer;
+    } catch (error) {
+      console.error('EPUB generation error:', error);
+      if (error instanceof Error) {
+        console.error('Error stack:', error.stack);
+        console.error('Error message:', error.message);
+      }
+      throw new Error(`EPUB generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Helper: Check if text is a scene break
+   */
+  private static isSceneBreak(text: string): boolean {
+    const trimmed = text.trim();
+    return trimmed === '***' || trimmed === '* * *' || trimmed === '---' || 
+           trimmed === '- - -' || (trimmed.length <= 5 && /^[*\-]+$/.test(trimmed.replace(/\s/g, '')));
+  }
+
+  /**
+   * Helper: Escape HTML special characters
+   */
+  private static escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 }

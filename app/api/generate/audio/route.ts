@@ -89,6 +89,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
+      // Check if any chapters already have audio (for regeneration)
+      const chaptersWithExistingAudio = book.chapters
+        .filter(ch => chapterNumbers.includes(ch.chapterNumber) && ch.audioUrl)
+        .map(ch => ch.chapterNumber);
+      
+      if (chaptersWithExistingAudio.length > 0) {
+        console.log(`[Audio API] Regenerating ${chaptersWithExistingAudio.length} chapters with existing audio:`, chaptersWithExistingAudio);
+      }
+
       const audioResults = await ttsService.generateMultipleChapters(
         chaptersToGenerate,
         book.title,
@@ -97,7 +106,7 @@ export async function POST(request: NextRequest) {
 
       console.log(`[Audio API] Generated audio for ${audioResults.length} chapters`);
 
-      // Save audio URLs to database
+      // Save audio URLs to database (this will overwrite existing audio URLs for regeneration)
       for (const audioResult of audioResults) {
         const chapter = await getChapterByBookAndNumber(book.id, audioResult.chapterNumber);
         if (chapter) {
@@ -112,7 +121,8 @@ export async function POST(request: NextRequest) {
               generatedAt: new Date().toISOString(),
             }
           );
-          console.log(`[Audio API] Saved audio URL for chapter ${audioResult.chapterNumber}`);
+          const wasRegenerated = chaptersWithExistingAudio.includes(audioResult.chapterNumber);
+          console.log(`[Audio API] ${wasRegenerated ? 'Regenerated' : 'Saved'} audio URL for chapter ${audioResult.chapterNumber}`);
         }
       }
 
@@ -125,6 +135,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate full audiobook
+    // Note: This will overwrite any existing full audiobook file with the same filename
     const fullText = book.chapters
       .sort((a, b) => a.chapterNumber - b.chapterNumber)
       .map(ch => `Chapter ${ch.chapterNumber}: ${ch.title}\n\n${ch.content}`)

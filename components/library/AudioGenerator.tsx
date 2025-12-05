@@ -130,6 +130,7 @@ export function AudioGenerator({
   const [playingVoiceSample, setPlayingVoiceSample] = useState<VoiceType | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [generationProgress, setGenerationProgress] = useState<string>('');
   const voiceSampleRef = useRef<HTMLAudioElement | null>(null);
   
   // Voice settings
@@ -368,6 +369,7 @@ export function AudioGenerator({
     setIsGenerating(true);
     setGeneratedAudios([]);
     setFullAudioUrl(null);
+    setGenerationProgress('Starting audio generation...');
 
     try {
       const requestBody = {
@@ -380,12 +382,21 @@ export function AudioGenerator({
       };
 
       console.log('[AudioGenerator] Starting audio generation:', requestBody);
+      console.log('[AudioGenerator] This may take several minutes...');
+
+      setGenerationProgress(
+        generationMode === 'chapters' 
+          ? `Generating audio for ${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''}...`
+          : 'Generating full audiobook...'
+      );
 
       const response = await fetch('/api/generate/audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(requestBody),
       });
+
+      setGenerationProgress('Processing response...');
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({ error: 'Failed to parse error response' }));
@@ -403,12 +414,14 @@ export function AudioGenerator({
 
       if (data.type === 'full') {
         console.log('[AudioGenerator] Full audiobook generated:', data.audioUrl);
+        setGenerationProgress('Full audiobook generated successfully!');
         setFullAudioUrl(data.audioUrl);
         if (onAudioGenerated) {
           onAudioGenerated({ type: 'full', audioUrl: data.audioUrl });
         }
       } else if (data.type === 'chapters') {
         console.log('[AudioGenerator] Chapter audio generated:', data.chapters?.length, 'chapters');
+        setGenerationProgress(`Successfully generated ${data.chapters?.length} chapter${data.chapters?.length !== 1 ? 's' : ''}!`);
         setGeneratedAudios(data.chapters);
         
         const updatedChapters = [...chaptersData];
@@ -430,11 +443,19 @@ export function AudioGenerator({
       }
     } catch (error) {
       console.error('[AudioGenerator] Audio generation error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate audio';
+      
+      let errorMessage = 'Failed to generate audio';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setGenerationProgress('');
       alert(`Audio Generation Failed\n\n${errorMessage}`);
     } finally {
       setIsGenerating(false);
       setGeneratingChapter(null);
+      // Clear progress message after a delay
+      setTimeout(() => setGenerationProgress(''), 3000);
     }
   };
 
@@ -662,6 +683,16 @@ export function AudioGenerator({
   const totalChapters = chaptersData.length;
   const audioCompletionPercent = totalChapters > 0 ? (chaptersWithAudio / totalChapters) * 100 : 0;
   const totalAudioDuration = chaptersData.reduce((sum, ch) => sum + (ch.audioDuration || 0), 0);
+
+  // Calculate how many selected chapters already have audio (for regeneration indicator)
+  const selectedChaptersWithAudio = generationMode === 'chapters' 
+    ? selectedChapters.filter(num => {
+        const chapter = chaptersData.find(ch => ch.number === num);
+        return chapter && chapter.audioUrl;
+      }).length
+    : 0;
+  
+  const isRegenerating = selectedChaptersWithAudio > 0 || (generationMode === 'full' && chaptersWithAudio > 0);
 
   const selectedVoiceInfo = voices.find(v => v.id === selectedVoice);
 
@@ -1059,6 +1090,19 @@ export function AudioGenerator({
                   <Button variant="outline" size="sm" onClick={selectMissingAudio}>
                     Missing Only ({totalChapters - chaptersWithAudio})
                   </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => {
+                      // Select all chapters that have audio (for regeneration)
+                      const chaptersWithAudioNumbers = chaptersData
+                        .filter(ch => ch.audioUrl)
+                        .map(ch => ch.number);
+                      setSelectedChapters(chaptersWithAudioNumbers);
+                    }}
+                  >
+                    With Audio ({chaptersWithAudio})
+                  </Button>
                   <Button variant="outline" size="sm" onClick={clearSelection}>
                     Clear
                   </Button>
@@ -1083,6 +1127,7 @@ export function AudioGenerator({
                       }`}
                       onClick={() => toggleChapterSelection(chapter.number)}
                       whileHover={{ x: 4 }}
+                      title={hasAudio && !isSelected ? 'Click to regenerate this chapter\'s audio' : undefined}
                     >
                       {/* Checkbox */}
                       <motion.div
@@ -1125,6 +1170,11 @@ export function AudioGenerator({
                             <Badge variant="success" size="sm">
                               <Headphones className="w-3 h-3 mr-1" /> Ready
                             </Badge>
+                            {isSelected && (
+                              <Badge variant="warning" size="sm" className="text-xs">
+                                Will Regenerate
+                              </Badge>
+                            )}
                             <motion.button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1161,12 +1211,24 @@ export function AudioGenerator({
         <div className="bg-white dark:bg-gray-900 rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h4 className="font-bold text-gray-900 dark:text-white">Ready to Generate</h4>
+              <h4 className="font-bold text-gray-900 dark:text-white">
+                {isRegenerating ? 'Ready to Regenerate' : 'Ready to Generate'}
+              </h4>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {generationMode === 'full' 
                   ? `Full audiobook with ${totalChapters} chapters`
                   : `${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''} selected`
                 }
+                {isRegenerating && generationMode === 'chapters' && (
+                  <span className="ml-2 text-yellow-600 dark:text-yellow-400 font-medium">
+                    ({selectedChaptersWithAudio} will be regenerated)
+                  </span>
+                )}
+                {isRegenerating && generationMode === 'full' && (
+                  <span className="ml-2 text-yellow-600 dark:text-yellow-400 font-medium">
+                    (will overwrite existing audio)
+                  </span>
+                )}
               </p>
             </div>
             <div className="text-right">
@@ -1204,16 +1266,38 @@ export function AudioGenerator({
               {isGenerating ? (
                 <span className="flex items-center gap-3">
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating Audio...
+                  {isRegenerating ? 'Regenerating Audio...' : 'Generating Audio...'}
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
                   <Mic className="w-5 h-5" />
-                  Generate Audiobook
+                  {isRegenerating ? 'Regenerate Audiobook' : 'Generate Audiobook'}
                 </span>
               )}
             </Button>
           </motion.div>
+          
+          {/* Regeneration Warning */}
+          <AnimatePresence>
+            {isRegenerating && !isGenerating && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800"
+              >
+                <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>
+                    {generationMode === 'full' 
+                      ? 'This will regenerate the full audiobook and overwrite the existing audio file.'
+                      : `This will regenerate ${selectedChaptersWithAudio} chapter${selectedChaptersWithAudio !== 1 ? 's' : ''} that already have audio. The existing audio files will be replaced.`
+                    }
+                  </span>
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           <AnimatePresence>
             {isGenerating && (
@@ -1223,10 +1307,17 @@ export function AudioGenerator({
                 exit={{ opacity: 0, height: 0 }}
                 className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800"
               >
-                <p className="text-sm text-yellow-800 dark:text-yellow-300 flex items-center gap-2">
-                  <Clock className="w-4 h-4 animate-pulse" />
-                  This may take several minutes. Please don't close this page.
-                </p>
+                <div className="flex items-start gap-3">
+                  <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400 animate-pulse flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-800 dark:text-yellow-300 mb-1">
+                      {generationProgress || 'Generating audio...'}
+                    </p>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-400">
+                      This may take several minutes. Please don't close this page.
+                    </p>
+                  </div>
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

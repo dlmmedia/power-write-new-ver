@@ -116,6 +116,8 @@ export class TTSService {
         access: 'public',
         contentType: 'audio/mpeg',
         token: process.env.BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false, // Don't add random suffix
+        allowOverwrite: true, // Allow overwriting for regeneration
       });
 
       // Estimate duration (rough: 150 words per minute, 5 chars per word)
@@ -201,6 +203,8 @@ export class TTSService {
         access: 'public',
         contentType: 'audio/mpeg',
         token: process.env.BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false, // Don't add random suffix
+        allowOverwrite: true, // Allow overwriting for regeneration
       });
 
       const estimatedDuration = Math.ceil((chapterText.length / 5) / 150 * 60);
@@ -229,17 +233,23 @@ export class TTSService {
   ): Promise<Array<{ chapterNumber: number; audioUrl: string; duration: number }>> {
     const results = [];
     
+    console.log(`[TTS Service] Starting generation of ${chapters.length} chapters`);
+    
     // Process chapters sequentially to avoid rate limiting
     for (let i = 0; i < chapters.length; i++) {
       const chapter = chapters[i];
-      console.log(`Processing chapter ${chapter.number} (${i + 1}/${chapters.length})`);
+      console.log(`[TTS Service] Processing chapter ${chapter.number} (${i + 1}/${chapters.length})`);
       
+      const startTime = Date.now();
       const audio = await this.generateChapterAudio(
         chapter.text,
         chapter.number,
         bookTitle,
         config
       );
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      
+      console.log(`[TTS Service] Chapter ${chapter.number} completed in ${elapsed}s`);
       
       results.push({
         chapterNumber: chapter.number,
@@ -253,10 +263,12 @@ export class TTSService {
 
       // Add small delay to respect rate limits
       if (i < chapters.length - 1) {
+        console.log(`[TTS Service] Waiting 1s before next chapter...`);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     }
 
+    console.log(`[TTS Service] All ${chapters.length} chapters completed successfully`);
     return results;
   }
 

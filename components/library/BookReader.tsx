@@ -151,11 +151,21 @@ export const BookReader: React.FC<BookReaderProps> = ({
   };
 
   const toggleAudioPlayer = () => {
-    if (currentChapter.audioUrl) {
-      setShowAudioPlayer(!showAudioPlayer);
+    if (currentChapter.audioUrl && !showAudioPlayer) {
+      // If audio exists and player is hidden, show the player
+      setShowAudioPlayer(true);
+    } else if (currentChapter.audioUrl && showAudioPlayer) {
+      // If audio exists and player is shown, hide it
+      setShowAudioPlayer(false);
     } else {
+      // If no audio, show voice selector to generate
       setShowVoiceSelector(true);
     }
+  };
+
+  const handleRegenerateAudio = () => {
+    // Allow regeneration even when audio exists
+    setShowVoiceSelector(true);
   };
 
   const handleDownloadAudio = async () => {
@@ -282,8 +292,15 @@ export const BookReader: React.FC<BookReaderProps> = ({
                   />
                   <div className="absolute right-0 top-full mt-2 w-80 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden animate-fade-in">
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
-                      <h3 className="font-bold text-gray-900 dark:text-white">Choose Voice</h3>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Select a narrator for this chapter</p>
+                      <h3 className="font-bold text-gray-900 dark:text-white">
+                        {currentChapter.audioUrl ? 'Regenerate Audio' : 'Choose Voice'}
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {currentChapter.audioUrl 
+                          ? 'Select a new voice to regenerate this chapter\'s audio'
+                          : 'Select a narrator for this chapter'
+                        }
+                      </p>
                     </div>
                     
                     <div className="max-h-80 overflow-y-auto">
@@ -339,14 +356,21 @@ export const BookReader: React.FC<BookReaderProps> = ({
                       />
                     </div>
 
-                    {/* Generate Button */}
+                    {/* Generate/Regenerate Button */}
                     <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                      {currentChapter.audioUrl && (
+                        <div className="mb-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                          <p className="text-xs text-yellow-800 dark:text-yellow-300">
+                            ⚠️ This will replace the existing audio file for this chapter.
+                          </p>
+                        </div>
+                      )}
                       <button
                         onClick={() => handleGenerateChapterAudio(selectedVoice)}
                         className="w-full py-3 bg-yellow-400 hover:bg-yellow-300 text-black font-bold rounded-lg transition-all flex items-center justify-center gap-2"
                       >
                         <span>🎙️</span>
-                        Generate with {selectedVoiceInfo?.name}
+                        {currentChapter.audioUrl ? 'Regenerate' : 'Generate'} with {selectedVoiceInfo?.name}
                       </button>
                     </div>
                   </div>
@@ -354,16 +378,26 @@ export const BookReader: React.FC<BookReaderProps> = ({
               )}
             </div>
 
-            {/* Download Button (if audio exists) */}
+            {/* Download and Regenerate Buttons (if audio exists) */}
             {currentChapter.audioUrl && (
-              <button
-                onClick={handleDownloadAudio}
-                className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                title="Download audio"
-              >
-                <span>⬇️</span>
-                <span className="text-sm text-gray-700 dark:text-gray-300">Download</span>
-              </button>
+              <>
+                <button
+                  onClick={handleRegenerateAudio}
+                  className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors"
+                  title="Regenerate audio with different voice"
+                >
+                  <span>🔄</span>
+                  <span className="text-sm font-medium">Regenerate</span>
+                </button>
+                <button
+                  onClick={handleDownloadAudio}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Download audio"
+                >
+                  <span>⬇️</span>
+                  <span className="text-sm text-gray-700 dark:text-gray-300">Download</span>
+                </button>
+              </>
             )}
 
             {/* Chapter Navigator */}

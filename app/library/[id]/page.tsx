@@ -87,7 +87,7 @@ export default function BookDetailPage() {
     }
   };
 
-  const handleExport = async (format: 'pdf' | 'docx' | 'txt' | 'md' | 'html') => {
+  const handleExport = async (format: 'pdf' | 'docx' | 'txt' | 'md' | 'html' | 'epub') => {
     if (!book) return;
     
     setIsExporting(true);
@@ -463,6 +463,12 @@ export default function BookDetailPage() {
                         className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
                       >
                         📝 Word (DOCX)
+                      </button>
+                      <button
+                        onClick={() => handleExport('epub')}
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
+                      >
+                        📱 EPUB (Kindle/KDP)
                       </button>
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                       <button
