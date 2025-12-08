@@ -15,6 +15,7 @@ import { FlipBookCover } from '@/components/library/FlipBookCover';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
+import type { BibliographyConfig, Reference } from '@/lib/types/bibliography';
 
 import { 
   BookOpen, 
