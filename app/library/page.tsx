@@ -8,6 +8,22 @@ import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
+import { 
+  Library, 
+  CheckCircle2, 
+  Type, 
+  Layers,
+  Search,
+  Plus,
+  ArrowLeft,
+  MoreVertical,
+  Play,
+  Loader2,
+  BookOpen,
+  FileText,
+  Palette,
+  Image as ImageIcon
+} from 'lucide-react';
 
 interface BookListItem {
   id: number;
@@ -204,14 +220,15 @@ export default function LibraryPage() {
       {/* Header */}
       <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
         <div className="container mx-auto px-4 py-4">
-          {/* Desktop Header */}
+            {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/')}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-2"
               >
-                ← Home
+                <ArrowLeft className="w-4 h-4" />
+                Home
               </button>
               <Logo size="md" />
               <h1 className="text-2xl font-bold">My Library</h1>
@@ -219,8 +236,9 @@ export default function LibraryPage() {
 
             <div className="flex items-center gap-3">
               <ThemeToggleCompact />
-              <Button variant="primary" onClick={() => router.push('/studio')}>
-                + New Book
+              <Button variant="primary" onClick={() => router.push('/studio')} className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                New Book
               </Button>
             </div>
           </div>
@@ -231,16 +249,17 @@ export default function LibraryPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => router.push('/')}
-                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors flex items-center gap-1"
                 >
-                  ← Home
+                  <ArrowLeft className="w-4 h-4" />
                 </button>
                 <Logo size="sm" />
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggleCompact />
-                <Button variant="primary" size="sm" onClick={() => router.push('/studio')}>
-                  + New
+                <Button variant="primary" size="sm" onClick={() => router.push('/studio')} className="flex items-center gap-1">
+                  <Plus className="w-4 h-4" />
+                  New
                 </Button>
               </div>
             </div>
@@ -288,28 +307,51 @@ export default function LibraryPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-8">
-          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{books.length}</div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Books</div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-yellow-400 dark:hover:border-yellow-500">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-lg text-yellow-600 dark:text-yellow-400 group-hover:scale-110 transition-transform">
+                <Library className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Books</div>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-white">{books.length}</div>
           </div>
-          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+
+          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-green-400 dark:hover:border-green-500">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
+                <CheckCircle2 className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Completed</div>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-white">
               {books.filter((b) => b.status === 'completed').length}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
           </div>
-          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+
+          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-blue-400 dark:hover:border-blue-500">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+                <Type className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Words</div>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-white">
               {books.reduce((sum, b) => sum + (b.metadata?.wordCount || 0), 0).toLocaleString()}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Words</div>
           </div>
-          <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-4">
-            <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+
+          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-purple-400 dark:hover:border-purple-500">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Chapters</div>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 dark:text-white">
               {books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)}
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Total Chapters</div>
           </div>
         </div>
 
@@ -385,7 +427,10 @@ export default function LibraryPage() {
                                   Generating...
                                 </span>
                               ) : (
-                                '▶️ Continue Generation'
+                                <span className="flex items-center gap-2">
+                                  <Play className="w-4 h-4" />
+                                  Continue Generation
+                                </span>
                               )}
                             </button>
                           </div>
@@ -398,14 +443,14 @@ export default function LibraryPage() {
                           >
                             {generatingCovers.has(book.id) ? (
                               <span className="flex items-center gap-2">
-                                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                </svg>
+                                <Loader2 className="animate-spin h-4 w-4" />
                                 Generating...
                               </span>
                             ) : (
-                              '🎨 Generate Cover'
+                              <span className="flex items-center gap-2">
+                                <Palette className="w-4 h-4" />
+                                Generate Cover
+                              </span>
                             )}
                           </button>
                         )}
@@ -431,11 +476,11 @@ export default function LibraryPage() {
 
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
-                      <span className="text-yellow-400">📖</span>
+                      <BookOpen className="w-4 h-4 text-yellow-500" />
                       <span className="text-gray-400">{book.metadata?.chapters || 0} chapters</span>
                     </div>
                     <div className="flex items-center gap-1">
-                      <span className="text-yellow-400">📝</span>
+                      <FileText className="w-4 h-4 text-yellow-500" />
                       <span className="text-gray-400">
                         {(book.metadata?.wordCount || 0).toLocaleString()} words
                       </span>

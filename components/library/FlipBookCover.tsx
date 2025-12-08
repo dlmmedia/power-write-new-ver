@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Clock, BookOpen, Sparkles, Type, Book } from 'lucide-react';
 
 interface FlipBookCoverProps {
   title: string;
@@ -144,19 +145,19 @@ export function FlipBookCover({
                   )}
 
                   {/* Stats grid */}
-                  <div className="grid grid-cols-2 gap-1.5 text-[9px] mb-3">
-                    <div className="bg-white/5 rounded px-2 py-1.5">
-                      <span className="text-yellow-400 font-bold">{chapters}</span>
-                      <span className="text-gray-400 ml-1">Chapters</span>
+                  <div className="grid grid-cols-2 gap-2 text-[10px] mb-4">
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-2 flex flex-col items-center justify-center backdrop-blur-sm">
+                      <span className="text-yellow-400 font-bold text-xs">{chapters}</span>
+                      <span className="text-gray-400 text-[8px] uppercase tracking-wider mt-0.5">Chapters</span>
                     </div>
-                    <div className="bg-white/5 rounded px-2 py-1.5">
-                      <span className="text-yellow-400 font-bold">{wordCount.toLocaleString()}</span>
-                      <span className="text-gray-400 ml-1">Words</span>
+                    <div className="bg-white/5 border border-white/10 rounded-lg p-2 flex flex-col items-center justify-center backdrop-blur-sm">
+                      <span className="text-yellow-400 font-bold text-xs">{wordCount.toLocaleString()}</span>
+                      <span className="text-gray-400 text-[8px] uppercase tracking-wider mt-0.5">Words</span>
                     </div>
-                    <div className="bg-white/5 rounded px-2 py-1.5 col-span-2">
-                      <span className="text-gray-400">~</span>
-                      <span className="text-yellow-400 font-bold ml-1">{Math.ceil(wordCount / 200)}</span>
-                      <span className="text-gray-400 ml-1">min read</span>
+                    <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 flex items-center justify-center gap-2 backdrop-blur-sm">
+                      <span className="text-gray-400">⏱️</span>
+                      <span className="text-yellow-400 font-bold text-xs">~{Math.ceil(wordCount / 200)}</span>
+                      <span className="text-gray-400 text-[8px] uppercase tracking-wider">min read</span>
                     </div>
                   </div>
 

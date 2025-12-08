@@ -16,7 +16,25 @@ import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
 
-import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
+import { 
+  BookOpen, 
+  Clock, 
+  PenTool, 
+  BarChart2, 
+  MoreVertical, 
+  Download, 
+  Share2, 
+  Trash2, 
+  Archive, 
+  Copy,
+  ChevronLeft,
+  Edit3,
+  Book,
+  FileText,
+  Activity,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 
 interface Chapter {
   id: number;
@@ -426,14 +444,17 @@ export default function BookDetailPage() {
               <ThemeToggleCompact />
               {book.chapters && book.chapters.length > 0 && (
                 <>
-                  <Button variant="outline" onClick={() => setShowBibliography(true)}>
-                    📚 Bibliography
+                  <Button variant="outline" onClick={() => setShowBibliography(true)} className="flex items-center gap-2">
+                    <BookOpen className="w-4 h-4" />
+                    Bibliography
                   </Button>
-                  <Button variant="outline" onClick={() => setIsEditing(true)}>
-                    ✏️ Edit
+                  <Button variant="outline" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+                    <Edit3 className="w-4 h-4" />
+                    Edit
                   </Button>
-                  <Button variant="primary" onClick={startReading}>
-                    📖 Read Book
+                  <Button variant="primary" onClick={startReading} className="flex items-center gap-2">
+                    <Book className="w-4 h-4" />
+                    Read Book
                   </Button>
                 </>
               )}
@@ -442,6 +463,7 @@ export default function BookDetailPage() {
                   variant="outline" 
                   onClick={() => setShowExportMenu(!showExportMenu)}
                   disabled={isExporting}
+                  className="flex items-center gap-2"
                 >
                   {isExporting ? (
                     <>
@@ -449,7 +471,10 @@ export default function BookDetailPage() {
                       Exporting...
                     </>
                   ) : (
-                    <>Export ▼</>
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export
+                    </>
                   )}
                 </Button>
                 
@@ -462,46 +487,52 @@ export default function BookDetailPage() {
                     />
                     
                     {/* Export menu */}
-                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl py-1 w-48 z-20">
+                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl py-1 w-56 z-20">
                       <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
                         Export As
                       </div>
                       <button
                         onClick={() => handleExport('pdf')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-2"
                       >
-                        📄 PDF Document
+                        <FileText className="w-4 h-4 text-red-500" />
+                        PDF Document
                       </button>
                       <button
                         onClick={() => handleExport('docx')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-2"
                       >
-                        📝 Word (DOCX)
+                        <FileText className="w-4 h-4 text-blue-500" />
+                        Word (DOCX)
                       </button>
                       <button
                         onClick={() => handleExport('epub')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-2"
                       >
-                        📱 EPUB (Kindle/KDP)
+                        <Book className="w-4 h-4 text-orange-500" />
+                        EPUB (Kindle/KDP)
                       </button>
                       <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
                       <button
                         onClick={() => handleExport('html')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-2"
                       >
-                        🌐 HTML
+                        <code className="w-4 h-4 flex items-center justify-center font-bold text-green-500">&lt;/&gt;</code>
+                        HTML
                       </button>
                       <button
                         onClick={() => handleExport('md')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-2"
                       >
-                        📋 Markdown
+                        <FileText className="w-4 h-4 text-gray-500" />
+                        Markdown
                       </button>
                       <button
                         onClick={() => handleExport('txt')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white"
+                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-2"
                       >
-                        📃 Plain Text
+                        <FileText className="w-4 h-4 text-gray-400" />
+                        Plain Text
                       </button>
                     </div>
                   </>
@@ -597,11 +628,13 @@ export default function BookDetailPage() {
 
                     {book.chapters && book.chapters.length > 0 && (
                       <div className="flex gap-3 mt-6">
-                        <Button variant="primary" size="lg" onClick={startReading} className="flex-1">
-                          📖 Start Reading
+                        <Button variant="primary" size="lg" onClick={startReading} className="flex-1 flex items-center justify-center gap-2">
+                          <Book className="w-5 h-5" />
+                          Start Reading
                         </Button>
-                        <Button variant="outline" size="lg" onClick={() => setIsEditing(true)}>
-                          ✏️ Edit
+                        <Button variant="outline" size="lg" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+                          <Edit3 className="w-5 h-5" />
+                          Edit
                         </Button>
                       </div>
                     )}
@@ -610,57 +643,100 @@ export default function BookDetailPage() {
               </div>
 
               {/* Progress Card */}
-              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
-                  <span className="text-yellow-600 dark:text-yellow-400">📊</span>
-                  Writing Progress
-                </h3>
-                
-                <div className="mb-8">
-                  <div className="flex justify-between text-sm mb-3">
-                    <span className="text-gray-600 dark:text-gray-400 font-medium">Word Count Progress</span>
-                    <span className="font-bold text-gray-900 dark:text-white">
-                      {book.metadata.wordCount.toLocaleString()} / {book.metadata.targetWordCount.toLocaleString()} words
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-300 dark:bg-gray-800 rounded-full h-4 shadow-inner">
-                    <div
-                      className="bg-gradient-to-r from-yellow-400 to-yellow-600 h-4 rounded-full transition-all duration-500 shadow-md relative overflow-hidden"
-                      style={{ width: `${Math.min(progress, 100)}%` }}
-                    >
-                      <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                    </div>
-                  </div>
-                  <div className="flex justify-between mt-2">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{progress.toFixed(1)}% complete</p>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">
-                      {(book.metadata.targetWordCount - book.metadata.wordCount).toLocaleString()} words remaining
-                    </p>
-                  </div>
-                </div>
+              <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl p-8 mb-8">
+                {/* Decorative background elements */}
+                <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-400/5 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+                <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
-                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">{book.metadata.chapters}</div>
-                    <div className="text-xs text-blue-600/80 dark:text-blue-400/80 mt-1">Total Chapters</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 rounded-lg p-4 border border-green-200 dark:border-green-800">
-                    <div className="text-3xl font-bold text-green-600 dark:text-green-400">
-                      {book.chapters?.filter((c) => c.content && c.content.length > 100).length || 0}
+                <div className="relative z-10">
+                  <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
+                    <div className="bg-yellow-400/20 p-2 rounded-lg">
+                      <Activity className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                     </div>
-                    <div className="text-xs text-green-600/80 dark:text-green-400/80 mt-1">Generated</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
-                    <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                      {Math.round(book.metadata.wordCount / (book.metadata.chapters || 1)).toLocaleString()}
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
+                      Writing Progress
+                    </span>
+                  </h3>
+                  
+                  <div className="mb-8 bg-white/50 dark:bg-black/20 rounded-xl p-6 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm">
+                    <div className="flex justify-between text-sm mb-4">
+                      <span className="text-gray-600 dark:text-gray-400 font-semibold tracking-wide uppercase text-xs">Overall Completion</span>
+                      <span className="font-bold text-gray-900 dark:text-white font-mono">
+                        {book.metadata.wordCount.toLocaleString()} <span className="text-gray-400 font-normal">/</span> {book.metadata.targetWordCount.toLocaleString()} <span className="text-gray-400 font-normal">words</span>
+                      </span>
                     </div>
-                    <div className="text-xs text-purple-600/80 dark:text-purple-400/80 mt-1">Avg Words/Ch</div>
-                  </div>
-                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
-                    <div className="text-3xl font-bold text-orange-600 dark:text-orange-400">
-                      {Math.ceil(book.metadata.wordCount / 200)}
+                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-5 shadow-inner overflow-hidden border border-gray-300 dark:border-gray-600">
+                      <div
+                        className="bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-500 h-full rounded-full transition-all duration-1000 ease-out shadow-lg relative"
+                        style={{ width: `${Math.min(progress, 100)}%` }}
+                      >
+                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-stripes_1s_linear_infinite]"></div>
+                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                      </div>
                     </div>
-                    <div className="text-xs text-orange-600/80 dark:text-orange-400/80 mt-1">Min Read</div>
+                    <div className="flex justify-between mt-3 items-center">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{progress.toFixed(1)}%</span>
+                        <span className="text-xs text-green-500 font-medium bg-green-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                           <CheckCircle2 className="w-3 h-3" /> On Track
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                        {(book.metadata.targetWordCount - book.metadata.wordCount).toLocaleString()} words to go
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
+                          <Book className="w-5 h-5" />
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Chapters</div>
+                      </div>
+                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{book.metadata.chapters}</div>
+                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total Planned</div>
+                    </div>
+
+                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-lg hover:shadow-green-500/10 transition-all duration-300">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
+                          <PenTool className="w-5 h-5" />
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Generated</div>
+                      </div>
+                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                        {book.chapters?.filter((c) => c.content && c.content.length > 100).length || 0}
+                      </div>
+                      <div className="text-xs text-green-600 dark:text-green-400 font-medium">Chapters Done</div>
+                    </div>
+
+                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
+                          <BarChart2 className="w-5 h-5" />
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Avg Length</div>
+                      </div>
+                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                        {Math.round(book.metadata.wordCount / (book.metadata.chapters || 1)).toLocaleString()}
+                      </div>
+                      <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">Words / Chapter</div>
+                    </div>
+
+                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-orange-400 dark:hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-300">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform">
+                          <Clock className="w-5 h-5" />
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Read Time</div>
+                      </div>
+                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+                        ~{Math.ceil(book.metadata.wordCount / 200)}
+                      </div>
+                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">Minutes</div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -670,7 +746,7 @@ export default function BookDetailPage() {
                 <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-2xl font-bold flex items-center gap-2">
-                      <span className="text-yellow-600 dark:text-yellow-400">📚</span>
+                      <BookOpen className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                       Chapter Preview
                     </h3>
                     <Button variant="outline" size="sm" onClick={() => setActiveTab('chapters')}>
@@ -781,8 +857,12 @@ export default function BookDetailPage() {
                 </div>
               ) : (
                 <div className="text-center py-16 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-xl border border-gray-300 dark:border-gray-800">
-                  <div className="text-6xl mb-4">📝</div>
-                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-6">No chapters yet</p>
+                  <div className="mb-4 flex justify-center">
+                    <div className="bg-gray-200 dark:bg-gray-800 p-4 rounded-full">
+                      <PenTool className="w-10 h-10 text-gray-400" />
+                    </div>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-2">No chapters yet</p>
                   <p className="text-gray-500 dark:text-gray-500 text-sm mb-6 max-w-md mx-auto">
                     Generate your book in the Studio to create chapters that will appear here.
                   </p>
@@ -844,8 +924,9 @@ export default function BookDetailPage() {
 
           {activeTab === 'audio' && (!book.chapters || book.chapters.length === 0) && (
             <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6 text-center">
-              <p className="text-gray-600 dark:text-gray-400 mb-4">
-                ℹ️ No chapters available. Please generate your book first.
+              <p className="text-gray-600 dark:text-gray-400 mb-4 flex items-center justify-center gap-2">
+                <AlertCircle className="w-5 h-5" />
+                No chapters available. Please generate your book first.
               </p>
             </div>
           )}
@@ -873,7 +954,7 @@ export default function BookDetailPage() {
                   <div className="space-y-3">
                     <Button 
                       variant="outline" 
-                      className="w-full justify-start"
+                      className="w-full justify-start flex items-center gap-2"
                       onClick={handleDuplicateBook}
                       disabled={isDuplicating}
                     >
@@ -884,13 +965,14 @@ export default function BookDetailPage() {
                         </>
                       ) : (
                         <>
-                          📋 Duplicate Book
+                          <Copy className="w-4 h-4" />
+                          Duplicate Book
                         </>
                       )}
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="w-full justify-start"
+                      className="w-full justify-start flex items-center gap-2"
                       onClick={handleArchiveBook}
                       disabled={isArchiving}
                     >
@@ -901,13 +983,14 @@ export default function BookDetailPage() {
                         </>
                       ) : (
                         <>
-                          {book?.status === 'archived' ? '📂 Unarchive Book' : '📦 Archive Book'}
+                          <Archive className="w-4 h-4" />
+                          {book?.status === 'archived' ? 'Unarchive Book' : 'Archive Book'}
                         </>
                       )}
                     </Button>
                     <Button 
                       variant="outline" 
-                      className="w-full justify-start text-red-600 dark:text-red-400 border-red-300 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      className="w-full justify-start text-red-600 dark:text-red-400 border-red-300 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
                       onClick={handleDeleteBook}
                       disabled={isDeleting}
                     >
@@ -918,7 +1001,8 @@ export default function BookDetailPage() {
                         </>
                       ) : (
                         <>
-                          🗑️ Delete Book
+                          <Trash2 className="w-4 h-4" />
+                          Delete Book
                         </>
                       )}
                     </Button>

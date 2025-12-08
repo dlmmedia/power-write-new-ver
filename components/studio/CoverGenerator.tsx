@@ -17,6 +17,27 @@ import {
 } from '@/lib/types/cover';
 import { CoverService } from '@/lib/services/cover-service';
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '@/lib/types/models';
+import { 
+  Zap, 
+  Type, 
+  Layout, 
+  Palette, 
+  Settings, 
+  Bot, 
+  Upload, 
+  Book, 
+  FileText, 
+  RefreshCw, 
+  Sparkles, 
+  Download,
+  Lightbulb,
+  Target,
+  CheckCircle,
+  Star,
+  Image as ImageIcon,
+  Loader2,
+  BoxSelect
+} from 'lucide-react';
 
 interface CoverGeneratorProps {
   bookId?: number;
@@ -473,12 +494,13 @@ export default function CoverGenerator({
             >
               <div className="flex items-center justify-between">
                 <span className="font-medium">{model.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${
+                <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${
                   model.tier === 'premium' 
                     ? 'bg-yellow-500/20 text-yellow-400' 
                     : 'bg-gray-600 text-gray-300'
                 }`}>
-                  {model.tier === 'premium' ? '⭐ Premium' : 'Standard'}
+                  {model.tier === 'premium' ? <Star className="w-3 h-3 fill-current" /> : null}
+                  {model.tier === 'premium' ? 'Premium' : 'Standard'}
                 </span>
               </div>
               <p className={`text-xs mt-1 ${imageModel === model.id ? 'text-black/70' : 'text-gray-500'}`}>
@@ -543,7 +565,7 @@ export default function CoverGenerator({
               : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
           }`}
         >
-          <span>{showAdvancedOptions ? '✅' : '⚙️'}</span>
+          {showAdvancedOptions ? <CheckCircle className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
           <span>{showAdvancedOptions ? 'Advanced Customization Enabled' : 'Enable Advanced Customization'}</span>
         </button>
         <p className="text-xs text-gray-500 mt-2 text-center">
@@ -555,9 +577,10 @@ export default function CoverGenerator({
 
   const renderTextOptions = () => (
     <div className="space-y-4">
-      <div className="bg-gray-800/50 p-3 rounded-lg mb-4">
+      <div className="bg-gray-800/50 p-3 rounded-lg mb-4 flex gap-3 items-start">
+        <Lightbulb className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-gray-400">
-          💡 Customize the text that appears on your cover. Leave blank to use defaults.
+          Customize the text that appears on your cover. Leave blank to use defaults.
         </p>
       </div>
 
@@ -1191,9 +1214,10 @@ export default function CoverGenerator({
 
   const renderAdvancedOptions = () => (
     <div className="space-y-4">
-      <div className="bg-gray-800/50 p-3 rounded-lg mb-4">
+      <div className="bg-gray-800/50 p-3 rounded-lg mb-4 flex gap-3 items-start">
+        <Target className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
         <p className="text-xs text-gray-400">
-          🎯 Pro tip: Use these options to fine-tune the AI generation or provide specific instructions.
+          Pro tip: Use these options to fine-tune the AI generation or provide specific instructions.
         </p>
       </div>
 
@@ -1426,26 +1450,27 @@ export default function CoverGenerator({
         <div className="bg-gray-900 rounded-lg border border-gray-800">
           {/* Customization Tabs */}
           {showAdvancedOptions && (
-            <div className="border-b border-gray-800">
-              <div className="flex overflow-x-auto scrollbar-hide">
+            <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
+              <div className="flex overflow-x-auto scrollbar-hide p-2 gap-1">
                 {[
-                  { id: 'quick' as const, label: '⚡ Quick', desc: 'Basic options' },
-                  { id: 'text' as const, label: '📝 Text', desc: 'Title & content' },
-                  { id: 'typography' as const, label: '🔤 Typography', desc: 'Fonts & styles' },
-                  { id: 'layout' as const, label: '📐 Layout', desc: 'Composition' },
-                  { id: 'visuals' as const, label: '🎨 Visuals', desc: 'Colors & imagery' },
-                  { id: 'advanced' as const, label: '⚙️ Advanced', desc: 'Custom prompt' },
+                  { id: 'quick' as const, label: 'Quick', icon: '⚡' },
+                  { id: 'text' as const, label: 'Text', icon: '📝' },
+                  { id: 'typography' as const, label: 'Type', icon: '🔤' },
+                  { id: 'layout' as const, label: 'Layout', icon: '📐' },
+                  { id: 'visuals' as const, label: 'Visuals', icon: '🎨' },
+                  { id: 'advanced' as const, label: 'Advanced', icon: '⚙️' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`px-4 py-3 text-sm font-medium whitespace-nowrap transition-all border-b-2 ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
                       activeTab === tab.id
-                        ? 'text-yellow-400 border-yellow-400 bg-yellow-400/10'
-                        : 'text-gray-400 border-transparent hover:text-gray-300 hover:bg-gray-800'
+                        ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20 scale-105'
+                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
                     }`}
                   >
-                    {tab.label}
+                    <span>{tab.icon}</span>
+                    <span>{tab.label}</span>
                   </button>
                 ))}
               </div>
