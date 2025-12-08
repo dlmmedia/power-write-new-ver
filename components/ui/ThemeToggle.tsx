@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sun, Moon } from 'lucide-react';
 
 export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
@@ -16,58 +18,33 @@ export function ThemeToggle() {
       }}
       aria-label="Toggle theme"
     >
-      {/* Toggle Track */}
       <span className="sr-only">Toggle theme</span>
       
-      {/* Sun Icon (visible in light mode) */}
+      {/* Sun Icon */}
       <span
         className={`absolute left-2 transition-opacity duration-300 ${
           isDark ? 'opacity-0' : 'opacity-100'
         }`}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4 text-yellow-600"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-          />
-        </svg>
+        <Sun className="h-4 w-4 text-yellow-600" />
       </span>
 
-      {/* Moon Icon (visible in dark mode) */}
+      {/* Moon Icon */}
       <span
         className={`absolute right-2 transition-opacity duration-300 ${
           isDark ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-4 w-4 text-yellow-400"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-          />
-        </svg>
+        <Moon className="h-4 w-4 text-yellow-400" />
       </span>
 
       {/* Toggle Circle */}
-      <span
-        className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ease-in-out ${
-          isDark ? 'translate-x-8' : 'translate-x-1'
-        }`}
+      <motion.span
+        className="inline-block h-6 w-6 rounded-full bg-white shadow-lg"
+        animate={{
+          x: isDark ? 32 : 4,
+        }}
+        transition={{ type: "spring", stiffness: 500, damping: 30 }}
       />
     </button>
   );
@@ -79,48 +56,38 @@ export function ThemeToggleCompact() {
   const isDark = theme === 'dark';
 
   return (
-    <button
+    <motion.button
       onClick={toggleTheme}
-      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors border border-gray-300 dark:border-gray-600"
+      className="relative flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700 overflow-hidden group"
       aria-label="Toggle theme"
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
     >
-      {isDark ? (
-        <>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-yellow-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+      <div className="relative w-5 h-5">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={theme}
+            initial={{ y: -20, opacity: 0, rotate: -90 }}
+            animate={{ y: 0, opacity: 1, rotate: 0 }}
+            exit={{ y: 20, opacity: 0, rotate: 90 }}
+            transition={{ duration: 0.2 }}
+            className="absolute inset-0 flex items-center justify-center"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
-            />
-          </svg>
-          <span className="text-sm text-gray-900 dark:text-white">Dark</span>
-        </>
-      ) : (
-        <>
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-yellow-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"
-            />
-          </svg>
-          <span className="text-sm text-gray-900">Light</span>
-        </>
-      )}
-    </button>
+            {isDark ? (
+              <Moon className="h-4 w-4 text-blue-400" />
+            ) : (
+              <Sun className="h-4 w-4 text-orange-500" />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+      
+      <span className="text-sm font-medium text-gray-700 dark:text-gray-200 w-12 text-left">
+        {isDark ? 'Dark' : 'Light'}
+      </span>
+      
+      {/* Subtle background glow effect on hover */}
+      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-200/50 dark:via-gray-600/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
+    </motion.button>
   );
 }
