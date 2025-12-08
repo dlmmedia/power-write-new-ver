@@ -4,6 +4,7 @@ import { ExportService } from '@/lib/services/export-service';
 import { ExportServiceAdvanced } from '@/lib/services/export-service-advanced';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS } from '@/lib/types/publishing';
+import { BookLayoutType, BOOK_LAYOUTS } from '@/lib/types/book-layouts';
 
 // Configure route for longer execution time and Node.js runtime
 export const runtime = 'nodejs';
@@ -12,10 +13,11 @@ export const maxDuration = 60; // 60 seconds for export generation
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, bookId, format } = body as {
+    const { userId, bookId, format, layoutType } = body as {
       userId: string;
       bookId: string | number;
       format: 'txt' | 'md' | 'html' | 'pdf' | 'docx' | 'epub';
+      layoutType?: BookLayoutType; // Optional layout type for PDF export
     };
 
     // Validate required fields
@@ -125,6 +127,16 @@ export async function POST(request: NextRequest) {
     const bookMetadata = (book.metadata as Record<string, unknown>) || {};
     const publishingSettings: PublishingSettings = (bookMetadata.publishingSettings as PublishingSettings) || DEFAULT_PUBLISHING_SETTINGS;
     
+    // Determine the layout type: request param > publishing settings > default
+    const effectiveLayoutType: BookLayoutType = layoutType || 
+      publishingSettings.layoutType || 
+      'novel-classic';
+    
+    // Validate layout type exists
+    if (!BOOK_LAYOUTS[effectiveLayoutType]) {
+      console.warn(`Unknown layout type: ${effectiveLayoutType}, falling back to novel-classic`);
+    }
+    
     // Prepare export data
     const exportData = {
       title: book.title,
@@ -142,6 +154,7 @@ export async function POST(request: NextRequest) {
         })),
       bibliography: bibliographyData,
       publishingSettings, // Include publishing settings for formatted exports
+      layoutType: effectiveLayoutType, // Include layout type for PDF export
     };
 
     const baseFilename = book.title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
@@ -173,6 +186,7 @@ export async function POST(request: NextRequest) {
         case 'pdf':
           try {
             console.log(`Generating PDF for book: ${book.title} with ${exportData.chapters.length} chapters`);
+            console.log(`Using layout: ${effectiveLayoutType} (${BOOK_LAYOUTS[effectiveLayoutType]?.name || 'Unknown'})`);
             content = await ExportServiceAdvanced.exportBookAsPDF(exportData);
             mimeType = 'application/pdf';
             filename = `${baseFilename}.pdf`;

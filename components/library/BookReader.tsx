@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { AudioPlayer } from './AudioPlayer';
+import { BibliographySection } from './BibliographySection';
 import { getDemoUserId } from '@/lib/services/demo-account';
+import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
 
 interface Chapter {
   id: number;
@@ -19,12 +21,18 @@ interface Chapter {
   audioMetadata?: any;
 }
 
+interface BibliographyData {
+  config: BibliographyConfig;
+  references: Reference[];
+}
+
 interface BookReaderProps {
   bookTitle: string;
   author: string;
   bookId: number;
   chapters: Chapter[];
   initialChapterIndex?: number;
+  bibliography?: BibliographyData;
   onClose?: () => void;
   onAudioGenerated?: (chapterNumber: number, audioUrl: string, duration: number) => void;
 }
@@ -48,6 +56,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
   bookId,
   chapters,
   initialChapterIndex = 0,
+  bibliography,
   onClose,
   onAudioGenerated,
 }) => {
@@ -60,6 +69,10 @@ export const BookReader: React.FC<BookReaderProps> = ({
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
   const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
+  const [showBibliography, setShowBibliography] = useState(false);
+
+  // Check if bibliography should be available (after last chapter or explicit view)
+  const hasBibliography = bibliography?.config?.enabled && bibliography?.references?.length > 0;
 
   const currentChapter = chaptersData[currentChapterIndex];
 
@@ -183,14 +196,30 @@ export const BookReader: React.FC<BookReaderProps> = ({
   }, [chapters]);
 
   const goToNextChapter = () => {
+    if (showBibliography) {
+      // Already on bibliography, can't go further
+      return;
+    }
     if (currentChapterIndex < chaptersData.length - 1) {
       setCurrentChapterIndex(currentChapterIndex + 1);
+      window.scrollTo(0, 0);
+      setShowAudioPlayer(false);
+    } else if (hasBibliography) {
+      // On last chapter, go to bibliography
+      setShowBibliography(true);
       window.scrollTo(0, 0);
       setShowAudioPlayer(false);
     }
   };
 
   const goToPreviousChapter = () => {
+    if (showBibliography) {
+      // On bibliography, go back to last chapter
+      setShowBibliography(false);
+      setCurrentChapterIndex(chaptersData.length - 1);
+      window.scrollTo(0, 0);
+      return;
+    }
     if (currentChapterIndex > 0) {
       setCurrentChapterIndex(currentChapterIndex - 1);
       window.scrollTo(0, 0);
@@ -200,6 +229,14 @@ export const BookReader: React.FC<BookReaderProps> = ({
 
   const goToChapter = (index: number) => {
     setCurrentChapterIndex(index);
+    setShowChapterList(false);
+    setShowBibliography(false);
+    window.scrollTo(0, 0);
+    setShowAudioPlayer(false);
+  };
+
+  const goToBibliography = () => {
+    setShowBibliography(true);
     setShowChapterList(false);
     window.scrollTo(0, 0);
     setShowAudioPlayer(false);
@@ -554,13 +591,19 @@ export const BookReader: React.FC<BookReaderProps> = ({
               className="flex items-center gap-2 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded transition-colors text-gray-900 dark:text-white"
             >
               <span className="text-sm">
-                Chapter {currentChapter.number} of {chaptersData.length}
+                {showBibliography 
+                  ? `📚 Bibliography` 
+                  : `Chapter ${currentChapter.number} of ${chaptersData.length}${hasBibliography ? ' (+📚)' : ''}`
+                }
               </span>
               <span className="text-xs">{showChapterList ? '▲' : '▼'}</span>
             </button>
 
             <Badge variant="info">
-              {currentChapter.wordCount.toLocaleString()} words
+              {showBibliography 
+                ? `${bibliography?.references?.length || 0} references` 
+                : `${currentChapter.wordCount.toLocaleString()} words`
+              }
             </Badge>
           </div>
         </div>
@@ -575,7 +618,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                   key={chapter.id}
                   onClick={() => goToChapter(index)}
                   className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white ${
-                    index === currentChapterIndex ? 'bg-yellow-400/10 border-l-2 border-yellow-400' : ''
+                    index === currentChapterIndex && !showBibliography ? 'bg-yellow-400/10 border-l-2 border-yellow-400' : ''
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -590,12 +633,39 @@ export const BookReader: React.FC<BookReaderProps> = ({
                         )}
                       </div>
                     </div>
-                    {index === currentChapterIndex && (
+                    {index === currentChapterIndex && !showBibliography && (
                       <Badge variant="success" size="sm">Reading</Badge>
                     )}
                   </div>
                 </button>
               ))}
+              
+              {/* Bibliography option in chapter list */}
+              {hasBibliography && (
+                <>
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
+                  <button
+                    onClick={goToBibliography}
+                    className={`w-full text-left px-3 py-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white ${
+                      showBibliography ? 'bg-yellow-400/10 border-l-2 border-yellow-400' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-sm flex items-center gap-2">
+                          <span>📚</span> Bibliography
+                        </div>
+                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                          {bibliography?.references?.length || 0} references
+                        </div>
+                      </div>
+                      {showBibliography && (
+                        <Badge variant="success" size="sm">Viewing</Badge>
+                      )}
+                    </div>
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -604,128 +674,171 @@ export const BookReader: React.FC<BookReaderProps> = ({
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto max-w-4xl px-4 py-8">
-          {/* Audio Player (sticky) */}
-          {showAudioPlayer && currentChapter.audioUrl && (
-            <div className="mb-6 sticky top-0 z-10">
-              <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white">
-                      🎧
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
-                        Chapter {currentChapter.number}: {currentChapter.title}
-                      </h4>
-                      {currentChapter.audioMetadata?.voice && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          Voice: {voices.find(v => v.id === currentChapter.audioMetadata.voice)?.name || currentChapter.audioMetadata.voice}
-                        </p>
-                      )}
-                    </div>
+          {/* Bibliography View */}
+          {showBibliography && hasBibliography ? (
+            <>
+              {/* Bibliography Content */}
+              <BibliographySection
+                references={bibliography!.references}
+                config={bibliography!.config}
+                title="Bibliography"
+              />
+
+              {/* Bibliography Navigation */}
+              <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  onClick={goToPreviousChapter}
+                >
+                  ← Back to Last Chapter
+                </Button>
+
+                <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-2 justify-center">
+                    <span>📚</span> Bibliography
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleDownloadAudio}
-                      className="p-2 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
-                      title="Download audio"
-                    >
-                      ⬇️
-                    </button>
-                    <button
-                      onClick={() => setShowAudioPlayer(false)}
-                      className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
-                      title="Hide player"
-                    >
-                      ✕
-                    </button>
+                  <div className="text-xs mt-1">
+                    {bibliography?.references?.length || 0} references • {bibliography?.config?.citationStyle} style
                   </div>
                 </div>
-                <AudioPlayer
-                  audioUrl={currentChapter.audioUrl}
-                  showMiniControls={true}
-                  onEnded={() => {
-                    // Auto-advance to next chapter when audio ends
-                    if (currentChapterIndex < chaptersData.length - 1) {
-                      goToNextChapter();
-                    }
-                  }}
-                />
+
+                <Button
+                  variant="primary"
+                  onClick={onClose}
+                >
+                  Finish Reading
+                </Button>
               </div>
-            </div>
+            </>
+          ) : (
+            <>
+              {/* Audio Player (sticky) */}
+              {showAudioPlayer && currentChapter.audioUrl && (
+                <div className="mb-6 sticky top-0 z-10">
+                  <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-xl border border-green-200 dark:border-green-800 p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white">
+                          🎧
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
+                            Chapter {currentChapter.number}: {currentChapter.title}
+                          </h4>
+                          {currentChapter.audioMetadata?.voice && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Voice: {voices.find(v => v.id === currentChapter.audioMetadata.voice)?.name || currentChapter.audioMetadata.voice}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleDownloadAudio}
+                          className="p-2 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
+                          title="Download audio"
+                        >
+                          ⬇️
+                        </button>
+                        <button
+                          onClick={() => setShowAudioPlayer(false)}
+                          className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
+                          title="Hide player"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    <AudioPlayer
+                      audioUrl={currentChapter.audioUrl}
+                      showMiniControls={true}
+                      onEnded={() => {
+                        // Auto-advance to next chapter when audio ends
+                        if (currentChapterIndex < chaptersData.length - 1) {
+                          goToNextChapter();
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Chapter Header */}
+              <div className="mb-8 border-b border-gray-200 dark:border-gray-800 pb-4">
+                <div className="flex items-center gap-3 mb-2">
+                  <Badge variant="warning" size="sm">
+                    Chapter {currentChapter.number}
+                  </Badge>
+                  {currentChapter.audioUrl && (
+                    <Badge variant="success" size="sm">
+                      🎧 Audio Available
+                    </Badge>
+                  )}
+                </div>
+                <h2 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">{currentChapter.title}</h2>
+                <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                  <span>{currentChapter.wordCount.toLocaleString()} words</span>
+                  <span>•</span>
+                  <span>~{Math.ceil(currentChapter.wordCount / 200)} min read</span>
+                  {currentChapter.audioDuration && (
+                    <>
+                      <span>•</span>
+                      <span>🎧 {Math.floor(currentChapter.audioDuration / 60)}:{(currentChapter.audioDuration % 60).toString().padStart(2, '0')} listen</span>
+                    </>
+                  )}
+                  {currentChapter.status === 'draft' && (
+                    <>
+                      <span>•</span>
+                      <Badge variant="default" size="sm">Draft</Badge>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Chapter Content */}
+              <div 
+                className={`prose prose-gray dark:prose-invert max-w-none ${fontSizeClasses[fontSize]} ${lineHeightClasses[fontSize]}`}
+                style={{
+                  fontFamily: 'Georgia, serif',
+                }}
+              >
+                {currentChapter.content.split('\n\n').map((paragraph, index) => (
+                  <p key={index} className="mb-4 text-gray-800 dark:text-gray-200 text-justify">
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+
+              {/* Chapter Navigation */}
+              <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
+                <Button
+                  variant="outline"
+                  onClick={goToPreviousChapter}
+                  disabled={currentChapterIndex === 0}
+                >
+                  ← Previous Chapter
+                </Button>
+
+                <div className="text-center text-sm text-gray-600 dark:text-gray-400">
+                  <div>Chapter {currentChapter.number} of {chaptersData.length}</div>
+                  <div className="text-xs mt-1">
+                    Progress: {Math.round(((currentChapterIndex + 1) / chaptersData.length) * 100)}%
+                  </div>
+                </div>
+
+                <Button
+                  variant={currentChapterIndex === chaptersData.length - 1 && hasBibliography ? 'primary' : 'outline'}
+                  onClick={goToNextChapter}
+                  disabled={currentChapterIndex === chaptersData.length - 1 && !hasBibliography}
+                >
+                  {currentChapterIndex === chaptersData.length - 1 && hasBibliography 
+                    ? 'View Bibliography →' 
+                    : 'Next Chapter →'
+                  }
+                </Button>
+              </div>
+            </>
           )}
-
-          {/* Chapter Header */}
-          <div className="mb-8 border-b border-gray-200 dark:border-gray-800 pb-4">
-            <div className="flex items-center gap-3 mb-2">
-              <Badge variant="warning" size="sm">
-                Chapter {currentChapter.number}
-              </Badge>
-              {currentChapter.audioUrl && (
-                <Badge variant="success" size="sm">
-                  🎧 Audio Available
-                </Badge>
-              )}
-            </div>
-            <h2 className="text-3xl font-bold mb-2 text-gray-900 dark:text-white">{currentChapter.title}</h2>
-            <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
-              <span>{currentChapter.wordCount.toLocaleString()} words</span>
-              <span>•</span>
-              <span>~{Math.ceil(currentChapter.wordCount / 200)} min read</span>
-              {currentChapter.audioDuration && (
-                <>
-                  <span>•</span>
-                  <span>🎧 {Math.floor(currentChapter.audioDuration / 60)}:{(currentChapter.audioDuration % 60).toString().padStart(2, '0')} listen</span>
-                </>
-              )}
-              {currentChapter.status === 'draft' && (
-                <>
-                  <span>•</span>
-                  <Badge variant="default" size="sm">Draft</Badge>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Chapter Content */}
-          <div 
-            className={`prose prose-gray dark:prose-invert max-w-none ${fontSizeClasses[fontSize]} ${lineHeightClasses[fontSize]}`}
-            style={{
-              fontFamily: 'Georgia, serif',
-            }}
-          >
-            {currentChapter.content.split('\n\n').map((paragraph, index) => (
-              <p key={index} className="mb-4 text-gray-800 dark:text-gray-200 text-justify">
-                {paragraph}
-              </p>
-            ))}
-          </div>
-
-          {/* Chapter Navigation */}
-          <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">
-            <Button
-              variant="outline"
-              onClick={goToPreviousChapter}
-              disabled={currentChapterIndex === 0}
-            >
-              ← Previous Chapter
-            </Button>
-
-            <div className="text-center text-sm text-gray-600 dark:text-gray-400">
-              <div>Chapter {currentChapter.number} of {chaptersData.length}</div>
-              <div className="text-xs mt-1">
-                Progress: {Math.round(((currentChapterIndex + 1) / chaptersData.length) * 100)}%
-              </div>
-            </div>
-
-            <Button
-              variant="outline"
-              onClick={goToNextChapter}
-              disabled={currentChapterIndex === chaptersData.length - 1}
-            >
-              Next Chapter →
-            </Button>
-          </div>
         </div>
       </div>
 
@@ -734,9 +847,13 @@ export const BookReader: React.FC<BookReaderProps> = ({
         <div className="container mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600 dark:text-gray-400">
-              Reading: <span className="text-gray-900 dark:text-white font-medium">{currentChapter.title}</span>
+              {showBibliography ? (
+                <>Viewing: <span className="text-gray-900 dark:text-white font-medium">📚 Bibliography</span></>
+              ) : (
+                <>Reading: <span className="text-gray-900 dark:text-white font-medium">{currentChapter.title}</span></>
+              )}
             </span>
-            {currentChapter.audioUrl && (
+            {!showBibliography && currentChapter.audioUrl && (
               <button
                 onClick={() => setShowAudioPlayer(true)}
                 className="text-green-500 hover:text-green-400 text-sm flex items-center gap-1"
@@ -749,9 +866,9 @@ export const BookReader: React.FC<BookReaderProps> = ({
           <div className="flex items-center gap-2">
             <button
               onClick={goToPreviousChapter}
-              disabled={currentChapterIndex === 0}
+              disabled={currentChapterIndex === 0 && !showBibliography}
               className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white"
-              title="Previous Chapter"
+              title="Previous"
             >
               ◀
             </button>
@@ -759,15 +876,19 @@ export const BookReader: React.FC<BookReaderProps> = ({
             <div className="w-64 bg-gray-200 dark:bg-gray-800 rounded-full h-2 mx-4">
               <div
                 className="bg-yellow-400 h-2 rounded-full transition-all"
-                style={{ width: `${((currentChapterIndex + 1) / chaptersData.length) * 100}%` }}
+                style={{ 
+                  width: showBibliography 
+                    ? '100%' 
+                    : `${((currentChapterIndex + 1) / (chaptersData.length + (hasBibliography ? 1 : 0))) * 100}%` 
+                }}
               />
             </div>
 
             <button
               onClick={goToNextChapter}
-              disabled={currentChapterIndex === chaptersData.length - 1}
+              disabled={(currentChapterIndex === chaptersData.length - 1 && !hasBibliography) || showBibliography}
               className="p-2 hover:bg-gray-200 dark:hover:bg-gray-800 rounded disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-gray-900 dark:text-white"
-              title="Next Chapter"
+              title="Next"
             >
               ▶
             </button>

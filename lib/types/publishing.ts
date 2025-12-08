@@ -1,6 +1,8 @@
 // Comprehensive Publishing Settings Types
 // Professional book formatting options for all export formats
 
+import { BookLayoutType } from './book-layouts';
+
 // =============================================
 // BOOK TYPE & CATEGORY
 // =============================================
@@ -375,6 +377,9 @@ export interface PublishingSettings {
   // Book Type
   bookType: BookType;
   
+  // Book Layout (for PDF export)
+  layoutType?: BookLayoutType;    // Layout template for PDF export
+  
   // Page Size
   trimSize: string;              // ID from TRIM_SIZES
   customTrimSize?: { width: number; height: number };
@@ -422,6 +427,7 @@ export interface PublishingSettings {
 // =============================================
 export const DEFAULT_PUBLISHING_SETTINGS: PublishingSettings = {
   bookType: 'novel',
+  layoutType: 'novel-classic',
   trimSize: 'trade-5.5x8.5',
   orientation: 'portrait',
   

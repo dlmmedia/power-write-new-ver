@@ -60,7 +60,9 @@ export default function StudioPage() {
     setIsGenerating,
     uploadedReferences,
     addUploadedReferences,
-    removeUploadedReference 
+    removeUploadedReference,
+    resetConfig,
+    clearOutline
   } = useStudioStore();
   const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
@@ -446,6 +448,22 @@ export default function StudioPage() {
               </button>
               <Logo size="md" />
               <h1 className="text-2xl font-bold">Book Studio</h1>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (config.basicInfo?.title || outline) {
+                    const confirmed = confirm('Start a new book? This will clear all current configuration and outline.');
+                    if (!confirmed) return;
+                  }
+                  resetConfig();
+                  setActiveTab('prompt');
+                  setViewMode('config');
+                }}
+                className="text-yellow-600 hover:text-yellow-500"
+              >
+                ✨ New Book
+              </Button>
               {/* Model indicator */}
               <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
                 <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
@@ -510,7 +528,25 @@ export default function StudioPage() {
                 </button>
                 <Logo size="sm" />
               </div>
-              <ThemeToggleCompact />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    if (config.basicInfo?.title || outline) {
+                      const confirmed = confirm('Start a new book? This will clear all current configuration and outline.');
+                      if (!confirmed) return;
+                    }
+                    resetConfig();
+                    setActiveTab('prompt');
+                    setViewMode('config');
+                  }}
+                  className="text-yellow-600 hover:text-yellow-500 text-sm"
+                >
+                  ✨ New
+                </Button>
+                <ThemeToggleCompact />
+              </div>
             </div>
             <h1 className="text-lg font-bold mb-3">Book Studio</h1>
             <div className="flex items-center gap-2 overflow-x-auto pb-2">

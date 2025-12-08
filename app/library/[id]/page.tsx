@@ -16,6 +16,8 @@ import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
 
+import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
+
 interface Chapter {
   id: number;
   number: number;
@@ -23,6 +25,11 @@ interface Chapter {
   content: string;
   wordCount: number;
   status: 'draft' | 'completed';
+}
+
+interface BibliographyData {
+  config: BibliographyConfig;
+  references: Reference[];
 }
 
 interface BookDetail {
@@ -43,6 +50,7 @@ interface BookDetail {
     backCoverUrl?: string; // Back cover URL in metadata
   };
   chapters: Chapter[];
+  bibliography?: BibliographyData;
 }
 
 export default function BookDetailPage() {
@@ -376,6 +384,7 @@ export default function BookDetailPage() {
         bookId={book.id}
         chapters={book.chapters}
         initialChapterIndex={initialChapterIndex}
+        bibliography={book.bibliography}
         onClose={() => {
           setIsReading(false);
           // Refresh book data to get any newly generated audio

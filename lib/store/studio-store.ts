@@ -88,6 +88,8 @@ export const useStudioStore = create<StudioStore>()(
           config: defaultBookConfiguration,
           outline: undefined,
           referenceAnalysis: undefined,
+          uploadedReferences: [],
+          currentBookId: undefined,
           hasUnsavedChanges: false,
         });
       },

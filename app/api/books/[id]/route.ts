@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookWithChapters } from '@/lib/db/operations';
+import { getBookWithChaptersAndBibliography } from '@/lib/db/operations';
+import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 
 export async function GET(
   request: NextRequest,
@@ -8,8 +9,8 @@ export async function GET(
   try {
     const { id: bookId } = await params;
 
-    // Get book with all chapters from database
-    const bookWithChapters = await getBookWithChapters(bookId);
+    // Get book with all chapters and bibliography from database
+    const bookWithChapters = await getBookWithChaptersAndBibliography(bookId);
 
     if (!bookWithChapters) {
       return NextResponse.json(
@@ -20,6 +21,73 @@ export async function GET(
 
     // Format the response
     const metadata = bookWithChapters.metadata as any || {};
+    
+    // Convert database bibliography to response format
+    let bibliographyData = undefined;
+    if (bookWithChapters.bibliography?.config?.enabled && bookWithChapters.bibliography.references.length > 0) {
+      // Convert database references to the Reference type
+      const convertedReferences: Reference[] = bookWithChapters.bibliography.references.map(ref => {
+        // Parse authors from JSONB
+        const authors: Author[] = Array.isArray(ref.authors) 
+          ? (ref.authors as any[]).map((a: any) => ({
+              firstName: a.firstName || '',
+              middleName: a.middleName,
+              lastName: a.lastName || '',
+              suffix: a.suffix,
+              organization: a.organization,
+            }))
+          : [];
+        
+        // Get type-specific data
+        const typeData = (ref.typeSpecificData as Record<string, any>) || {};
+        
+        // Build base reference
+        const baseRef = {
+          id: ref.id,
+          type: ref.type as any,
+          title: ref.title,
+          authors,
+          year: ref.year || undefined,
+          url: ref.url || undefined,
+          doi: ref.doi || undefined,
+          accessDate: ref.accessDate || undefined,
+          notes: ref.notes || undefined,
+          tags: Array.isArray(ref.tags) ? ref.tags as string[] : undefined,
+          citationKey: ref.citationKey || undefined,
+          createdAt: ref.createdAt || new Date(),
+          updatedAt: ref.updatedAt || new Date(),
+          // Spread type-specific data
+          ...typeData,
+        };
+        
+        return baseRef as Reference;
+      });
+
+      // Convert config to BibliographyConfig format
+      const config = bookWithChapters.bibliography.config;
+      const bibliographyConfig: BibliographyConfig = {
+        enabled: config.enabled || false,
+        citationStyle: (config.citationStyle as any) || 'APA',
+        location: Array.isArray(config.location) ? config.location as any[] : ['bibliography'],
+        sortBy: (config.sortBy as any) || 'author',
+        sortDirection: (config.sortDirection as any) || 'asc',
+        includeAnnotations: config.includeAnnotations || false,
+        includeAbstracts: config.includeAbstracts || false,
+        hangingIndent: config.hangingIndent ?? true,
+        lineSpacing: (config.lineSpacing as any) || 'single',
+        groupByType: config.groupByType || false,
+        numberingStyle: (config.numberingStyle as any) || 'none',
+        showDOI: config.showDOI ?? true,
+        showURL: config.showURL ?? true,
+        showAccessDate: config.showAccessDate ?? true,
+      };
+
+      bibliographyData = {
+        config: bibliographyConfig,
+        references: convertedReferences,
+      };
+    }
+    
     const book = {
       id: bookWithChapters.id,
       title: bookWithChapters.title,
@@ -48,6 +116,7 @@ export async function GET(
         audioDuration: ch.audioDuration || null,
         audioMetadata: ch.audioMetadata || null,
       })),
+      bibliography: bibliographyData,
     };
 
     return NextResponse.json({

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { bookChapters, generatedBooks } from '@/lib/db/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
+
+// Helper to check if an ID is a temporary client-side ID (from Date.now())
+// Real database IDs are serial integers (typically < 1 million)
+// Date.now() returns timestamps like 1733630000000
+const isTemporaryId = (id: number): boolean => {
+  return id > 1000000000; // IDs greater than 1 billion are likely Date.now() timestamps
+};
 
 export async function PUT(
   request: NextRequest,
@@ -29,15 +36,35 @@ export async function PUT(
       );
     }
 
+    console.log(`[Chapters API] Updating ${chapters.length} chapters for book ${bookId}`);
+
+    const updatedChapters = [];
+
     // Update or insert chapters
     for (const chapter of chapters) {
-      const existingChapter = await db.query.bookChapters.findFirst({
-        where: eq(bookChapters.id, chapter.id),
-      });
+      const hasTemporaryId = isTemporaryId(chapter.id);
+      
+      let existingChapter = null;
+      
+      if (!hasTemporaryId) {
+        // For real database IDs, look up by ID
+        existingChapter = await db.query.bookChapters.findFirst({
+          where: eq(bookChapters.id, chapter.id),
+        });
+      } else {
+        // For temporary IDs (new chapters), check if chapter number already exists for this book
+        existingChapter = await db.query.bookChapters.findFirst({
+          where: and(
+            eq(bookChapters.bookId, bookId),
+            eq(bookChapters.chapterNumber, chapter.number)
+          ),
+        });
+      }
 
       if (existingChapter) {
         // Update existing chapter
-        await db
+        console.log(`[Chapters API] Updating existing chapter ${chapter.number} (db id: ${existingChapter.id})`);
+        const [updated] = await db
           .update(bookChapters)
           .set({
             title: chapter.title,
@@ -47,17 +74,21 @@ export async function PUT(
             isEdited: true,
             updatedAt: new Date(),
           })
-          .where(eq(bookChapters.id, chapter.id));
+          .where(eq(bookChapters.id, existingChapter.id))
+          .returning();
+        updatedChapters.push(updated);
       } else {
         // Insert new chapter
-        await db.insert(bookChapters).values({
+        console.log(`[Chapters API] Inserting new chapter ${chapter.number}`);
+        const [inserted] = await db.insert(bookChapters).values({
           bookId,
           chapterNumber: chapter.number,
           title: chapter.title,
           content: chapter.content,
           wordCount: chapter.wordCount,
           isEdited: true,
-        });
+        }).returning();
+        updatedChapters.push(inserted);
       }
     }
 
@@ -71,12 +102,20 @@ export async function PUT(
       })
       .where(eq(generatedBooks.id, bookId));
 
+    console.log(`[Chapters API] Successfully saved ${updatedChapters.length} chapters`);
+
     return NextResponse.json({
       success: true,
       message: 'Chapters updated successfully',
+      chapters: updatedChapters.map(ch => ({
+        id: ch.id,
+        number: ch.chapterNumber,
+        title: ch.title,
+        wordCount: ch.wordCount,
+      })),
     });
   } catch (error) {
-    console.error('Error updating chapters:', error);
+    console.error('[Chapters API] Error updating chapters:', error);
     return NextResponse.json(
       {
         error: 'Failed to update chapters',

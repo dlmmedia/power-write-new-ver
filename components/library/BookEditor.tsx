@@ -549,6 +549,24 @@ export const BookEditor: React.FC<BookEditorProps> = ({
         throw new Error(data.error || 'Failed to save');
       }
 
+      // Update chapter IDs with the real database IDs returned from the server
+      if (data.chapters && Array.isArray(data.chapters)) {
+        const updatedChapters = chapters.map(chapter => {
+          const savedChapter = data.chapters.find(
+            (saved: { number: number; id: number }) => saved.number === chapter.number
+          );
+          if (savedChapter) {
+            return {
+              ...chapter,
+              id: savedChapter.id, // Use the real database ID
+              isEdited: false, // Clear edited flag after save
+            };
+          }
+          return { ...chapter, isEdited: false };
+        });
+        setChapters(updatedChapters);
+      }
+
       setHasUnsavedChanges(false);
       
       // Clear undo/redo history after save

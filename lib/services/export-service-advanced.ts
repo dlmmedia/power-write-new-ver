@@ -26,12 +26,15 @@ import {
   InternalHyperlink
 } from 'docx';
 import { pdf } from '@react-pdf/renderer';
-import PDFDocument from './pdf-document';
+import PDFDocumentReactPDF from './pdf-document';
 import { registerFonts } from './pdf-fonts';
+import { PDFServicePDFKit } from './pdf-service-pdfkit';
+import { PDFHTMLService } from './pdf-html-service';
 import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
 import epub, { Options as EPubOptions, Chapter as EPubChapter } from 'epub-gen-memory';
 import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS, TRIM_SIZES } from '@/lib/types/publishing';
+import { BookLayoutType } from '@/lib/types/book-layouts';
 import { 
   getFontFamily, 
   formatChapterNumber, 
@@ -60,6 +63,7 @@ interface BookExport {
     chapterReferences?: ChapterReferences[];
   };
   publishingSettings?: PublishingSettings; // Publishing settings for formatting
+  layoutType?: BookLayoutType; // Layout template for PDF export
 }
 
 interface OutlineExport {
@@ -1061,12 +1065,47 @@ export class ExportServiceAdvanced {
   }
 
   /**
-   * Export book as PDF with professional formatting using React-PDF
+   * Export book as PDF with professional formatting
+   * Uses HTML/CSS Paged Media (primary) -> PDFKit -> React-PDF (fallback)
+   * 
+   * The HTML-based method supports advanced layouts like:
+   * - Multi-column layouts (academic, dictionary)
+   * - Drop caps and professional typography
+   * - Running headers/footers
+   * - CSS Paged Media features
    */
   static async exportBookAsPDF(book: BookExport): Promise<Buffer> {
+    console.log(`Generating professional PDF for: ${book.title}`);
+    console.log(`PDF has ${book.chapters?.length || 0} chapters`);
+    const layoutType = book.layoutType || book.publishingSettings?.layoutType || 'novel-classic';
+    console.log(`Layout type: ${layoutType}`);
+    
+    // Method 1: HTML/CSS Paged Media via Puppeteer (best quality, most features)
     try {
-      console.log(`Generating professional PDF for: ${book.title}`);
-      console.log(`PDF has ${book.chapters?.length || 0} chapters`);
+      console.log('Attempting PDF generation with HTML/CSS Paged Media (primary method)...');
+      const buffer = await PDFHTMLService.generateBookPDF({
+        ...book,
+        layoutType,
+      });
+      console.log(`HTML-PDF generated successfully. Size: ${buffer.length} bytes`);
+      return buffer;
+    } catch (htmlError) {
+      console.warn('HTML-PDF generation failed, trying PDFKit fallback:', htmlError);
+    }
+    
+    // Method 2: PDFKit (robust, handles edge cases)
+    try {
+      console.log('Attempting PDF generation with PDFKit (fallback 1)...');
+      const buffer = await PDFServicePDFKit.generateBookPDF(book);
+      console.log(`PDFKit PDF generated successfully. Size: ${buffer.length} bytes`);
+      return buffer;
+    } catch (pdfkitError) {
+      console.warn('PDFKit generation failed, trying React-PDF fallback:', pdfkitError);
+    }
+    
+    // Method 3: React-PDF (last resort)
+    try {
+      console.log('Attempting PDF generation with React-PDF (fallback 2)...');
       
       // Ensure fonts are registered
       try {
@@ -1076,9 +1115,15 @@ export class ExportServiceAdvanced {
         console.warn('Font registration failed, continuing with defaults:', fontError);
       }
       
+      // Sanitize publishing settings to prevent numerical issues
+      const sanitizedBook = {
+        ...book,
+        publishingSettings: this.sanitizePublishingSettings(book.publishingSettings),
+      };
+      
       // Create the PDF document component using React.createElement
-      console.log('Creating PDF document component...');
-      const doc = React.createElement(PDFDocument, { book });
+      console.log('Creating React-PDF document component...');
+      const doc = React.createElement(PDFDocumentReactPDF, { book: sanitizedBook });
       
       // Generate PDF blob
       console.log('Generating PDF blob...');
@@ -1089,11 +1134,11 @@ export class ExportServiceAdvanced {
       const arrayBuffer = await pdfBlob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       
-      console.log(`PDF generated successfully. Size: ${buffer.length} bytes`);
+      console.log(`React-PDF generated successfully. Size: ${buffer.length} bytes`);
       
       return buffer;
     } catch (error) {
-      console.error('PDF generation error:', error);
+      console.error('All PDF generation methods failed:', error);
       if (error instanceof Error) {
         console.error('Error stack:', error.stack);
         console.error('Error name:', error.name);
@@ -1101,6 +1146,58 @@ export class ExportServiceAdvanced {
       }
       throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Sanitize publishing settings to prevent numerical overflow errors
+   */
+  private static sanitizePublishingSettings(settings?: PublishingSettings): PublishingSettings {
+    if (!settings) return DEFAULT_PUBLISHING_SETTINGS;
+    
+    // Helper to ensure valid number
+    const safeNum = (val: number | undefined | null, def: number, min = 0, max = 1000): number => {
+      if (val === undefined || val === null || !isFinite(val) || isNaN(val)) return def;
+      return Math.max(min, Math.min(max, val));
+    };
+    
+    return {
+      ...DEFAULT_PUBLISHING_SETTINGS,
+      ...settings,
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        ...settings.typography,
+        bodyFontSize: safeNum(settings.typography?.bodyFontSize, 11, 6, 72),
+        bodyLineHeight: safeNum(settings.typography?.bodyLineHeight, 1.5, 1, 3),
+        chapterTitleSize: safeNum(settings.typography?.chapterTitleSize, 24, 12, 72),
+        chapterSubtitleSize: safeNum(settings.typography?.chapterSubtitleSize, 14, 8, 48),
+        sectionHeadingSize: safeNum(settings.typography?.sectionHeadingSize, 16, 10, 48),
+        dropCapLines: safeNum(settings.typography?.dropCapLines, 3, 2, 6),
+        paragraphIndent: safeNum(settings.typography?.paragraphIndent, 0.3, 0, 2),
+      },
+      margins: {
+        ...DEFAULT_PUBLISHING_SETTINGS.margins,
+        ...settings.margins,
+        top: safeNum(settings.margins?.top, 1, 0.25, 3),
+        bottom: safeNum(settings.margins?.bottom, 1, 0.25, 3),
+        inside: safeNum(settings.margins?.inside, 0.875, 0.25, 3),
+        outside: safeNum(settings.margins?.outside, 0.625, 0.25, 3),
+        bleed: safeNum(settings.margins?.bleed, 0.125, 0, 0.5),
+        headerSpace: safeNum(settings.margins?.headerSpace, 0.3, 0, 1),
+        footerSpace: safeNum(settings.margins?.footerSpace, 0.3, 0, 1),
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        ...settings.chapters,
+        chapterDropFromTop: safeNum(settings.chapters?.chapterDropFromTop, 2, 0.5, 5),
+        afterChapterTitleSpace: safeNum(settings.chapters?.afterChapterTitleSpace, 0.5, 0, 2),
+      },
+      headerFooter: {
+        ...DEFAULT_PUBLISHING_SETTINGS.headerFooter,
+        ...settings.headerFooter,
+        headerFontSize: safeNum(settings.headerFooter?.headerFontSize, 9, 6, 14),
+        footerFontSize: safeNum(settings.headerFooter?.footerFontSize, 10, 6, 14),
+      },
+    };
   }
 
   /**
