@@ -31,11 +31,18 @@ export class CoverService {
       visualOptions,
       customPrompt,
       referenceStyle,
+      showPowerWriteBranding = true,
+      hideAuthorName = false,
     } = request;
     
     // Determine final text values (custom overrides defaults)
     const displayTitle = textCustomization?.customTitle || title;
-    const displayAuthor = textCustomization?.customAuthor || 'PowerWrite';
+    // Handle author display: hide if requested, otherwise respect branding toggle
+    const displayAuthor = hideAuthorName 
+      ? ''
+      : (showPowerWriteBranding 
+        ? (textCustomization?.customAuthor || 'PowerWrite')
+        : (textCustomization?.customAuthor || author || ''));
     const subtitle = textCustomization?.subtitle;
     const tagline = textCustomization?.tagline;
     const publisherName = textCustomization?.publisherName || 'DLM Media';
@@ -226,12 +233,15 @@ ${visualOptions.customColors.background ? `- Background: ${visualOptions.customC
 `;
     }
 
-    prompt += `
-${subtitle ? '3' : '2'}. AUTHOR: "Written by ${displayAuthor}"
+    // Add author section if there's an author to display
+    if (displayAuthor) {
+      prompt += `
+${subtitle ? '3' : '2'}. AUTHOR: "${showPowerWriteBranding ? 'Written by ' : ''}${displayAuthor}"
    - Below title${subtitle ? '/subtitle' : ''}
    - Elegant, professional styling
    - Medium-sized text
 `;
+    }
 
     // Tagline if provided
     if (tagline) {
@@ -776,11 +786,18 @@ Generate a complete, professional back cover design.`;
    */
   static generatePreviewDataURL(
     title: string,
-    _author: string, // Ignored - we always use PowerWrite
+    author: string,
     backgroundColor: string = '#2C2C2C',
-    textColor: string = '#FFFFFF'
+    textColor: string = '#FFFFFF',
+    showPowerWriteBranding: boolean = true
   ): string {
     const accentColor = textColor === '#FFFFFF' ? '#FFD700' : '#4A4A4A';
+    
+    // Build author line based on branding preference
+    const authorLine = author 
+      ? (showPowerWriteBranding ? `Written by ${author}` : author)
+      : (showPowerWriteBranding ? 'Written by PowerWrite' : '');
+    
     return `data:image/svg+xml,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
         <defs>
@@ -796,9 +813,7 @@ Generate a complete, professional back cover design.`;
         </text>
         ${title.length > 18 ? `<text x="200" y="255" text-anchor="middle" fill="${textColor}" font-size="28" font-family="Georgia, serif" font-weight="bold">${title.substring(18, 36)}</text>` : ''}
         <line x1="100" y1="290" x2="300" y2="290" stroke="${accentColor}" stroke-width="2" opacity="0.6"/>
-        <text x="200" y="340" text-anchor="middle" fill="${accentColor}" font-size="14" font-family="Arial, sans-serif" font-style="italic">
-          Written by PowerWrite
-        </text>
+        ${authorLine ? `<text x="200" y="340" text-anchor="middle" fill="${accentColor}" font-size="14" font-family="Arial, sans-serif" font-style="italic">${authorLine}</text>` : ''}
         <text x="200" y="560" text-anchor="middle" fill="${textColor}" font-size="11" font-family="Arial, sans-serif" letter-spacing="2" opacity="0.7">
           DLM MEDIA
         </text>
@@ -813,10 +828,80 @@ Generate a complete, professional back cover design.`;
     title: string,
     description: string,
     backgroundColor: string = '#2C2C2C',
-    textColor: string = '#FFFFFF'
+    textColor: string = '#FFFFFF',
+    options?: {
+      showPowerWriteBranding?: boolean;
+      barcodeType?: 'isbn' | 'qr' | 'none';
+      showWebsite?: boolean;
+      showTagline?: boolean;
+      author?: string;
+    }
   ): string {
     const accentColor = textColor === '#FFFFFF' ? '#FFD700' : '#4A4A4A';
     const shortDesc = description.substring(0, 150) + (description.length > 150 ? '...' : '');
+    
+    const showPowerWriteBranding = options?.showPowerWriteBranding !== false;
+    const barcodeType = options?.barcodeType || 'isbn';
+    const showWebsite = options?.showWebsite !== false;
+    const showTagline = options?.showTagline !== false && showPowerWriteBranding;
+    const authorName = options?.author || (showPowerWriteBranding ? 'PowerWrite' : '');
+    
+    // Build author line
+    const authorLine = authorName 
+      ? (showPowerWriteBranding ? `Written by ${authorName}` : authorName)
+      : '';
+    
+    // Build barcode/QR code element
+    let barcodeElement = '';
+    if (barcodeType === 'isbn') {
+      barcodeElement = `
+        <rect x="280" y="540" width="100" height="50" fill="white" rx="2"/>
+        <text x="330" y="565" text-anchor="middle" fill="#333" font-size="7" font-family="Arial, sans-serif">ISBN BARCODE</text>
+        <rect x="290" y="545" width="2" height="30" fill="#333"/>
+        <rect x="295" y="545" width="1" height="30" fill="#333"/>
+        <rect x="299" y="545" width="3" height="30" fill="#333"/>
+        <rect x="305" y="545" width="1" height="30" fill="#333"/>
+        <rect x="309" y="545" width="2" height="30" fill="#333"/>
+        <rect x="314" y="545" width="1" height="30" fill="#333"/>
+        <rect x="318" y="545" width="3" height="30" fill="#333"/>
+        <rect x="324" y="545" width="1" height="30" fill="#333"/>
+        <rect x="328" y="545" width="2" height="30" fill="#333"/>
+        <rect x="333" y="545" width="1" height="30" fill="#333"/>
+        <rect x="337" y="545" width="3" height="30" fill="#333"/>
+        <rect x="343" y="545" width="2" height="30" fill="#333"/>
+        <rect x="348" y="545" width="1" height="30" fill="#333"/>
+        <rect x="352" y="545" width="2" height="30" fill="#333"/>
+        <rect x="357" y="545" width="1" height="30" fill="#333"/>
+        <rect x="361" y="545" width="3" height="30" fill="#333"/>
+        <rect x="367" y="545" width="1" height="30" fill="#333"/>
+      `;
+    } else if (barcodeType === 'qr') {
+      barcodeElement = `
+        <rect x="310" y="530" width="60" height="60" fill="white" rx="2"/>
+        <text x="340" y="600" text-anchor="middle" fill="#333" font-size="6" font-family="Arial, sans-serif">SCAN ME</text>
+        <!-- QR Code pattern -->
+        <rect x="315" y="535" width="8" height="8" fill="#333"/>
+        <rect x="325" y="535" width="4" height="4" fill="#333"/>
+        <rect x="335" y="535" width="8" height="8" fill="#333"/>
+        <rect x="357" y="535" width="8" height="8" fill="#333"/>
+        <rect x="315" y="545" width="4" height="4" fill="#333"/>
+        <rect x="325" y="545" width="8" height="4" fill="#333"/>
+        <rect x="340" y="545" width="4" height="4" fill="#333"/>
+        <rect x="350" y="545" width="4" height="4" fill="#333"/>
+        <rect x="360" y="545" width="4" height="4" fill="#333"/>
+        <rect x="315" y="555" width="8" height="8" fill="#333"/>
+        <rect x="330" y="555" width="4" height="4" fill="#333"/>
+        <rect x="345" y="555" width="4" height="4" fill="#333"/>
+        <rect x="357" y="555" width="8" height="8" fill="#333"/>
+        <rect x="315" y="570" width="4" height="4" fill="#333"/>
+        <rect x="325" y="570" width="8" height="4" fill="#333"/>
+        <rect x="340" y="570" width="4" height="4" fill="#333"/>
+        <rect x="350" y="575" width="4" height="4" fill="#333"/>
+        <rect x="315" y="580" width="8" height="8" fill="#333"/>
+        <rect x="330" y="580" width="4" height="4" fill="#333"/>
+        <rect x="357" y="575" width="8" height="8" fill="#333"/>
+      `;
+    }
     
     return `data:image/svg+xml,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
@@ -839,27 +924,18 @@ Generate a complete, professional back cover design.`;
         <!-- Separator -->
         <line x1="100" y1="280" x2="300" y2="280" stroke="${accentColor}" stroke-width="1" opacity="0.5"/>
         
-        <!-- Written by PowerWrite -->
-        <text x="200" y="320" text-anchor="middle" fill="${accentColor}" font-size="12" font-family="Arial, sans-serif" font-style="italic">
-          Written by PowerWrite
-        </text>
+        <!-- Author line -->
+        ${authorLine ? `<text x="200" y="320" text-anchor="middle" fill="${accentColor}" font-size="12" font-family="Arial, sans-serif" font-style="italic">${authorLine}</text>` : ''}
         
         <!-- Publisher info -->
         <text x="200" y="480" text-anchor="middle" fill="${textColor}" font-size="14" font-family="Arial, sans-serif" font-weight="bold" opacity="0.9">
           DLM Media
         </text>
-        <text x="200" y="500" text-anchor="middle" fill="${textColor}" font-size="10" font-family="Arial, sans-serif" opacity="0.7">
-          www.dlmworld.com
-        </text>
-        <text x="200" y="530" text-anchor="middle" fill="${textColor}" font-size="9" font-family="Arial, sans-serif" font-style="italic" opacity="0.5">
-          Created with PowerWrite
-        </text>
+        ${showWebsite ? `<text x="200" y="500" text-anchor="middle" fill="${textColor}" font-size="10" font-family="Arial, sans-serif" opacity="0.7">www.dlmworld.com</text>` : ''}
+        ${showTagline ? `<text x="200" y="520" text-anchor="middle" fill="${textColor}" font-size="9" font-family="Arial, sans-serif" font-style="italic" opacity="0.5">Created with PowerWrite</text>` : ''}
         
-        <!-- Barcode placeholder -->
-        <rect x="280" y="540" width="100" height="50" fill="white" rx="2"/>
-        <text x="330" y="570" text-anchor="middle" fill="#333" font-size="8" font-family="Arial, sans-serif">
-          ISBN BARCODE
-        </text>
+        <!-- Barcode/QR Code -->
+        ${barcodeElement}
       </svg>
     `)}`;
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { 
   CoverDesignOptions, 
   GENRE_COVER_DEFAULTS,
@@ -17,6 +17,7 @@ import {
 } from '@/lib/types/cover';
 import { CoverService } from '@/lib/services/cover-service';
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '@/lib/types/models';
+import CoverGallery from './CoverGallery';
 import { 
   Zap, 
   Type, 
@@ -36,7 +37,8 @@ import {
   Star,
   Image as ImageIcon,
   Loader2,
-  BoxSelect
+  BoxSelect,
+  Images
 } from 'lucide-react';
 
 interface CoverGeneratorProps {
@@ -51,6 +53,7 @@ interface CoverGeneratorProps {
   currentBackCoverUrl?: string;
   onCoverGenerated: (coverUrl: string, metadata: any) => void;
   onBackCoverGenerated?: (backCoverUrl: string, metadata: any) => void;
+  onGalleryUpdate?: () => void; // Callback to refresh gallery after generating new cover
 }
 
 type CustomizationTab = 'quick' | 'text' | 'typography' | 'layout' | 'visuals' | 'advanced';
@@ -67,6 +70,7 @@ export default function CoverGenerator({
   currentBackCoverUrl,
   onCoverGenerated,
   onBackCoverGenerated,
+  onGalleryUpdate,
 }: CoverGeneratorProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingBack, setIsGeneratingBack] = useState(false);
@@ -79,8 +83,44 @@ export default function CoverGenerator({
   const [imageModel, setImageModel] = useState(DEFAULT_IMAGE_MODEL);
   const [coverMode, setCoverMode] = useState<'generate' | 'upload'>('generate');
   const [activeTab, setActiveTab] = useState<CustomizationTab>('quick');
-  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false);
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(true); // Enabled by default now
+  const [showGallery, setShowGallery] = useState(false);
+  const [galleryKey, setGalleryKey] = useState(0); // Key to force gallery refresh
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Callback to refresh gallery
+  const refreshGallery = useCallback(() => {
+    setGalleryKey(prev => prev + 1);
+    onGalleryUpdate?.();
+  }, [onGalleryUpdate]);
+  
+  // Handle cover selection from gallery
+  const handleGalleryCoverSelect = useCallback((selectedCoverUrl: string, coverId: number) => {
+    if (coverType === 'front') {
+      setCoverUrl(selectedCoverUrl);
+      onCoverGenerated(selectedCoverUrl, { source: 'gallery', coverId });
+    } else {
+      setBackCoverUrl(selectedCoverUrl);
+      onBackCoverGenerated?.(selectedCoverUrl, { source: 'gallery', coverId });
+    }
+  }, [coverType, onCoverGenerated, onBackCoverGenerated]);
+  
+  // PowerWrite branding toggle
+  const [showPowerWriteBranding, setShowPowerWriteBranding] = useState(true);
+  
+  // Hide author name toggle
+  const [hideAuthorName, setHideAuthorName] = useState(false);
+  
+  // Back cover customization state
+  const [backCoverOptions, setBackCoverOptions] = useState({
+    showBarcode: true,
+    barcodeType: 'isbn' as 'isbn' | 'qr' | 'none',
+    customDescription: '',
+    layout: 'classic' as 'classic' | 'modern' | 'minimal' | 'editorial',
+    showWebsite: true,
+    showTagline: true,
+    matchFrontCover: true,
+  });
   
   // Design customization state
   const genreDefaults = GENRE_COVER_DEFAULTS[genre] || GENRE_COVER_DEFAULTS['Literary Fiction'];
@@ -273,6 +313,8 @@ export default function CoverGenerator({
           themes,
           designOptions,
           imageModel,
+          showPowerWriteBranding, // Include branding toggle
+          hideAuthorName, // Include hide author option
           // New customization options
           textCustomization: hasTextCustomization ? textCustomization : undefined,
           typographyOptions: showAdvancedOptions ? typographyOptions : undefined,
@@ -292,6 +334,37 @@ export default function CoverGenerator({
       if (data.coverUrl) {
         setCoverUrl(data.coverUrl);
         onCoverGenerated(data.coverUrl, data.metadata);
+        
+        // Save to cover gallery if bookId exists
+        if (bookId) {
+          try {
+            await fetch(`/api/books/${bookId}/covers`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                coverUrl: data.coverUrl,
+                coverType: 'front',
+                imageModel,
+                source: 'generated',
+                generationSettings: {
+                  designOptions,
+                  textCustomization: hasTextCustomization ? textCustomization : undefined,
+                  typographyOptions: showAdvancedOptions ? typographyOptions : undefined,
+                  layoutOptions: showAdvancedOptions ? layoutOptions : undefined,
+                  visualOptions: showAdvancedOptions ? visualOptions : undefined,
+                  customPrompt: customPrompt.trim() || undefined,
+                  referenceStyle: referenceStyle.trim() || undefined,
+                },
+                setAsMain: true, // Set as main cover by default
+              }),
+            });
+            // Trigger gallery refresh
+            refreshGallery();
+          } catch (galleryErr) {
+            console.error('Failed to save to gallery:', galleryErr);
+            // Don't fail the main operation if gallery save fails
+          }
+        }
       } else {
         throw new Error('No cover URL returned');
       }
@@ -326,9 +399,26 @@ export default function CoverGenerator({
           title,
           author,
           genre,
-          description,
+          description: backCoverOptions.customDescription || description,
           style: designOptions.style || 'photographic',
           imageModel,
+          // New back cover options
+          showPowerWriteBranding,
+          hideAuthorName,
+          backCoverOptions: {
+            showBarcode: backCoverOptions.showBarcode,
+            barcodeType: backCoverOptions.barcodeType,
+            layout: backCoverOptions.layout,
+            showWebsite: backCoverOptions.showWebsite,
+            showTagline: backCoverOptions.showTagline,
+            matchFrontCover: backCoverOptions.matchFrontCover,
+          },
+          // Pass front cover style for matching
+          frontCoverStyle: {
+            colorScheme: designOptions.colorScheme,
+            style: designOptions.style,
+            visualOptions: showAdvancedOptions ? visualOptions : undefined,
+          },
         }),
       });
 
@@ -341,6 +431,31 @@ export default function CoverGenerator({
       if (data.coverUrl) {
         setBackCoverUrl(data.coverUrl);
         onBackCoverGenerated?.(data.coverUrl, data.metadata);
+        
+        // Save to cover gallery if bookId exists
+        if (bookId) {
+          try {
+            await fetch(`/api/books/${bookId}/covers`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                coverUrl: data.coverUrl,
+                coverType: 'back',
+                imageModel,
+                source: 'generated',
+                generationSettings: {
+                  backCoverOptions,
+                  designOptions,
+                },
+                setAsMain: true, // Set as main back cover by default
+              }),
+            });
+            // Trigger gallery refresh
+            refreshGallery();
+          } catch (galleryErr) {
+            console.error('Failed to save back cover to gallery:', galleryErr);
+          }
+        }
       } else {
         throw new Error('No back cover URL returned');
       }
@@ -416,6 +531,27 @@ export default function CoverGenerator({
       if (data.coverUrl) {
         setCoverUrl(data.coverUrl);
         onCoverGenerated(data.coverUrl, { source: 'upload', fileName: file.name });
+        
+        // Save uploaded cover to gallery
+        if (bookId) {
+          try {
+            await fetch(`/api/books/${bookId}/covers`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                coverUrl: data.coverUrl,
+                coverType: coverType, // front or back
+                source: 'uploaded',
+                fileName: file.name,
+                fileSize: file.size,
+                setAsMain: true,
+              }),
+            });
+            refreshGallery();
+          } catch (galleryErr) {
+            console.error('Failed to save uploaded cover to gallery:', galleryErr);
+          }
+        }
       } else {
         throw new Error('No cover URL returned');
       }
@@ -457,28 +593,43 @@ export default function CoverGenerator({
     }
   };
 
+  // Determine the author display based on branding toggle and hide author option
+  const displayAuthorForPreview = hideAuthorName 
+    ? '' 
+    : showPowerWriteBranding 
+      ? (textCustomization.customAuthor || 'PowerWrite')
+      : (textCustomization.customAuthor || author || '');
+
   // Generate preview SVG for when no cover exists
   const previewDataUrl = CoverService.generatePreviewDataURL(
     textCustomization.customTitle || title || 'Book Title',
-    textCustomization.customAuthor || author || 'Author Name',
+    displayAuthorForPreview,
     '#1a1a1a',
-    '#ffffff'
+    '#ffffff',
+    showPowerWriteBranding
   );
 
-  // Generate back cover preview SVG
+  // Generate back cover preview SVG with options
   const backCoverPreviewDataUrl = CoverService.generateBackCoverPreviewDataURL(
     title || 'Book Title',
-    description || 'Your book description will appear here...',
+    backCoverOptions.customDescription || description || 'Your book description will appear here...',
     '#1a1a1a',
-    '#ffffff'
+    '#ffffff',
+    {
+      showPowerWriteBranding,
+      barcodeType: backCoverOptions.barcodeType,
+      showWebsite: backCoverOptions.showWebsite,
+      showTagline: backCoverOptions.showTagline,
+      author: hideAuthorName ? '' : (textCustomization.customAuthor || author),
+    }
   );
 
   // Tab content components
   const renderQuickOptions = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Image Model Selection */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Image AI Model
         </label>
         <div className="grid grid-cols-1 gap-2">
@@ -486,24 +637,28 @@ export default function CoverGenerator({
             <button
               key={model.id}
               onClick={() => setImageModel(model.id)}
-              className={`px-4 py-3 rounded text-left transition-all ${
+              className={`px-4 py-3 rounded-lg text-left transition-all border ${
                 imageModel === model.id
-                  ? 'bg-yellow-400 text-black ring-2 ring-yellow-300'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black border-amber-500 dark:border-yellow-400 shadow-md'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-gray-600'
               }`}
             >
               <div className="flex items-center justify-between">
                 <span className="font-medium">{model.name}</span>
-                <span className={`text-xs px-2 py-0.5 rounded flex items-center gap-1 ${
+                <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
                   model.tier === 'premium' 
-                    ? 'bg-yellow-500/20 text-yellow-400' 
-                    : 'bg-gray-600 text-gray-300'
+                    ? imageModel === model.id 
+                      ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
+                      : 'bg-amber-100 dark:bg-yellow-500/20 text-amber-600 dark:text-yellow-400'
+                    : imageModel === model.id
+                      ? 'bg-white/20 text-white dark:bg-black/20 dark:text-black'
+                      : 'bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300'
                 }`}>
                   {model.tier === 'premium' ? <Star className="w-3 h-3 fill-current" /> : null}
                   {model.tier === 'premium' ? 'Premium' : 'Standard'}
                 </span>
               </div>
-              <p className={`text-xs mt-1 ${imageModel === model.id ? 'text-black/70' : 'text-gray-500'}`}>
+              <p className={`text-xs mt-1 ${imageModel === model.id ? 'text-white/70 dark:text-black/70' : 'text-gray-500'}`}>
                 {model.description}
               </p>
             </button>
@@ -513,7 +668,7 @@ export default function CoverGenerator({
 
       {/* Cover Style */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Cover Style
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -521,10 +676,10 @@ export default function CoverGenerator({
             <button
               key={style}
               onClick={() => handleStyleChange(style)}
-              className={`px-3 py-2 rounded text-sm capitalize ${
+              className={`px-3 py-2 rounded-lg text-sm capitalize transition-all ${
                 designOptions.style === style
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {style}
@@ -535,7 +690,7 @@ export default function CoverGenerator({
 
       {/* Color Scheme */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Color Scheme
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -543,10 +698,10 @@ export default function CoverGenerator({
             <button
               key={scheme}
               onClick={() => handleColorSchemeChange(scheme)}
-              className={`px-3 py-2 rounded text-sm capitalize ${
+              className={`px-3 py-2 rounded-lg text-sm capitalize transition-all ${
                 designOptions.colorScheme === scheme
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {scheme}
@@ -555,21 +710,14 @@ export default function CoverGenerator({
         </div>
       </div>
 
-      {/* Enable Advanced Options Toggle */}
-      <div className="pt-4 border-t border-gray-800">
-        <button
-          onClick={() => setShowAdvancedOptions(!showAdvancedOptions)}
-          className={`w-full py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
-            showAdvancedOptions
-              ? 'bg-yellow-400/20 text-yellow-400 ring-1 ring-yellow-400'
-              : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
-          }`}
-        >
-          {showAdvancedOptions ? <CheckCircle className="w-5 h-5" /> : <Settings className="w-5 h-5" />}
-          <span>{showAdvancedOptions ? 'Advanced Customization Enabled' : 'Enable Advanced Customization'}</span>
-        </button>
+      {/* Status indicator */}
+      <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+          <CheckCircle className="w-5 h-5 text-green-500" />
+          <span className="text-sm text-green-700 dark:text-green-400">All customization options available</span>
+        </div>
         <p className="text-xs text-gray-500 mt-2 text-center">
-          Unlock full control over text, typography, layout, and visuals
+          Use the tabs above to access text, typography, layout, and visual options
         </p>
       </div>
     </div>
@@ -577,16 +725,70 @@ export default function CoverGenerator({
 
   const renderTextOptions = () => (
     <div className="space-y-4">
-      <div className="bg-gray-800/50 p-3 rounded-lg mb-4 flex gap-3 items-start">
-        <Lightbulb className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-gray-400">
+      <div className="bg-amber-500/10 dark:bg-gray-800/50 p-3 rounded-lg mb-4 flex gap-3 items-start border border-amber-200 dark:border-transparent">
+        <Lightbulb className="w-5 h-5 text-amber-500 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-gray-600 dark:text-gray-400">
           Customize the text that appears on your cover. Leave blank to use defaults.
         </p>
       </div>
 
+      {/* PowerWrite Branding Toggle */}
+      <div className="p-4 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              "Written by PowerWrite" Branding
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              Display PowerWrite branding on the cover
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowPowerWriteBranding(!showPowerWriteBranding)}
+            className={`relative w-14 h-7 rounded-full transition-colors ${
+              showPowerWriteBranding 
+                ? 'bg-amber-500 dark:bg-yellow-400' 
+                : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+              showPowerWriteBranding ? 'translate-x-8' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Hide Author Name Toggle */}
+      <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Hide Author Name
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              Show only the title on the cover (no author)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setHideAuthorName(!hideAuthorName)}
+            className={`relative w-14 h-7 rounded-full transition-colors ${
+              hideAuthorName 
+                ? 'bg-amber-500 dark:bg-yellow-400' 
+                : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+              hideAuthorName ? 'translate-x-8' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+      </div>
+
       {/* Custom Title */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Custom Title
         </label>
         <input
@@ -594,27 +796,29 @@ export default function CoverGenerator({
           value={textCustomization.customTitle || ''}
           onChange={(e) => setTextCustomization(prev => ({ ...prev, customTitle: e.target.value }))}
           placeholder={title || 'Leave blank to use book title'}
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
 
       {/* Custom Author */}
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+      <div className={hideAuthorName ? 'opacity-50' : ''}>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Author Name
+          {hideAuthorName && <span className="ml-2 text-xs text-gray-400">(hidden)</span>}
         </label>
         <input
           type="text"
           value={textCustomization.customAuthor || ''}
           onChange={(e) => setTextCustomization(prev => ({ ...prev, customAuthor: e.target.value }))}
-          placeholder="PowerWrite (default)"
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          placeholder={showPowerWriteBranding ? "PowerWrite (default)" : author || "Enter author name"}
+          disabled={hideAuthorName}
+          className={`w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent ${hideAuthorName ? 'cursor-not-allowed' : ''}`}
         />
       </div>
 
       {/* Subtitle */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Subtitle
         </label>
         <input
@@ -622,13 +826,13 @@ export default function CoverGenerator({
           value={textCustomization.subtitle || ''}
           onChange={(e) => setTextCustomization(prev => ({ ...prev, subtitle: e.target.value }))}
           placeholder="Add a subtitle (optional)"
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
 
       {/* Tagline */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Tagline / Quote
         </label>
         <input
@@ -636,14 +840,14 @@ export default function CoverGenerator({
           value={textCustomization.tagline || ''}
           onChange={(e) => setTextCustomization(prev => ({ ...prev, tagline: e.target.value }))}
           placeholder="A gripping tale of mystery and adventure..."
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
 
       {/* Series Info */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Series Name
           </label>
           <input
@@ -651,11 +855,11 @@ export default function CoverGenerator({
             value={textCustomization.seriesName || ''}
             onChange={(e) => setTextCustomization(prev => ({ ...prev, seriesName: e.target.value }))}
             placeholder="The Chronicles of..."
-            className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Book #
           </label>
           <input
@@ -667,14 +871,14 @@ export default function CoverGenerator({
               seriesNumber: e.target.value ? parseInt(e.target.value) : undefined 
             }))}
             placeholder="1"
-            className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
           />
         </div>
       </div>
 
       {/* Award Badge */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Award Badge
         </label>
         <input
@@ -682,13 +886,13 @@ export default function CoverGenerator({
           value={textCustomization.awardBadge || ''}
           onChange={(e) => setTextCustomization(prev => ({ ...prev, awardBadge: e.target.value }))}
           placeholder="Bestseller, Award Winner, etc."
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
 
       {/* Publisher Name */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Publisher Name
         </label>
         <input
@@ -696,17 +900,17 @@ export default function CoverGenerator({
           value={textCustomization.publisherName || 'DLM Media'}
           onChange={(e) => setTextCustomization(prev => ({ ...prev, publisherName: e.target.value }))}
           placeholder="DLM Media"
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
     </div>
   );
 
   const renderTypographyOptions = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Font Style Presets */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Typography Presets
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -716,14 +920,14 @@ export default function CoverGenerator({
               <button
                 key={presetKey}
                 onClick={() => applyFontPreset(presetKey)}
-                className={`p-3 rounded-lg text-left transition-all ${
+                className={`p-3 rounded-lg text-left transition-all border ${
                   selectedFontPreset === presetKey
-                    ? 'bg-yellow-400 text-black ring-2 ring-yellow-300'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black border-amber-500 dark:border-yellow-400'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-gray-600'
                 }`}
               >
                 <span className="font-medium text-sm capitalize">{presetKey.replace(/-/g, ' ')}</span>
-                <p className={`text-xs mt-1 ${selectedFontPreset === presetKey ? 'text-black/70' : 'text-gray-500'}`}>
+                <p className={`text-xs mt-1 ${selectedFontPreset === presetKey ? 'text-white/70 dark:text-black/70' : 'text-gray-500'}`}>
                   {preset.description}
                 </p>
               </button>
@@ -734,7 +938,7 @@ export default function CoverGenerator({
 
       {/* Title Font */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Title Font Style
         </label>
         <div className="grid grid-cols-4 gap-2">
@@ -742,10 +946,10 @@ export default function CoverGenerator({
             <button
               key={font}
               onClick={() => setTypographyOptions(prev => ({ ...prev, titleFont: font }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 typographyOptions.titleFont === font
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {font}
@@ -756,7 +960,7 @@ export default function CoverGenerator({
 
       {/* Title Weight */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Title Weight
         </label>
         <div className="grid grid-cols-4 gap-2">
@@ -764,10 +968,10 @@ export default function CoverGenerator({
             <button
               key={weight}
               onClick={() => setTypographyOptions(prev => ({ ...prev, titleWeight: weight }))}
-              className={`px-3 py-2 rounded text-sm capitalize ${
+              className={`px-3 py-2 rounded-lg text-sm capitalize transition-all ${
                 typographyOptions.titleWeight === weight
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {weight}
@@ -778,7 +982,7 @@ export default function CoverGenerator({
 
       {/* Title Style */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Title Style
         </label>
         <div className="grid grid-cols-4 gap-2">
@@ -786,10 +990,10 @@ export default function CoverGenerator({
             <button
               key={style}
               onClick={() => setTypographyOptions(prev => ({ ...prev, titleStyle: style }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 typographyOptions.titleStyle === style
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {style}
@@ -800,7 +1004,7 @@ export default function CoverGenerator({
 
       {/* Title Effect */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Title Effect
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -808,10 +1012,10 @@ export default function CoverGenerator({
             <button
               key={effect}
               onClick={() => setTypographyOptions(prev => ({ ...prev, titleEffect: effect }))}
-              className={`px-3 py-2 rounded text-sm capitalize ${
+              className={`px-3 py-2 rounded-lg text-sm capitalize transition-all ${
                 typographyOptions.titleEffect === effect
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {effect}
@@ -822,7 +1026,7 @@ export default function CoverGenerator({
 
       {/* Title Size */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Title Size
         </label>
         <div className="grid grid-cols-4 gap-2">
@@ -830,10 +1034,10 @@ export default function CoverGenerator({
             <button
               key={size}
               onClick={() => setTypographyOptions(prev => ({ ...prev, titleSize: size }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 typographyOptions.titleSize === size
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {size}
@@ -844,7 +1048,7 @@ export default function CoverGenerator({
 
       {/* Text Alignment */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Text Alignment
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -852,10 +1056,10 @@ export default function CoverGenerator({
             <button
               key={align}
               onClick={() => setTypographyOptions(prev => ({ ...prev, alignment: align }))}
-              className={`px-3 py-2 rounded text-sm capitalize ${
+              className={`px-3 py-2 rounded-lg text-sm capitalize transition-all ${
                 typographyOptions.alignment === align
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {align}
@@ -866,7 +1070,7 @@ export default function CoverGenerator({
 
       {/* Vertical Position */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Vertical Position
         </label>
         <div className="grid grid-cols-5 gap-2">
@@ -874,10 +1078,10 @@ export default function CoverGenerator({
             <button
               key={pos}
               onClick={() => setTypographyOptions(prev => ({ ...prev, verticalPosition: pos }))}
-              className={`px-2 py-2 rounded text-xs capitalize ${
+              className={`px-2 py-2 rounded-lg text-xs capitalize transition-all ${
                 typographyOptions.verticalPosition === pos
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {pos.replace('-', ' ')}
@@ -889,10 +1093,10 @@ export default function CoverGenerator({
   );
 
   const renderLayoutOptions = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Layout Style */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Layout Style
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -900,10 +1104,10 @@ export default function CoverGenerator({
             <button
               key={layout}
               onClick={() => setLayoutOptions(prev => ({ ...prev, layout }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 layoutOptions.layout === layout
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {layout}
@@ -914,7 +1118,7 @@ export default function CoverGenerator({
 
       {/* Image Position */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Image Position
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -922,10 +1126,10 @@ export default function CoverGenerator({
             <button
               key={pos}
               onClick={() => setLayoutOptions(prev => ({ ...prev, imagePosition: pos }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 layoutOptions.imagePosition === pos
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {pos.replace('-', ' ')}
@@ -936,7 +1140,7 @@ export default function CoverGenerator({
 
       {/* Border Style */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Border Style
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -944,10 +1148,10 @@ export default function CoverGenerator({
             <button
               key={border}
               onClick={() => setLayoutOptions(prev => ({ ...prev, borderStyle: border }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 layoutOptions.borderStyle === border
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {border}
@@ -958,7 +1162,7 @@ export default function CoverGenerator({
 
       {/* Overlay Type */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Overlay Type
         </label>
         <div className="grid grid-cols-5 gap-2">
@@ -966,10 +1170,10 @@ export default function CoverGenerator({
             <button
               key={overlay}
               onClick={() => setLayoutOptions(prev => ({ ...prev, overlayType: overlay }))}
-              className={`px-2 py-2 rounded text-xs capitalize ${
+              className={`px-2 py-2 rounded-lg text-xs capitalize transition-all ${
                 layoutOptions.overlayType === overlay
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {overlay}
@@ -981,7 +1185,7 @@ export default function CoverGenerator({
       {/* Overlay Opacity */}
       {layoutOptions.overlayType && layoutOptions.overlayType !== 'none' && (
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
             Overlay Opacity: {layoutOptions.overlayOpacity}%
           </label>
           <input
@@ -990,14 +1194,14 @@ export default function CoverGenerator({
             max="100"
             value={layoutOptions.overlayOpacity || 50}
             onChange={(e) => setLayoutOptions(prev => ({ ...prev, overlayOpacity: parseInt(e.target.value) }))}
-            className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-yellow-400"
+            className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer accent-amber-500 dark:accent-yellow-400"
           />
         </div>
       )}
 
       {/* Text Zone */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Text Zone
         </label>
         <div className="grid grid-cols-3 gap-2">
@@ -1005,10 +1209,10 @@ export default function CoverGenerator({
             <button
               key={zone}
               onClick={() => setLayoutOptions(prev => ({ ...prev, textZone: zone }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 layoutOptions.textZone === zone
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {zone.replace('-', ' ')}
@@ -1020,10 +1224,10 @@ export default function CoverGenerator({
   );
 
   const renderVisualOptions = () => (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Visual Style Presets */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Visual Presets
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -1033,14 +1237,14 @@ export default function CoverGenerator({
               <button
                 key={presetKey}
                 onClick={() => applyVisualPreset(presetKey)}
-                className={`p-3 rounded-lg text-left transition-all ${
+                className={`p-3 rounded-lg text-left transition-all border ${
                   selectedVisualPreset === presetKey
-                    ? 'bg-yellow-400 text-black ring-2 ring-yellow-300'
-                    : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                    ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black border-amber-500 dark:border-yellow-400'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-gray-600'
                 }`}
               >
                 <span className="font-medium text-sm capitalize">{presetKey.replace(/-/g, ' ')}</span>
-                <p className={`text-xs mt-1 ${selectedVisualPreset === presetKey ? 'text-black/70' : 'text-gray-500'}`}>
+                <p className={`text-xs mt-1 ${selectedVisualPreset === presetKey ? 'text-white/70 dark:text-black/70' : 'text-gray-500'}`}>
                   {preset.description}
                 </p>
               </button>
@@ -1051,7 +1255,7 @@ export default function CoverGenerator({
 
       {/* Color Palettes */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Color Palettes
         </label>
         <div className="grid grid-cols-2 gap-2">
@@ -1063,8 +1267,8 @@ export default function CoverGenerator({
                 onClick={() => applyColorPalette(paletteKey)}
                 className={`p-3 rounded-lg text-left transition-all ${
                   selectedColorPalette === paletteKey
-                    ? 'ring-2 ring-yellow-400'
-                    : 'hover:ring-1 hover:ring-gray-600'
+                    ? 'ring-2 ring-amber-500 dark:ring-yellow-400'
+                    : 'hover:ring-1 hover:ring-gray-300 dark:hover:ring-gray-600'
                 }`}
                 style={{ backgroundColor: palette.primary }}
               >
@@ -1084,7 +1288,7 @@ export default function CoverGenerator({
 
       {/* Atmosphere */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Atmosphere
         </label>
         <div className="grid grid-cols-4 gap-2">
@@ -1092,10 +1296,10 @@ export default function CoverGenerator({
             <button
               key={atm}
               onClick={() => setVisualOptions(prev => ({ ...prev, atmosphere: atm }))}
-              className={`px-3 py-2 rounded text-xs capitalize ${
+              className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                 visualOptions.atmosphere === atm
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {atm}
@@ -1106,7 +1310,7 @@ export default function CoverGenerator({
 
       {/* Main Subject */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Main Subject/Imagery
         </label>
         <input
@@ -1114,13 +1318,13 @@ export default function CoverGenerator({
           value={visualOptions.mainSubject || ''}
           onChange={(e) => setVisualOptions(prev => ({ ...prev, mainSubject: e.target.value }))}
           placeholder="e.g., A mysterious hooded figure, A dragon silhouette..."
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
 
       {/* Background Description */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Background Description
         </label>
         <input
@@ -1128,13 +1332,13 @@ export default function CoverGenerator({
           value={visualOptions.backgroundDescription || ''}
           onChange={(e) => setVisualOptions(prev => ({ ...prev, backgroundDescription: e.target.value }))}
           placeholder="e.g., Stormy night sky, Foggy forest, Ancient castle..."
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
       </div>
 
       {/* Visual Elements to Include */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Elements to Include
         </label>
         <div className="flex gap-2 mb-2">
@@ -1144,11 +1348,11 @@ export default function CoverGenerator({
             onChange={(e) => setNewVisualElement(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && addVisualElement()}
             placeholder="Add element (e.g., sword, moon, fire)"
-            className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
           />
           <button
             onClick={addVisualElement}
-            className="px-4 py-2 bg-yellow-400 text-black rounded-lg font-medium hover:bg-yellow-500"
+            className="px-4 py-2 bg-amber-500 dark:bg-yellow-400 text-white dark:text-black rounded-lg font-medium hover:bg-amber-600 dark:hover:bg-yellow-500 transition-colors"
           >
             +
           </button>
@@ -1157,12 +1361,12 @@ export default function CoverGenerator({
           {(visualOptions.visualElements || []).map((element, index) => (
             <span
               key={index}
-              className="px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-sm flex items-center gap-2"
+              className="px-3 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 rounded-full text-sm flex items-center gap-2"
             >
               {element}
               <button
                 onClick={() => removeVisualElement(index)}
-                className="hover:text-green-200"
+                className="hover:text-green-500 dark:hover:text-green-200"
               >
                 ×
               </button>
@@ -1173,7 +1377,7 @@ export default function CoverGenerator({
 
       {/* Elements to Avoid */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Elements to Avoid
         </label>
         <div className="flex gap-2 mb-2">
@@ -1183,11 +1387,11 @@ export default function CoverGenerator({
             onChange={(e) => setNewAvoidElement(e.target.value)}
             onKeyPress={(e) => e.key === 'Enter' && addAvoidElement()}
             placeholder="Add element to avoid"
-            className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+            className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
           />
           <button
             onClick={addAvoidElement}
-            className="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg font-medium hover:bg-gray-600"
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
           >
             +
           </button>
@@ -1196,12 +1400,12 @@ export default function CoverGenerator({
           {(visualOptions.avoidElements || []).map((element, index) => (
             <span
               key={index}
-              className="px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-sm flex items-center gap-2"
+              className="px-3 py-1 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400 rounded-full text-sm flex items-center gap-2"
             >
               {element}
               <button
                 onClick={() => removeAvoidElement(index)}
-                className="hover:text-red-200"
+                className="hover:text-red-500 dark:hover:text-red-200"
               >
                 ×
               </button>
@@ -1212,18 +1416,185 @@ export default function CoverGenerator({
     </div>
   );
 
+  // Back Cover Options Render
+  const renderBackCoverOptions = () => (
+    <div className="space-y-5">
+      <div className="bg-amber-500/10 dark:bg-gray-800/50 p-3 rounded-lg flex gap-3 items-start border border-amber-200 dark:border-transparent">
+        <FileText className="w-5 h-5 text-amber-500 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-gray-600 dark:text-gray-400">
+          Customize your back cover. The design will match your front cover style for a cohesive look.
+        </p>
+      </div>
+
+      {/* Match Front Cover Toggle */}
+      <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Match Front Cover Style
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+              Automatically use the same colors and style as the front cover
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBackCoverOptions(prev => ({ ...prev, matchFrontCover: !prev.matchFrontCover }))}
+            className={`relative w-14 h-7 rounded-full transition-colors ${
+              backCoverOptions.matchFrontCover 
+                ? 'bg-amber-500 dark:bg-yellow-400' 
+                : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+              backCoverOptions.matchFrontCover ? 'translate-x-8' : 'translate-x-1'
+            }`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Custom Description */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Custom Back Cover Description
+        </label>
+        <textarea
+          value={backCoverOptions.customDescription}
+          onChange={(e) => setBackCoverOptions(prev => ({ ...prev, customDescription: e.target.value }))}
+          placeholder={`Leave blank to use book description:\n\n"${description.substring(0, 150)}..."`}
+          rows={4}
+          className="w-full px-4 py-3 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent resize-none"
+        />
+        <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+          This text will appear as the synopsis on your back cover
+        </p>
+      </div>
+
+      {/* Back Cover Layout */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Back Cover Layout
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { id: 'classic', label: 'Classic', desc: 'Traditional centered layout' },
+            { id: 'modern', label: 'Modern', desc: 'Contemporary asymmetric design' },
+            { id: 'minimal', label: 'Minimal', desc: 'Clean with lots of space' },
+            { id: 'editorial', label: 'Editorial', desc: 'Magazine-style layout' },
+          ].map((layout) => (
+            <button
+              type="button"
+              key={layout.id}
+              onClick={() => setBackCoverOptions(prev => ({ ...prev, layout: layout.id as any }))}
+              className={`p-3 rounded-lg text-left transition-all border ${
+                backCoverOptions.layout === layout.id
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black border-amber-500 dark:border-yellow-400'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-gray-600'
+              }`}
+            >
+              <span className="font-medium text-sm">{layout.label}</span>
+              <p className={`text-xs mt-0.5 ${
+                backCoverOptions.layout === layout.id ? 'text-white/70 dark:text-black/70' : 'text-gray-500'
+              }`}>
+                {layout.desc}
+              </p>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Barcode Options */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          Barcode / QR Code
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { id: 'isbn', label: '📊 ISBN Barcode', desc: 'Standard book barcode' },
+            { id: 'qr', label: '📱 QR Code', desc: 'Link to website/preview' },
+            { id: 'none', label: '✕ None', desc: 'No barcode area' },
+          ].map((option) => (
+            <button
+              type="button"
+              key={option.id}
+              onClick={() => setBackCoverOptions(prev => ({ 
+                ...prev, 
+                barcodeType: option.id as any,
+                showBarcode: option.id !== 'none'
+              }))}
+              className={`p-3 rounded-lg text-center transition-all border ${
+                backCoverOptions.barcodeType === option.id
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black border-amber-500 dark:border-yellow-400'
+                  : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-amber-300 dark:hover:border-gray-600'
+              }`}
+            >
+              <span className="font-medium text-sm block">{option.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Additional Elements */}
+      <div className="space-y-3">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          Additional Elements
+        </label>
+        
+        <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
+          <div>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Show Website URL</span>
+            <p className="text-xs text-gray-500">www.dlmworld.com</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBackCoverOptions(prev => ({ ...prev, showWebsite: !prev.showWebsite }))}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              backCoverOptions.showWebsite 
+                ? 'bg-amber-500 dark:bg-yellow-400' 
+                : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+              backCoverOptions.showWebsite ? 'translate-x-6' : 'translate-x-0.5'
+            }`} />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50">
+          <div>
+            <span className="text-sm text-gray-700 dark:text-gray-300">Show "Created with PowerWrite"</span>
+            <p className="text-xs text-gray-500">Tagline at the bottom</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setBackCoverOptions(prev => ({ ...prev, showTagline: !prev.showTagline }))}
+            className={`relative w-12 h-6 rounded-full transition-colors ${
+              backCoverOptions.showTagline 
+                ? 'bg-amber-500 dark:bg-yellow-400' 
+                : 'bg-gray-300 dark:bg-gray-600'
+            }`}
+          >
+            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+              backCoverOptions.showTagline ? 'translate-x-6' : 'translate-x-0.5'
+            }`} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderAdvancedOptions = () => (
     <div className="space-y-4">
-      <div className="bg-gray-800/50 p-3 rounded-lg mb-4 flex gap-3 items-start">
-        <Target className="w-5 h-5 text-yellow-400 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-gray-400">
+      <div className="bg-amber-500/10 dark:bg-gray-800/50 p-3 rounded-lg mb-4 flex gap-3 items-start border border-amber-200 dark:border-transparent">
+        <Target className="w-5 h-5 text-amber-500 dark:text-yellow-400 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-gray-600 dark:text-gray-400">
           Pro tip: Use these options to fine-tune the AI generation or provide specific instructions.
         </p>
       </div>
 
       {/* Custom Prompt */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Custom AI Instructions
         </label>
         <textarea
@@ -1231,13 +1602,13 @@ export default function CoverGenerator({
           onChange={(e) => setCustomPrompt(e.target.value)}
           placeholder="Add any specific instructions for the AI. For example:&#10;- Make the cover feel nostalgic&#10;- Use a watercolor style&#10;- Include a subtle border&#10;- Make it look like a vintage 1960s paperback"
           rows={5}
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent resize-none"
         />
       </div>
 
       {/* Reference Style */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Style Reference
         </label>
         <input
@@ -1245,7 +1616,7 @@ export default function CoverGenerator({
           value={referenceStyle}
           onChange={(e) => setReferenceStyle(e.target.value)}
           placeholder="e.g., 'Like Stephen King covers', 'Penguin Classics style', 'Movie poster aesthetic'"
-          className="w-full px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-amber-500 dark:focus:ring-yellow-400 focus:border-transparent"
         />
         <p className="text-xs text-gray-500 mt-1">
           Reference a style or aesthetic you'd like to emulate
@@ -1254,7 +1625,7 @@ export default function CoverGenerator({
 
       {/* Generation Method */}
       <div>
-        <label className="block text-sm font-medium text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Generation Method
         </label>
         <div className="flex gap-2">
@@ -1262,10 +1633,10 @@ export default function CoverGenerator({
             <button
               key={method}
               onClick={() => handleMethodChange(method)}
-              className={`px-4 py-2 rounded text-sm font-medium ${
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                 designOptions.generationMethod === method
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
             >
               {method === 'ai' && '🤖 AI Generated'}
@@ -1286,90 +1657,125 @@ export default function CoverGenerator({
   return (
     <div className="space-y-6">
       {/* Mode Toggle */}
-      <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-4 border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCoverMode('generate')}
-            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
               coverMode === 'generate'
-                ? 'bg-yellow-400 text-black'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 dark:from-yellow-400 dark:to-amber-500 text-white dark:text-black shadow-lg shadow-amber-500/25'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            🤖 Generate with AI
+            <Bot className="w-5 h-5" />
+            Generate with AI
           </button>
           <button
             onClick={() => setCoverMode('upload')}
-            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all ${
+            className={`flex-1 py-3 px-4 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
               coverMode === 'upload'
-                ? 'bg-yellow-400 text-black'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 dark:from-yellow-400 dark:to-amber-500 text-white dark:text-black shadow-lg shadow-amber-500/25'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            📤 Upload Your Own
+            <Upload className="w-5 h-5" />
+            Upload Your Own
           </button>
         </div>
       </div>
 
       {/* Cover Type Toggle */}
-      <div className="bg-gray-900 rounded-lg p-4 border border-gray-800">
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCoverType('front')}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all text-sm ${
+            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all text-sm flex items-center justify-center gap-2 ${
               coverType === 'front'
-                ? 'bg-yellow-400 text-black'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black shadow-md'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            📖 Front Cover
+            <Book className="w-4 h-4" />
+            Front Cover
           </button>
           <button
             onClick={() => setCoverType('back')}
-            className={`flex-1 py-2 px-4 rounded-lg font-medium transition-all text-sm ${
+            className={`flex-1 py-2.5 px-4 rounded-lg font-medium transition-all text-sm flex items-center justify-center gap-2 ${
               coverType === 'back'
-                ? 'bg-yellow-400 text-black'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black shadow-md'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
             }`}
           >
-            📄 Back Cover
+            <FileText className="w-4 h-4" />
+            Back Cover
           </button>
         </div>
       </div>
 
+      {/* Gallery Toggle - Only show if bookId exists */}
+      {bookId && (
+        <button
+          onClick={() => setShowGallery(!showGallery)}
+          className={`w-full py-3 px-4 rounded-xl font-medium transition-all flex items-center justify-center gap-2 border ${
+            showGallery
+              ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700 text-purple-700 dark:text-purple-300'
+              : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:border-purple-300 dark:hover:border-purple-700'
+          }`}
+        >
+          <Images className="w-5 h-5" />
+          {showGallery ? 'Hide Cover Gallery' : 'View Cover Gallery'}
+          <span className="text-xs opacity-70 ml-1">(previously generated covers)</span>
+        </button>
+      )}
+
+      {/* Cover Gallery - Shown when toggled */}
+      {bookId && showGallery && (
+        <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+          <CoverGallery
+            key={galleryKey}
+            bookId={bookId}
+            coverType="all"
+            currentCoverUrl={coverType === 'front' ? coverUrl : backCoverUrl}
+            onCoverSelect={handleGalleryCoverSelect}
+          />
+        </div>
+      )}
+
       {/* Cover Preview */}
-      <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
+      <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">
-            {coverType === 'front' ? 'Front Cover' : 'Back Cover'}
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <ImageIcon className="w-5 h-5 text-amber-500 dark:text-yellow-400" />
+            {coverType === 'front' ? 'Front Cover Preview' : 'Back Cover Preview'}
           </h3>
-          <div className="flex gap-2">
+          <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <button
               onClick={() => setPreviewMode('cover')}
-              className={`px-3 py-1 text-sm rounded ${
+              className={`px-3 py-1.5 text-sm rounded-md transition-all ${
                 previewMode === 'cover'
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              Cover
+              Flat
             </button>
             <button
               onClick={() => setPreviewMode('mockup')}
-              className={`px-3 py-1 text-sm rounded ${
+              className={`px-3 py-1.5 text-sm rounded-md transition-all flex items-center gap-1 ${
                 previewMode === 'mockup'
-                  ? 'bg-yellow-400 text-black'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
               }`}
             >
-              3D Mockup
+              <BoxSelect className="w-3.5 h-3.5" />
+              3D
             </button>
           </div>
         </div>
 
-        <div className="flex justify-center">
+        <div className="flex justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-xl p-8">
           {previewMode === 'cover' ? (
-            <div className="relative w-64 h-96 bg-gray-800 rounded shadow-2xl overflow-hidden">
+            <div className="relative w-64 h-96 bg-gray-300 dark:bg-gray-800 rounded-lg shadow-2xl overflow-hidden ring-1 ring-black/10 dark:ring-white/10">
               {coverType === 'front' ? (
                 coverUrl ? (
                   <img
@@ -1447,60 +1853,78 @@ export default function CoverGenerator({
 
       {/* Design Options / Upload Area */}
       {coverMode === 'generate' ? (
-        <div className="bg-gray-900 rounded-lg border border-gray-800">
-          {/* Customization Tabs */}
-          {showAdvancedOptions && (
-            <div className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
-              <div className="flex overflow-x-auto scrollbar-hide p-2 gap-1">
-                {[
-                  { id: 'quick' as const, label: 'Quick', icon: '⚡' },
-                  { id: 'text' as const, label: 'Text', icon: '📝' },
-                  { id: 'typography' as const, label: 'Type', icon: '🔤' },
-                  { id: 'layout' as const, label: 'Layout', icon: '📐' },
-                  { id: 'visuals' as const, label: 'Visuals', icon: '🎨' },
-                  { id: 'advanced' as const, label: 'Advanced', icon: '⚙️' },
+        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden">
+          {/* Customization Tabs - Always visible now */}
+          <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="flex overflow-x-auto scrollbar-hide p-2 gap-1">
+              {coverType === 'front' ? (
+                // Front cover tabs
+                [
+                  { id: 'quick' as const, label: 'Quick', icon: <Zap className="w-4 h-4" /> },
+                  { id: 'text' as const, label: 'Text', icon: <Type className="w-4 h-4" /> },
+                  { id: 'typography' as const, label: 'Type', icon: <Type className="w-4 h-4" /> },
+                  { id: 'layout' as const, label: 'Layout', icon: <Layout className="w-4 h-4" /> },
+                  { id: 'visuals' as const, label: 'Visuals', icon: <Palette className="w-4 h-4" /> },
+                  { id: 'advanced' as const, label: 'Advanced', icon: <Settings className="w-4 h-4" /> },
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all whitespace-nowrap ${
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                       activeTab === tab.id
-                        ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20 scale-105'
-                        : 'text-gray-400 hover:text-white hover:bg-gray-800'
+                        ? 'bg-amber-500 dark:bg-yellow-400 text-white dark:text-black shadow-md'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-800'
                     }`}
                   >
-                    <span>{tab.icon}</span>
+                    {tab.icon}
                     <span>{tab.label}</span>
                   </button>
-                ))}
-              </div>
+                ))
+              ) : (
+                // Back cover has its own options panel
+                <div className="flex items-center gap-2 px-4 py-2 text-gray-600 dark:text-gray-400">
+                  <Settings className="w-4 h-4" />
+                  <span className="text-sm font-medium">Back Cover Options</span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
           <div className="p-6">
-            <h3 className="text-lg font-semibold text-white mb-4">
-              {showAdvancedOptions ? (
-                activeTab === 'quick' ? 'Quick Options' :
-                activeTab === 'text' ? 'Text Customization' :
-                activeTab === 'typography' ? 'Typography Options' :
-                activeTab === 'layout' ? 'Layout Options' :
-                activeTab === 'visuals' ? 'Visual Options' :
-                'Advanced Options'
-              ) : 'Design Options'}
-            </h3>
-            
-            {!showAdvancedOptions && renderQuickOptions()}
-            {showAdvancedOptions && activeTab === 'quick' && renderQuickOptions()}
-            {showAdvancedOptions && activeTab === 'text' && renderTextOptions()}
-            {showAdvancedOptions && activeTab === 'typography' && renderTypographyOptions()}
-            {showAdvancedOptions && activeTab === 'layout' && renderLayoutOptions()}
-            {showAdvancedOptions && activeTab === 'visuals' && renderVisualOptions()}
-            {showAdvancedOptions && activeTab === 'advanced' && renderAdvancedOptions()}
+            {coverType === 'front' ? (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  {activeTab === 'quick' && <><Zap className="w-5 h-5 text-amber-500" /> Quick Options</>}
+                  {activeTab === 'text' && <><Type className="w-5 h-5 text-amber-500" /> Text Customization</>}
+                  {activeTab === 'typography' && <><Type className="w-5 h-5 text-amber-500" /> Typography Options</>}
+                  {activeTab === 'layout' && <><Layout className="w-5 h-5 text-amber-500" /> Layout Options</>}
+                  {activeTab === 'visuals' && <><Palette className="w-5 h-5 text-amber-500" /> Visual Options</>}
+                  {activeTab === 'advanced' && <><Settings className="w-5 h-5 text-amber-500" /> Advanced Options</>}
+                </h3>
+                
+                {activeTab === 'quick' && renderQuickOptions()}
+                {activeTab === 'text' && renderTextOptions()}
+                {activeTab === 'typography' && renderTypographyOptions()}
+                {activeTab === 'layout' && renderLayoutOptions()}
+                {activeTab === 'visuals' && renderVisualOptions()}
+                {activeTab === 'advanced' && renderAdvancedOptions()}
+              </>
+            ) : (
+              <>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-amber-500" /> Back Cover Customization
+                </h3>
+                {renderBackCoverOptions()}
+              </>
+            )}
           </div>
         </div>
       ) : (
-        <div className="bg-gray-900 rounded-lg p-6 border border-gray-800">
-          <h3 className="text-lg font-semibold text-white mb-4">Upload Your Cover</h3>
+        <div className="bg-white dark:bg-gray-900 rounded-xl p-6 border border-gray-200 dark:border-gray-800 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Upload className="w-5 h-5 text-amber-500" />
+            Upload Your Cover
+          </h3>
           
           {/* Hidden file input */}
           <input
@@ -1516,38 +1940,25 @@ export default function CoverGenerator({
             onDragOver={handleDragOver}
             onDrop={handleDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-700 rounded-lg p-8 text-center cursor-pointer hover:border-yellow-400 hover:bg-gray-800/50 transition-all"
+            className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-amber-400 dark:hover:border-yellow-400 hover:bg-amber-50 dark:hover:bg-gray-800/50 transition-all"
           >
             {isUploading ? (
               <div className="flex flex-col items-center gap-3">
-                <svg className="animate-spin h-10 w-10 text-yellow-400" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                <p className="text-gray-400">Uploading cover...</p>
+                <Loader2 className="animate-spin h-10 w-10 text-amber-500 dark:text-yellow-400" />
+                <p className="text-gray-600 dark:text-gray-400">Uploading cover...</p>
               </div>
             ) : (
               <>
-                <div className="text-5xl mb-4">📤</div>
-                <p className="text-gray-300 font-medium mb-2">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Upload className="w-8 h-8 text-amber-500 dark:text-yellow-400" />
+                </div>
+                <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">
                   Drop your cover image here
                 </p>
                 <p className="text-gray-500 text-sm mb-4">
                   or click to browse files
                 </p>
-                <div className="text-xs text-gray-600 space-y-1">
+                <div className="text-xs text-gray-500 space-y-1">
                   <p>Supported formats: JPEG, PNG, WebP, GIF</p>
                   <p>Maximum size: 5MB</p>
                   <p>Recommended: 1024×1536px (portrait, 2:3 ratio)</p>
@@ -1557,8 +1968,11 @@ export default function CoverGenerator({
           </div>
 
           {/* Upload Tips */}
-          <div className="mt-4 p-4 bg-gray-800/50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-300 mb-2">📝 Tips for best results:</h4>
+          <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+            <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+              <Lightbulb className="w-4 h-4 text-amber-500" />
+              Tips for best results:
+            </h4>
             <ul className="text-xs text-gray-500 space-y-1">
               <li>• Use high-resolution images (at least 600×900px)</li>
               <li>• Portrait orientation works best for book covers</li>
@@ -1571,11 +1985,11 @@ export default function CoverGenerator({
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-900/20 border border-red-500 rounded-lg p-4">
-          <p className="text-red-400 text-sm">{error}</p>
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-500 rounded-xl p-4">
+          <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
           <button
             onClick={() => setError(null)}
-            className="text-red-400/70 text-xs mt-2 hover:text-red-300"
+            className="text-red-500 dark:text-red-400/70 text-xs mt-2 hover:text-red-700 dark:hover:text-red-300"
           >
             Dismiss
           </button>
@@ -1588,72 +2002,54 @@ export default function CoverGenerator({
           <button
             onClick={handleGenerateCover}
             disabled={isGenerating || !title || !author}
-            className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+            className={`w-full py-4 rounded-xl font-semibold transition-all shadow-lg ${
               isGenerating || !title || !author
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-yellow-400 text-black hover:bg-yellow-500'
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-amber-500 to-orange-500 dark:from-yellow-400 dark:to-amber-500 text-white dark:text-black hover:from-amber-600 hover:to-orange-600 dark:hover:from-yellow-500 dark:hover:to-amber-600 shadow-amber-500/25'
             }`}
           >
             {isGenerating ? (
               <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
+                <Loader2 className="animate-spin h-5 w-5" />
                 Generating Front Cover...
               </span>
             ) : coverUrl ? (
-              '🔄 Regenerate Front Cover'
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw className="w-5 h-5" />
+                Regenerate Front Cover
+              </span>
             ) : (
-              '✨ Generate Front Cover'
+              <span className="flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                Generate Front Cover
+              </span>
             )}
           </button>
         ) : (
           <button
             onClick={handleGenerateBackCover}
             disabled={isGeneratingBack || !title || !description}
-            className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+            className={`w-full py-4 rounded-xl font-semibold transition-all shadow-lg ${
               isGeneratingBack || !title || !description
-                ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-                : 'bg-yellow-400 text-black hover:bg-yellow-500'
+                ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                : 'bg-gradient-to-r from-amber-500 to-orange-500 dark:from-yellow-400 dark:to-amber-500 text-white dark:text-black hover:from-amber-600 hover:to-orange-600 dark:hover:from-yellow-500 dark:hover:to-amber-600 shadow-amber-500/25'
             }`}
           >
             {isGeneratingBack ? (
               <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
+                <Loader2 className="animate-spin h-5 w-5" />
                 Generating Back Cover...
               </span>
             ) : backCoverUrl ? (
-              '🔄 Regenerate Back Cover'
+              <span className="flex items-center justify-center gap-2">
+                <RefreshCw className="w-5 h-5" />
+                Regenerate Back Cover
+              </span>
             ) : (
-              '✨ Generate Back Cover'
+              <span className="flex items-center justify-center gap-2">
+                <Sparkles className="w-5 h-5" />
+                Generate Back Cover
+              </span>
             )}
           </button>
         )
@@ -1661,78 +2057,69 @@ export default function CoverGenerator({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className={`w-full py-3 rounded-lg font-semibold transition-colors ${
+          className={`w-full py-4 rounded-xl font-semibold transition-all shadow-lg ${
             isUploading
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
-              : 'bg-yellow-400 text-black hover:bg-yellow-500'
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+              : 'bg-gradient-to-r from-amber-500 to-orange-500 dark:from-yellow-400 dark:to-amber-500 text-white dark:text-black hover:from-amber-600 hover:to-orange-600 dark:hover:from-yellow-500 dark:hover:to-amber-600 shadow-amber-500/25'
           }`}
         >
           {isUploading ? (
             <span className="flex items-center justify-center gap-2">
-              <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  fill="none"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
+              <Loader2 className="animate-spin h-5 w-5" />
               Uploading...
             </span>
           ) : coverUrl ? (
-            '📤 Upload New Cover'
+            <span className="flex items-center justify-center gap-2">
+              <Upload className="w-5 h-5" />
+              Upload New Cover
+            </span>
           ) : (
-            '📤 Select File to Upload'
+            <span className="flex items-center justify-center gap-2">
+              <Upload className="w-5 h-5" />
+              Select File to Upload
+            </span>
           )}
         </button>
       )}
 
       {/* Download buttons for both covers */}
       {(coverUrl || backCoverUrl) && (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+          <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Download Your Covers</h4>
           {coverUrl && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = coverUrl;
-                  link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_front_cover.png`;
-                  link.click();
-                }}
-                className="flex-1 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
-              >
-                ⬇️ Download Front Cover
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = coverUrl;
+                link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_front_cover.png`;
+                link.click();
+              }}
+              className="flex items-center justify-center gap-2 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium border border-gray-200 dark:border-gray-700 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              Download Front Cover
+            </button>
           )}
           {backCoverUrl && (
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  const link = document.createElement('a');
-                  link.href = backCoverUrl;
-                  link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_back_cover.png`;
-                  link.click();
-                }}
-                className="flex-1 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
-              >
-                ⬇️ Download Back Cover
-              </button>
-            </div>
+            <button
+              onClick={() => {
+                const link = document.createElement('a');
+                link.href = backCoverUrl;
+                link.download = `${title.replace(/[^a-z0-9]/gi, '_')}_back_cover.png`;
+                link.click();
+              }}
+              className="flex items-center justify-center gap-2 py-2.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-sm font-medium border border-gray-200 dark:border-gray-700 transition-all"
+            >
+              <Download className="w-4 h-4" />
+              Download Back Cover
+            </button>
           )}
           {coverMode === 'generate' && (
             <button
               onClick={() => setCoverMode('upload')}
-              className="py-2 px-4 bg-gray-800 text-gray-400 rounded-lg hover:bg-gray-700 text-sm font-medium"
+              className="flex items-center justify-center gap-2 py-2 px-4 text-gray-500 dark:text-gray-400 rounded-lg hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium transition-all"
             >
+              <Upload className="w-4 h-4" />
               Replace with Upload
             </button>
           )}

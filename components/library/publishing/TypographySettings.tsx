@@ -1,13 +1,78 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { TypographySettings as TypographySettingsType, BODY_FONTS, HEADING_FONTS } from '@/lib/types/publishing';
+import { getFontFamily, getGoogleFontUrl, getFontDisplayName } from '@/lib/utils/font-mapping';
 
 interface TypographySettingsProps {
   settings: TypographySettingsType;
   onUpdate: (updates: Partial<TypographySettingsType>) => void;
 }
 
+// Track loaded fonts to avoid duplicate loading
+const loadedFonts = new Set<string>();
+
 export function TypographySettings({ settings, onUpdate }: TypographySettingsProps) {
+  const [, setFontsLoaded] = useState(false);
+
+  // Load Google Fonts dynamically when settings change
+  useEffect(() => {
+    const fontsToLoad = [settings.bodyFont, settings.headingFont, settings.dropCapFont]
+      .filter(f => f && f !== 'inherit');
+    
+    const loadFonts = async () => {
+      const newFonts: string[] = [];
+      
+      for (const fontId of fontsToLoad) {
+        if (loadedFonts.has(fontId)) continue;
+        
+        const googleUrl = getGoogleFontUrl(fontId);
+        if (googleUrl) {
+          newFonts.push(fontId);
+          loadedFonts.add(fontId);
+          
+          // Create and inject the font link
+          const linkId = `font-${fontId}`;
+          if (!document.getElementById(linkId)) {
+            const link = document.createElement('link');
+            link.id = linkId;
+            link.rel = 'stylesheet';
+            link.href = `https://fonts.googleapis.com/css2?family=${googleUrl}&display=swap`;
+            document.head.appendChild(link);
+          }
+        }
+      }
+      
+      // Wait a bit for fonts to load
+      if (newFonts.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      
+      setFontsLoaded(true);
+    };
+    
+    loadFonts();
+  }, [settings.bodyFont, settings.headingFont, settings.dropCapFont]);
+
+  // Get actual CSS font families for preview
+  const bodyFontFamily = getFontFamily(settings.bodyFont);
+  const headingFontFamily = settings.headingFont === 'inherit' 
+    ? bodyFontFamily 
+    : getFontFamily(settings.headingFont);
+  const dropCapFontFamily = settings.dropCapFont === 'inherit'
+    ? headingFontFamily
+    : getFontFamily(settings.dropCapFont);
+
+  // Calculate indent for preview
+  const getIndentValue = () => {
+    const val = settings.paragraphIndent;
+    switch (settings.paragraphIndentUnit) {
+      case 'em': return `${val}em`;
+      case 'px': return `${val}px`;
+      default: return `${val * 96}px`; // Convert inches to px for preview (96 DPI)
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Body Text Settings */}
@@ -365,40 +430,62 @@ export function TypographySettings({ settings, onUpdate }: TypographySettingsPro
         </div>
       </div>
 
-      {/* Preview */}
+      {/* Live Preview - Now uses actual fonts */}
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-        <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-4 uppercase tracking-wide">
-          Typography Preview
-        </h4>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+            Typography Preview
+          </h4>
+          <span className="text-xs text-gray-400">
+            {getFontDisplayName(settings.bodyFont)}
+            {settings.headingFont !== 'inherit' && ` / ${getFontDisplayName(settings.headingFont)}`}
+          </span>
+        </div>
+        
+        {/* Preview container styled to match PDF output */}
         <div 
-          className="space-y-4"
+          className="space-y-4 preview-content"
           style={{
-            fontFamily: settings.bodyFont.includes('-') 
-              ? settings.bodyFont.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
-              : settings.bodyFont.charAt(0).toUpperCase() + settings.bodyFont.slice(1),
-            fontSize: `${settings.bodyFontSize}pt`,
+            fontFamily: bodyFontFamily,
+            fontSize: `${settings.bodyFontSize * 1.33}px`, // Convert pt to px (approx)
             lineHeight: settings.bodyLineHeight,
+            color: '#1a1a1a',
           }}
         >
+          {/* Chapter heading */}
           <h2 
-            className="font-semibold"
             style={{ 
-              fontSize: `${settings.chapterTitleSize}pt`,
+              fontFamily: headingFontFamily,
+              fontSize: `${settings.chapterTitleSize * 1.33}px`,
               textAlign: settings.headingAlignment,
+              fontWeight: 'normal',
+              margin: 0,
+              marginBottom: '1em',
             }}
           >
             Chapter One
           </h2>
+          
+          {/* First paragraph with optional drop cap */}
           <p style={{ 
             textAlign: settings.bodyAlignment,
-            textIndent: settings.firstParagraphIndent ? 0 : `${settings.paragraphIndent}${settings.paragraphIndentUnit}`,
+            textIndent: settings.firstParagraphIndent ? getIndentValue() : 0,
+            margin: 0,
+            marginBottom: settings.paragraphSpacing === 'none' ? 0 : 
+                          settings.paragraphSpacing === 'small' ? '0.25em' :
+                          settings.paragraphSpacing === 'medium' ? '0.5em' : '1em',
           }}>
             {settings.dropCapEnabled && (
               <span 
-                className="float-left font-bold mr-2"
                 style={{ 
-                  fontSize: `${settings.bodyFontSize * settings.dropCapLines * 0.9}pt`,
-                  lineHeight: 1,
+                  float: 'left',
+                  fontFamily: dropCapFontFamily,
+                  fontSize: `${settings.bodyFontSize * settings.dropCapLines * 1.15 * 1.33}px`,
+                  lineHeight: 0.85,
+                  paddingRight: '0.1em',
+                  marginTop: '0.05em',
+                  fontWeight: 'normal',
+                  color: '#1a1a1a',
                 }}
               >
                 T
@@ -406,15 +493,25 @@ export function TypographySettings({ settings, onUpdate }: TypographySettingsPro
             )}
             he journey of a thousand pages begins with a single word. This sample text demonstrates how your book will appear with the current typography settings. Notice the font selection, line height, and paragraph formatting.
           </p>
+          
+          {/* Second paragraph */}
           <p style={{ 
             textAlign: settings.bodyAlignment,
-            textIndent: `${settings.paragraphIndent}${settings.paragraphIndentUnit}`,
+            textIndent: getIndentValue(),
+            margin: 0,
+            marginBottom: settings.paragraphSpacing === 'none' ? 0 : 
+                          settings.paragraphSpacing === 'small' ? '0.25em' :
+                          settings.paragraphSpacing === 'medium' ? '0.5em' : '1em',
           }}>
             Each subsequent paragraph follows the indentation rules you have configured. Professional typesetting ensures readability and creates a pleasant reading experience for your audience.
           </p>
         </div>
+        
+        {/* Info about preview accuracy */}
+        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500 text-center italic">
+          This preview uses the same fonts and styling as your exported PDF
+        </p>
       </div>
     </div>
   );
 }
-

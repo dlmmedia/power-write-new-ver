@@ -168,6 +168,23 @@ export const citations = pgTable("citations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Cover gallery table - stores all generated covers for a book
+export const coverGallery = pgTable("cover_gallery", {
+  id: serial("id").primaryKey(),
+  bookId: integer("book_id").notNull().references(() => generatedBooks.id, { onDelete: "cascade" }),
+  coverUrl: text("cover_url").notNull(),
+  coverType: varchar("cover_type").notNull().default("front"), // front, back
+  thumbnailUrl: text("thumbnail_url"), // Optional smaller version for gallery
+  isSelected: boolean("is_selected").default(false), // Whether this is the currently selected cover
+  generationSettings: jsonb("generation_settings"), // Store the settings used to generate this cover
+  imageModel: varchar("image_model"), // Which AI model was used
+  prompt: text("prompt"), // The prompt used (for regeneration reference)
+  source: varchar("source").default("generated"), // generated, uploaded
+  fileName: varchar("file_name"), // Original filename if uploaded
+  fileSize: integer("file_size"), // File size in bytes
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Bibliography configuration table
 export const bibliographyConfigs = pgTable("bibliography_configs", {
   id: serial("id").primaryKey(),
@@ -209,6 +226,7 @@ export const generatedBooksRelations = relations(generatedBooks, ({ one, many })
     fields: [generatedBooks.id],
     references: [bibliographyConfigs.bookId],
   }),
+  coverGallery: many(coverGallery),
 }));
 
 export const bookChaptersRelations = relations(bookChapters, ({ one, many }) => ({
@@ -259,6 +277,13 @@ export const citationsRelations = relations(citations, ({ one }) => ({
 export const bibliographyConfigsRelations = relations(bibliographyConfigs, ({ one }) => ({
   book: one(generatedBooks, {
     fields: [bibliographyConfigs.bookId],
+    references: [generatedBooks.id],
+  }),
+}));
+
+export const coverGalleryRelations = relations(coverGallery, ({ one }) => ({
+  book: one(generatedBooks, {
+    fields: [coverGallery.bookId],
     references: [generatedBooks.id],
   }),
 }));
@@ -326,3 +351,10 @@ export const insertBibliographyConfigSchema = createInsertSchema(bibliographyCon
 });
 export type InsertBibliographyConfig = z.infer<typeof insertBibliographyConfigSchema>;
 export type BibliographyConfigDB = typeof bibliographyConfigs.$inferSelect;
+
+export const insertCoverGallerySchema = createInsertSchema(coverGallery).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCoverGallery = z.infer<typeof insertCoverGallerySchema>;
+export type CoverGalleryItem = typeof coverGallery.$inferSelect;

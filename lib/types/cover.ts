@@ -172,6 +172,10 @@ export interface CoverGenerationRequest {
   visualOptions?: CoverVisualOptions;
   customPrompt?: string;
   referenceStyle?: string;
+  
+  // Branding options
+  showPowerWriteBranding?: boolean;
+  hideAuthorName?: boolean;
 }
 
 export interface CoverGenerationResponse {

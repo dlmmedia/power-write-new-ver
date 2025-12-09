@@ -807,20 +807,11 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
             <Text style={styles.titleGenre}>{book.genre}</Text>
           )}
         </View>
-        {/* Page number at bottom */}
-        <View style={styles.pageNumberContainer} fixed>
-          <Text
-            style={styles.frontMatterPageNumText}
-            render={({ pageNumber }) => {
-              const displayNum = pageNumber - 1; // Title is page 2, display as i
-              return displayNum > 0 ? toRoman(displayNum) : '';
-            }}
-          />
-        </View>
+        {/* No page number on title page - front matter */}
       </Page>
 
       {/* ========================================== */}
-      {/* COPYRIGHT PAGE - Roman numeral ii */}
+      {/* COPYRIGHT PAGE */}
       {/* ========================================== */}
       <Page size={pageSize} style={styles.copyrightPage}>
         <Text style={styles.copyrightTitle}>{book.title}</Text>
@@ -850,17 +841,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
         <Text style={styles.poweredBy}>
           Created with PowerWrite
         </Text>
-        
-        {/* Page number at bottom */}
-        <View style={styles.pageNumberContainer} fixed>
-          <Text
-            style={styles.frontMatterPageNumText}
-            render={({ pageNumber }) => {
-              const displayNum = pageNumber - 1;
-              return displayNum > 0 ? toRoman(displayNum) : '';
-            }}
-          />
-        </View>
+        {/* No page number on copyright page - front matter */}
       </Page>
 
       {/* ========================================== */}
@@ -910,17 +891,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
             </View>
           );
         })()}
-        
-        {/* Page number at bottom */}
-        <View style={styles.pageNumberContainer} fixed>
-          <Text
-            style={styles.frontMatterPageNumText}
-            render={({ pageNumber }) => {
-              const displayNum = pageNumber - 1;
-              return displayNum > 0 ? toRoman(displayNum) : '';
-            }}
-          />
-        </View>
+        {/* No page number on TOC page - front matter */}
       </Page>
 
       {/* ========================================== */}

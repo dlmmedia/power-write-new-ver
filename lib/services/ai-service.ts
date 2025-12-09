@@ -328,7 +328,19 @@ Generate a complete, professional book cover with all three text elements perfec
     author: string,
     genre: string,
     description: string,
-    style: string
+    style: string,
+    options?: {
+      showBarcode?: boolean;
+      barcodeType?: 'isbn' | 'qr' | 'none';
+      layout?: 'classic' | 'modern' | 'minimal' | 'editorial';
+      showWebsite?: boolean;
+      showTagline?: boolean;
+      showPowerWriteBranding?: boolean;
+      frontCoverStyle?: {
+        colorScheme?: string;
+        style?: string;
+      };
+    }
   ): string {
     // Genre-specific design guidelines (same as front cover for consistency)
     const genreStyles: Record<string, { mood: string; colors: string }> = {
@@ -350,15 +362,79 @@ Generate a complete, professional book cover with all three text elements perfec
     // Clean the description for back cover blurb
     const cleanDescription = description.substring(0, 500).replace(/["\n\r]/g, ' ').trim();
     
+    // Extract options with defaults
+    const showBarcode = options?.showBarcode !== false;
+    const barcodeType = options?.barcodeType || 'isbn';
+    const layout = options?.layout || 'classic';
+    const showWebsite = options?.showWebsite !== false;
+    const showTagline = options?.showTagline !== false;
+    const showPowerWriteBranding = options?.showPowerWriteBranding !== false;
+    const frontStyle = options?.frontCoverStyle?.style || style;
+    const frontColorScheme = options?.frontCoverStyle?.colorScheme;
+    
+    // Layout-specific instructions
+    const layoutInstructions: Record<string, string> = {
+      'classic': 'Traditional centered layout with balanced composition',
+      'modern': 'Contemporary asymmetrical design with creative text placement',
+      'minimal': 'Clean, sparse design with maximum white space',
+      'editorial': 'Magazine-style layout with distinct sections',
+    };
+
+    // Build author credit section based on branding
+    const authorSection = showPowerWriteBranding 
+      ? `2. AUTHOR CREDIT (MIDDLE):
+   - Display "Written by ${author || 'PowerWrite'}" 
+   - Elegant, professional styling
+   - Can include a decorative separator line above`
+      : author 
+        ? `2. AUTHOR CREDIT (MIDDLE):
+   - Display "Written by ${author}" 
+   - Elegant, professional styling
+   - Can include a decorative separator line above`
+        : ''; // No author section if no branding and no author
+
+    // Build publisher section
+    let publisherSection = `3. PUBLISHER INFO (BOTTOM SECTION):
+   - "DLM Media" prominently displayed`;
+    
+    if (showWebsite) {
+      publisherSection += `
+   - Include "www.dlmworld.com" below it`;
+    }
+    
+    if (showTagline && showPowerWriteBranding) {
+      publisherSection += `
+   - Small "Created with PowerWrite" tagline`;
+    }
+
+    // Build barcode section
+    let barcodeSection = '';
+    if (showBarcode && barcodeType !== 'none') {
+      if (barcodeType === 'isbn') {
+        barcodeSection = `4. BARCODE AREA (BOTTOM RIGHT):
+   - Leave a white rectangular space (approximately 2" x 1.5") 
+   - Position in the bottom right corner
+   - This is where the ISBN barcode would go
+   - Can show placeholder barcode lines or just white space`;
+      } else if (barcodeType === 'qr') {
+        barcodeSection = `4. QR CODE AREA (BOTTOM RIGHT):
+   - Leave a white square space (approximately 1.5" x 1.5") 
+   - Position in the bottom right corner
+   - This is where a QR code would go
+   - Can show a placeholder QR code pattern or just white space`;
+      }
+    }
+    
     const prompt = `Create a professional BACK COVER design for a published book.
 
 === BOOK INFORMATION ===
 Title: "${title}"
-Written by: PowerWrite
+${author ? `Author: ${author}` : ''}
 Publisher: DLM Media
 Genre: ${genre}
 
-=== BACK COVER LAYOUT (TOP TO BOTTOM) ===
+=== BACK COVER LAYOUT (${layout.toUpperCase()}) ===
+${layoutInstructions[layout]}
 Design a complete back cover with these elements in professional publishing layout:
 
 1. BOOK SYNOPSIS/BLURB (TOP SECTION - 60% of space):
@@ -369,26 +445,16 @@ Design a complete back cover with these elements in professional publishing layo
    - Comfortable line spacing for readability
    - This is the main content area of the back cover
 
-2. AUTHOR CREDIT (MIDDLE):
-   - Display "Written by PowerWrite" 
-   - Elegant, professional styling
-   - Can include a decorative separator line above
+${authorSection}
 
-3. PUBLISHER INFO (BOTTOM SECTION):
-   - "DLM Media" prominently displayed
-   - Include "www.dlmworld.com" below it
-   - Small "Created with PowerWrite" tagline
+${publisherSection}
 
-4. BARCODE AREA (BOTTOM RIGHT):
-   - Leave a white rectangular space (approximately 2" x 1.5") 
-   - Position in the bottom right corner
-   - This is where the ISBN barcode would go
-   - Can show placeholder barcode lines or just white space
+${barcodeSection}
 
 === DESIGN SPECIFICATIONS ===
 - Aspect Ratio: Portrait orientation (2:3 ratio, same as front cover)
-- Style: ${style} - MUST match the front cover aesthetic
-- Color Palette: ${genreStyle.colors} - consistent with front cover
+- Style: ${frontStyle} - MUST match the front cover aesthetic
+- Color Palette: ${frontColorScheme || genreStyle.colors} - consistent with front cover
 - Background: Subtle, complementary design that doesn't compete with text
 - Overall mood: ${genreStyle.mood}
 
@@ -419,7 +485,19 @@ Generate a complete, professional back cover design.`;
     genre: string,
     description: string,
     style: string = 'vivid',
-    imageModelId?: string
+    imageModelId?: string,
+    options?: {
+      showBarcode?: boolean;
+      barcodeType?: 'isbn' | 'qr' | 'none';
+      layout?: 'classic' | 'modern' | 'minimal' | 'editorial';
+      showWebsite?: boolean;
+      showTagline?: boolean;
+      showPowerWriteBranding?: boolean;
+      frontCoverStyle?: {
+        colorScheme?: string;
+        style?: string;
+      };
+    }
   ): Promise<string> {
     try {
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -433,15 +511,16 @@ Generate a complete, professional back cover design.`;
       const provider: ImageProvider = imageModel?.provider || 'nanobanana-pro';
       
       console.log(`Generating BACK cover with ${imageModel?.name || modelId}...`);
+      console.log('Back cover options:', options);
 
       let imageUrl: string;
 
       if (provider === 'dalle') {
         // Use DALL-E 3 via OpenAI with back cover prompt
-        imageUrl = await this.generateBackCoverWithDallE(title, author, genre, description, style);
+        imageUrl = await this.generateBackCoverWithDallE(title, author, genre, description, style, options);
       } else {
         // Use Nano Banana / Nano Banana Pro via OpenRouter
-        imageUrl = await this.generateBackCoverWithNanoBanana(title, author, genre, description, style, modelId);
+        imageUrl = await this.generateBackCoverWithNanoBanana(title, author, genre, description, style, modelId, options);
       }
 
       // Upload to blob storage
@@ -480,13 +559,25 @@ Generate a complete, professional back cover design.`;
     author: string,
     genre: string,
     description: string,
-    style: string
+    style: string,
+    options?: {
+      showBarcode?: boolean;
+      barcodeType?: 'isbn' | 'qr' | 'none';
+      layout?: 'classic' | 'modern' | 'minimal' | 'editorial';
+      showWebsite?: boolean;
+      showTagline?: boolean;
+      showPowerWriteBranding?: boolean;
+      frontCoverStyle?: {
+        colorScheme?: string;
+        style?: string;
+      };
+    }
   ): Promise<string> {
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is required for DALL-E image generation');
     }
 
-    const prompt = this.buildBackCoverPrompt(title, author, genre, description, style);
+    const prompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
     
     console.log('Using DALL-E 3 for back cover...');
     
@@ -530,13 +621,25 @@ Generate a complete, professional back cover design.`;
     genre: string,
     description: string,
     style: string,
-    modelId: string
+    modelId: string,
+    options?: {
+      showBarcode?: boolean;
+      barcodeType?: 'isbn' | 'qr' | 'none';
+      layout?: 'classic' | 'modern' | 'minimal' | 'editorial';
+      showWebsite?: boolean;
+      showTagline?: boolean;
+      showPowerWriteBranding?: boolean;
+      frontCoverStyle?: {
+        colorScheme?: string;
+        style?: string;
+      };
+    }
   ): Promise<string> {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY is required for Nano Banana Pro image generation.');
     }
 
-    const prompt = this.buildBackCoverPrompt(title, author, genre, description, style);
+    const prompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
 
     console.log(`Using ${modelId} via OpenRouter for back cover generation...`);
 

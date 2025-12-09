@@ -442,9 +442,10 @@ export default function StudioPage() {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/')}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md font-medium"
               >
-                ← Back
+                <span className="group-hover:-translate-x-0.5 transition-transform duration-200">←</span>
+                Back
               </button>
               <Logo size="md" />
               <h1 className="text-2xl font-bold">Book Studio</h1>
@@ -522,9 +523,9 @@ export default function StudioPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => router.push('/')}
-                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                  className="group p-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 shadow-sm hover:shadow-md"
                 >
-                  ← Back
+                  <span className="group-hover:-translate-x-0.5 transition-transform duration-200 block">←</span>
                 </button>
                 <Logo size="sm" />
               </div>

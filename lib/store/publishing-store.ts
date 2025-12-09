@@ -400,7 +400,10 @@ export function useBookPublishingSettings(bookId: number) {
     applyBookTypePreset: (bookType: BookType) => store.applyBookTypePreset(bookId, bookType),
     applyMarginPreset: (preset: string) => store.applyMarginPreset(bookId, preset),
     resetSettings: () => store.resetSettings(bookId),
+    clearModified: () => store.clearModified(bookId),
     hasUnsavedChanges: store.hasUnsavedChanges(bookId),
   };
 }
+
+
 

@@ -367,9 +367,10 @@ export const BookReader: React.FC<BookReaderProps> = ({
             {onClose && (
               <button
                 onClick={onClose}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md font-medium"
               >
-                ← Back
+                <span className="group-hover:-translate-x-0.5 transition-transform duration-200">←</span>
+                Back
               </button>
             )}
             <div>
@@ -784,12 +785,6 @@ export const BookReader: React.FC<BookReaderProps> = ({
                     <>
                       <span>•</span>
                       <span>🎧 {Math.floor(currentChapter.audioDuration / 60)}:{(currentChapter.audioDuration % 60).toString().padStart(2, '0')} listen</span>
-                    </>
-                  )}
-                  {currentChapter.status === 'draft' && (
-                    <>
-                      <span>•</span>
-                      <Badge variant="default" size="sm">Draft</Badge>
                     </>
                   )}
                 </div>

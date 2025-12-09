@@ -340,3 +340,5 @@ const html = PDFHTMLService.generatePreviewHTML(bookData);
 - Check console for CSS generation errors
 - Test HTML preview before PDF generation
 
+
+

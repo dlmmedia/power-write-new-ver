@@ -1,13 +1,103 @@
 'use client';
 
+import { useEffect } from 'react';
 import { ChapterSettings } from '@/lib/types/publishing';
+import { getGoogleFontUrl } from '@/lib/utils/font-mapping';
 
 interface ChapterStyleSettingsProps {
   settings: ChapterSettings;
   onUpdate: (updates: Partial<ChapterSettings>) => void;
 }
 
+// Track loaded fonts
+const loadedFonts = new Set<string>();
+
+// Helper to convert number to display format
+function formatChapterNumber(num: number, style: string): string {
+  switch (style) {
+    case 'roman':
+      return toRoman(num);
+    case 'word':
+      return toWord(num);
+    case 'ordinal':
+      return toOrdinal(num);
+    default:
+      return String(num);
+  }
+}
+
+function toRoman(num: number): string {
+  const romanNumerals: [number, string][] = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
+  ];
+  let result = '';
+  for (const [value, numeral] of romanNumerals) {
+    while (num >= value) {
+      result += numeral;
+      num -= value;
+    }
+  }
+  return result;
+}
+
+function toWord(num: number): string {
+  const words = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten'];
+  return num <= 10 ? words[num] : String(num);
+}
+
+function toOrdinal(num: number): string {
+  const ordinals = ['', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth'];
+  return num <= 10 ? ordinals[num] : String(num);
+}
+
+// Get ornament symbol
+function getOrnamentSymbol(ornament: string): string {
+  switch (ornament) {
+    case 'line': return '━━━━━━━━━';
+    case 'flourish': return '❧';
+    case 'stars': return '✦ ✦ ✦';
+    case 'dots': return '• • •';
+    default: return '';
+  }
+}
+
+// Get scene break symbol
+function getSceneBreakSymbol(style: string, custom?: string): string {
+  switch (style) {
+    case 'blank-line': return '';
+    case 'asterisks': return '* * *';
+    case 'ornament': return '❦';
+    case 'number': return '2';
+    case 'custom': return custom || '* * *';
+    default: return '* * *';
+  }
+}
+
 export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSettingsProps) {
+  // Load Google Fonts for preview (using EB Garamond for elegant preview)
+  useEffect(() => {
+    const fontsToLoad = ['garamond', 'playfair'];
+    
+    for (const fontId of fontsToLoad) {
+      if (loadedFonts.has(fontId)) continue;
+      
+      const googleUrl = getGoogleFontUrl(fontId);
+      if (googleUrl) {
+        loadedFonts.add(fontId);
+        const linkId = `font-${fontId}`;
+        if (!document.getElementById(linkId)) {
+          const link = document.createElement('link');
+          link.id = linkId;
+          link.rel = 'stylesheet';
+          link.href = `https://fonts.googleapis.com/css2?family=${googleUrl}&display=swap`;
+          document.head.appendChild(link);
+        }
+      }
+    }
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Chapter Opening Style */}
@@ -350,77 +440,114 @@ export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSetting
         </div>
       </div>
 
-      {/* Preview */}
+      {/* Live Preview - Matches PDF output */}
       <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
         <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-6 uppercase tracking-wide">
           Chapter Opening Preview
         </h4>
+        
+        {/* Preview styled to match PDF output */}
         <div 
-          className="text-center space-y-3 py-8"
-          style={{ marginTop: `${settings.chapterDropFromTop * 20}px` }}
+          className="py-8"
+          style={{ 
+            paddingTop: `${Math.min(settings.chapterDropFromTop * 40, 120)}px`,
+            textAlign: settings.chapterTitlePosition === 'centered' ? 'center' : settings.chapterTitlePosition,
+            fontFamily: "'EB Garamond', Garamond, 'Times New Roman', serif",
+          }}
         >
+          {/* Ornament above number */}
           {settings.chapterOrnament !== 'none' && settings.chapterOrnamentPosition === 'above-number' && (
-            <div className="text-gray-400 dark:text-gray-500 text-lg">
-              {settings.chapterOrnament === 'line' && '━━━━━━━━━'}
-              {settings.chapterOrnament === 'flourish' && '❧'}
-              {settings.chapterOrnament === 'stars' && '✦ ✦ ✦'}
-              {settings.chapterOrnament === 'dots' && '• • •'}
+            <div className="text-gray-400 dark:text-gray-500 text-lg mb-4" style={{ color: '#8B4513' }}>
+              {getOrnamentSymbol(settings.chapterOrnament)}
             </div>
           )}
           
+          {/* Chapter number above title */}
           {settings.showChapterNumber && settings.chapterNumberPosition === 'above-title' && (
-            <div className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-              {settings.chapterNumberLabel}{' '}
-              {settings.chapterNumberStyle === 'numeric' && '1'}
-              {settings.chapterNumberStyle === 'roman' && 'I'}
-              {settings.chapterNumberStyle === 'word' && 'One'}
-              {settings.chapterNumberStyle === 'ordinal' && 'First'}
+            <div className="mb-2">
+              <span 
+                className="text-sm uppercase tracking-widest"
+                style={{ 
+                  color: '#666',
+                  letterSpacing: '0.2em',
+                }}
+              >
+                {settings.chapterNumberLabel}
+              </span>
+              <span 
+                className="block text-3xl mt-1"
+                style={{ fontFamily: "'Playfair Display', Georgia, serif" }}
+              >
+                {formatChapterNumber(1, settings.chapterNumberStyle)}
+              </span>
             </div>
           )}
           
+          {/* Ornament between number and title */}
           {settings.chapterOrnament !== 'none' && settings.chapterOrnamentPosition === 'between-number-title' && (
-            <div className="text-gray-400 dark:text-gray-500 text-lg">
-              {settings.chapterOrnament === 'line' && '━━━'}
-              {settings.chapterOrnament === 'flourish' && '❧'}
-              {settings.chapterOrnament === 'stars' && '✦'}
-              {settings.chapterOrnament === 'dots' && '•'}
+            <div className="text-lg my-2" style={{ color: '#8B4513' }}>
+              {settings.chapterOrnament === 'line' ? '━━━' : getOrnamentSymbol(settings.chapterOrnament)}
             </div>
           )}
           
+          {/* Chapter title */}
           <h2 
-            className="text-2xl font-serif"
+            className="text-2xl"
             style={{ 
-              textAlign: settings.chapterTitlePosition === 'centered' ? 'center' : settings.chapterTitlePosition,
+              fontFamily: "'Playfair Display', Georgia, serif",
+              fontWeight: 'normal',
               textTransform: settings.chapterTitleCase === 'uppercase' ? 'uppercase' : 
                            settings.chapterTitleCase === 'lowercase' ? 'lowercase' : 'none',
+              margin: 0,
             }}
           >
             {settings.showChapterNumber && settings.chapterNumberPosition === 'before-title' && (
-              <span className="text-gray-500 dark:text-gray-400 mr-2">
-                {settings.chapterNumberStyle === 'numeric' && '1.'}
-                {settings.chapterNumberStyle === 'roman' && 'I.'}
+              <span style={{ color: '#666', marginRight: '0.5em' }}>
+                {formatChapterNumber(1, settings.chapterNumberStyle)}.
               </span>
             )}
             The Beginning
           </h2>
           
+          {/* Chapter number below title */}
           {settings.showChapterNumber && settings.chapterNumberPosition === 'below-title' && (
-            <div className="text-sm text-gray-500 dark:text-gray-400 uppercase tracking-widest">
-              {settings.chapterNumberLabel} {settings.chapterNumberStyle === 'numeric' ? '1' : 'I'}
+            <div 
+              className="text-sm uppercase tracking-widest mt-3"
+              style={{ color: '#666', letterSpacing: '0.2em' }}
+            >
+              {settings.chapterNumberLabel} {formatChapterNumber(1, settings.chapterNumberStyle)}
             </div>
           )}
           
+          {/* Ornament below title */}
           {settings.chapterOrnament !== 'none' && settings.chapterOrnamentPosition === 'below-title' && (
-            <div className="text-gray-400 dark:text-gray-500 text-lg">
-              {settings.chapterOrnament === 'line' && '━━━━━━━━━'}
-              {settings.chapterOrnament === 'flourish' && '❧'}
-              {settings.chapterOrnament === 'stars' && '✦ ✦ ✦'}
-              {settings.chapterOrnament === 'dots' && '• • •'}
+            <div className="text-lg mt-4" style={{ color: '#8B4513' }}>
+              {getOrnamentSymbol(settings.chapterOrnament)}
             </div>
           )}
         </div>
+        
+        {/* Scene break preview */}
+        {settings.sceneBreakStyle !== 'blank-line' && (
+          <div className="mt-8 pt-4 border-t border-gray-100 dark:border-gray-800">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">Scene Break Preview:</p>
+            <div 
+              className="text-center py-4"
+              style={{ 
+                color: '#666',
+                letterSpacing: '0.5em',
+                fontFamily: "'EB Garamond', Garamond, serif",
+              }}
+            >
+              {getSceneBreakSymbol(settings.sceneBreakStyle, settings.sceneBreakSymbol)}
+            </div>
+          </div>
+        )}
+        
+        <p className="mt-4 text-xs text-gray-400 dark:text-gray-500 text-center italic">
+          This preview uses the same styling as your exported PDF
+        </p>
       </div>
     </div>
   );
 }
-

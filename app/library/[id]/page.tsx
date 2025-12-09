@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
 import { Tabs } from '@/components/ui/Tabs';
 import { BookReader } from '@/components/library/BookReader';
 import { BookEditor } from '@/components/library/BookEditor';
@@ -34,8 +33,10 @@ import {
   FileText,
   Activity,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Headphones
 } from 'lucide-react';
+import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
 
 interface Chapter {
   id: number;
@@ -44,6 +45,9 @@ interface Chapter {
   content: string;
   wordCount: number;
   status: 'draft' | 'completed';
+  audioUrl?: string | null;
+  audioDuration?: number | null;
+  audioMetadata?: any;
 }
 
 interface BibliographyData {
@@ -91,6 +95,7 @@ export default function BookDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
+  const [showAudiobookPlayer, setShowAudiobookPlayer] = useState(false);
 
   useEffect(() => {
     if (bookId) {
@@ -361,6 +366,10 @@ export default function BookDetailPage() {
 
   const progress = (book.metadata.wordCount / book.metadata.targetWordCount) * 100;
 
+  // Check if book has any audio
+  const hasAudio = book.chapters?.some(ch => ch.audioUrl) || false;
+  const chaptersWithAudio = book.chapters?.filter(ch => ch.audioUrl).length || 0;
+
   // Function to open the reader at a specific chapter
   const openReaderAtChapter = (chapterIndex: number) => {
     setInitialChapterIndex(chapterIndex);
@@ -433,9 +442,10 @@ export default function BookDetailPage() {
             <div className="flex items-center gap-4">
               <button
                 onClick={() => router.push('/library')}
-                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+                className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md font-medium"
               >
-                ← Library
+                <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
+                Library
               </button>
               <Logo size="md" />
               <h1 className="text-2xl font-bold">{book.title}</h1>
@@ -457,6 +467,16 @@ export default function BookDetailPage() {
                     <Book className="w-4 h-4" />
                     Read Book
                   </Button>
+                  {hasAudio && (
+                    <Button 
+                      variant="outline" 
+                      onClick={() => setShowAudiobookPlayer(true)} 
+                      className="flex items-center gap-2 border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                    >
+                      <Headphones className="w-4 h-4" />
+                      Listen
+                    </Button>
+                  )}
                 </>
               )}
               <div className="relative">
@@ -587,9 +607,6 @@ export default function BookDetailPage() {
                         <h2 className="text-4xl font-bold mb-2">{book.title}</h2>
                         <p className="text-xl text-gray-600 dark:text-gray-400 mb-1">by {book.author}</p>
                         <div className="flex items-center gap-3 mt-3">
-                          <Badge variant={book.status === 'completed' ? 'success' : 'default'} size="lg">
-                            {book.status}
-                          </Badge>
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             Created {new Date(book.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                           </span>
@@ -628,11 +645,22 @@ export default function BookDetailPage() {
                     )}
 
                     {book.chapters && book.chapters.length > 0 && (
-                      <div className="flex gap-3 mt-6">
+                      <div className="flex flex-wrap gap-3 mt-6">
                         <Button variant="primary" size="lg" onClick={startReading} className="flex-1 flex items-center justify-center gap-2">
                           <Book className="w-5 h-5" />
                           Start Reading
                         </Button>
+                        {hasAudio && (
+                          <Button 
+                            variant="outline" 
+                            size="lg" 
+                            onClick={() => setShowAudiobookPlayer(true)} 
+                            className="flex items-center gap-2 border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                          >
+                            <Headphones className="w-5 h-5" />
+                            Listen ({chaptersWithAudio} ch)
+                          </Button>
+                        )}
                         <Button variant="outline" size="lg" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
                           <Edit3 className="w-5 h-5" />
                           Edit
@@ -766,9 +794,6 @@ export default function BookDetailPage() {
                             <span className="text-yellow-600 dark:text-yellow-400 font-bold text-lg">Ch. {chapter.number}</span>
                             <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
                           </div>
-                          <Badge variant={chapter.status === 'completed' ? 'success' : 'default'} size="sm">
-                            {chapter.status}
-                          </Badge>
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                           {chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read
@@ -835,9 +860,6 @@ export default function BookDetailPage() {
                                 <span className="text-sm text-gray-600 dark:text-gray-400">
                                   ~{Math.ceil(chapter.wordCount / 200)} min read
                                 </span>
-                                <Badge variant={chapter.status === 'completed' ? 'success' : 'default'} size="sm">
-                                  {chapter.status}
-                                </Badge>
                               </div>
                             </div>
                           </div>
@@ -910,17 +932,58 @@ export default function BookDetailPage() {
           )}
 
           {activeTab === 'audio' && book.chapters && book.chapters.length > 0 && (
-            <AudioGenerator
-              bookId={book.id}
-              bookTitle={book.title}
-              chapters={book.chapters}
-              userId={getDemoUserId()}
-              onAudioGenerated={(data) => {
-                if (data.type === 'full') {
-                  setAudioUrl(data.audioUrl);
-                }
-              }}
-            />
+            <div className="space-y-6">
+              {/* Audiobook Player Link */}
+              {hasAudio && (
+                <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 rounded-xl border border-amber-500/30 p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                        <Headphones className="w-7 h-7 text-white" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Audiobook Player</h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {chaptersWithAudio} of {book.chapters.length} chapters have audio
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex gap-3 w-full sm:w-auto">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowAudiobookPlayer(true)}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                      >
+                        <Headphones className="w-4 h-4" />
+                        Quick Listen
+                      </Button>
+                      <Button 
+                        variant="primary" 
+                        onClick={() => router.push(`/library/${book.id}/listen`)}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        Full Experience
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <AudioGenerator
+                bookId={book.id}
+                bookTitle={book.title}
+                chapters={book.chapters}
+                userId={getDemoUserId()}
+                onAudioGenerated={(data) => {
+                  if (data.type === 'full') {
+                    setAudioUrl(data.audioUrl);
+                  }
+                  // Refresh book data to show new audio
+                  fetchBookDetail();
+                }}
+              />
+            </div>
           )}
 
           {activeTab === 'audio' && (!book.chapters || book.chapters.length === 0) && (
@@ -1026,6 +1089,32 @@ export default function BookDetailPage() {
             />
           </div>
         </div>
+      )}
+
+      {/* Audiobook Player Modal */}
+      {showAudiobookPlayer && book.chapters && (
+        <AudiobookPlayer
+          bookId={book.id}
+          bookTitle={book.title}
+          author={book.author}
+          coverUrl={book.coverUrl}
+          chapters={book.chapters.map(ch => ({
+            id: ch.id,
+            number: ch.number,
+            title: ch.title,
+            content: ch.content,
+            wordCount: ch.wordCount,
+            audioUrl: ch.audioUrl,
+            audioDuration: ch.audioDuration,
+            audioMetadata: ch.audioMetadata,
+          }))}
+          onClose={() => {
+            setShowAudiobookPlayer(false);
+            // Refresh book data in case progress was updated
+            fetchBookDetail();
+          }}
+          isModal={true}
+        />
       )}
     </div>
   );

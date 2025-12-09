@@ -24,6 +24,8 @@ export async function POST(request: NextRequest) {
       description, 
       style, 
       imageModel,
+      showPowerWriteBranding = true, // Default to true
+      hideAuthorName = false, // Option to hide author name entirely
       // New customization options
       textCustomization,
       typographyOptions,
@@ -42,6 +44,8 @@ export async function POST(request: NextRequest) {
       description: string;
       style?: string;
       imageModel?: string;
+      showPowerWriteBranding?: boolean;
+      hideAuthorName?: boolean;
       // New customization types
       textCustomization?: CoverTextCustomization;
       typographyOptions?: CoverTypographyOptions;
@@ -67,29 +71,42 @@ export async function POST(request: NextRequest) {
     console.log(`Generating cover for "${title}" by ${author}${bookId ? ` (bookId: ${bookId})` : ''}`);
 
     // Check if we have enhanced customization options
-    const hasCustomization = textCustomization || typographyOptions || layoutOptions || visualOptions || customPrompt;
+    const hasCustomization = textCustomization || typographyOptions || layoutOptions || visualOptions || customPrompt || !showPowerWriteBranding || hideAuthorName;
     
     let customEnhancedPrompt: string | undefined;
+    
+    // Determine the display author based on branding preference and hide option
+    const displayAuthor = hideAuthorName 
+      ? '' 
+      : (showPowerWriteBranding ? 'PowerWrite' : (textCustomization?.customAuthor || author));
     
     if (hasCustomization) {
       // Generate enhanced prompt using the CoverService
       customEnhancedPrompt = CoverService.generateEnhancedAIPrompt({
         bookId,
         title,
-        author,
+        author: displayAuthor,
         genre,
         description,
         targetAudience: targetAudience || '',
         themes,
-        textCustomization,
+        textCustomization: {
+          ...textCustomization,
+          // Override customAuthor based on hideAuthorName and branding settings
+          customAuthor: hideAuthorName 
+            ? '' 
+            : (showPowerWriteBranding ? textCustomization?.customAuthor : (textCustomization?.customAuthor || author)),
+        },
         typographyOptions,
         layoutOptions,
         visualOptions,
         customPrompt,
         referenceStyle,
+        showPowerWriteBranding,
+        hideAuthorName,
       });
       
-      console.log('Using enhanced cover customization');
+      console.log('Using enhanced cover customization, PowerWrite branding:', showPowerWriteBranding, 'Hide author:', hideAuthorName);
     }
 
     // Generate cover using selected image model (default: Nano Banana Pro)

@@ -75,6 +75,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
     applyBookTypePreset,
     applyMarginPreset,
     resetSettings,
+    clearModified,
     hasUnsavedChanges,
   } = useBookPublishingSettings(bookId);
 
@@ -89,6 +90,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
       });
       
       if (response.ok) {
+        clearModified();
         onSave?.();
       }
     } catch (error) {
@@ -831,4 +833,6 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
     </div>
   );
 }
+
+
 
