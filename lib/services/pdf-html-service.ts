@@ -2,7 +2,8 @@
 // Generates professional book PDFs with CSS Paged Media
 // Now fully integrates PublishingSettings for complete control over PDF output
 
-import puppeteer, { Browser, Page, PDFOptions } from 'puppeteer';
+import puppeteerCore, { Browser, Page, PDFOptions } from 'puppeteer-core';
+import chromium from '@sparticuz/chromium';
 import { BookLayoutType, BOOK_LAYOUTS, LayoutConfig } from '@/lib/types/book-layouts';
 import { 
   PublishingSettings, 
@@ -45,19 +46,87 @@ export class PDFHTMLService {
 
   /**
    * Get or create a browser instance
+   * Uses @sparticuz/chromium for Vercel serverless compatibility
    */
   private static async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.connected) {
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--font-render-hinting=none',
-        ],
-      });
+      console.log('[PDF-HTML] Launching browser...');
+      
+      // Check if running on Vercel (serverless)
+      const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
+      
+      if (isVercel) {
+        console.log('[PDF-HTML] Running on Vercel - using @sparticuz/chromium');
+        
+        // Configure chromium for serverless (disable graphics for performance)
+        chromium.setGraphicsMode = false;
+        
+        const executablePath = await chromium.executablePath();
+        console.log('[PDF-HTML] Chromium executable path:', executablePath);
+        
+        this.browser = await puppeteerCore.launch({
+          args: chromium.args,
+          defaultViewport: { width: 1920, height: 1080 },
+          executablePath,
+          headless: true,
+        }) as Browser;
+      } else {
+        console.log('[PDF-HTML] Running locally - using local puppeteer');
+        // For local development, try to use system Chrome or Puppeteer's bundled Chromium
+        try {
+          // Try puppeteer-core with default Chrome locations
+          const puppeteer = await import('puppeteer');
+          this.browser = await puppeteer.default.launch({
+            headless: true,
+            args: [
+              '--no-sandbox',
+              '--disable-setuid-sandbox',
+              '--disable-dev-shm-usage',
+              '--disable-gpu',
+              '--font-render-hinting=none',
+            ],
+          }) as unknown as Browser;
+        } catch (localError) {
+          console.warn('[PDF-HTML] Local puppeteer failed, trying puppeteer-core:', localError);
+          // Fallback to puppeteer-core with common Chrome paths
+          const possiblePaths = [
+            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // macOS
+            '/usr/bin/google-chrome', // Linux
+            '/usr/bin/chromium-browser', // Linux Chromium
+            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', // Windows
+          ];
+          
+          let execPath = '';
+          for (const path of possiblePaths) {
+            try {
+              const fs = await import('fs');
+              if (fs.existsSync(path)) {
+                execPath = path;
+                break;
+              }
+            } catch {
+              continue;
+            }
+          }
+          
+          if (execPath) {
+            this.browser = await puppeteerCore.launch({
+              headless: true,
+              executablePath: execPath,
+              args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+              ],
+            }) as Browser;
+          } else {
+            throw new Error('Could not find Chrome/Chromium installation');
+          }
+        }
+      }
+      
+      console.log('[PDF-HTML] Browser launched successfully');
     }
     return this.browser;
   }
