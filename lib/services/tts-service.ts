@@ -18,13 +18,25 @@ export interface AudioResult {
 }
 
 export class TTSService {
-  private readonly apiKey: string;
-  private readonly apiUrl: string;
+  private apiKey: string | null = null;
+  private readonly apiUrl: string = 'https://api.openai.com/v1/audio/speech';
   private readonly defaultVoice: TTSConfig['voice'] = 'alloy';
   private readonly defaultSpeed: number = 1.0;
   private readonly defaultModel: TTSConfig['model'] = 'tts-1'; // Cost-effective
+  private initialized: boolean = false;
 
   constructor() {
+    // Don't throw in constructor to avoid build-time errors
+    // Initialization will happen lazily when service is actually used
+  }
+  
+  /**
+   * Initialize the service - called lazily when needed
+   * Throws if API key is not available
+   */
+  private ensureInitialized(): void {
+    if (this.initialized) return;
+    
     // Use OpenAI API directly
     if (!process.env.OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is required for TTS');
@@ -39,7 +51,15 @@ export class TTSService {
     
     console.log('✓ TTS using OpenAI API');
     this.apiKey = process.env.OPENAI_API_KEY;
-    this.apiUrl = 'https://api.openai.com/v1/audio/speech';
+    this.initialized = true;
+  }
+  
+  /**
+   * Get the API key (ensures initialization)
+   */
+  private getApiKey(): string {
+    this.ensureInitialized();
+    return this.apiKey!;
   }
 
   /**
@@ -52,9 +72,8 @@ export class TTSService {
     bookTitle?: string
   ): Promise<AudioResult> {
     try {
-      if (!this.apiKey) {
-        throw new Error('OPENAI_API_KEY is required for TTS');
-      }
+      // Ensure service is initialized (lazy initialization)
+      const apiKey = this.getApiKey();
 
       // Sanitize text to remove AI formatting artifacts before TTS
       const cleanedText = sanitizeForExport(text);
@@ -78,7 +97,7 @@ export class TTSService {
         const response = await fetch(this.apiUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -151,9 +170,8 @@ export class TTSService {
     config: TTSConfig = {}
   ): Promise<AudioResult> {
     try {
-      if (!this.apiKey) {
-        throw new Error('OPENAI_API_KEY is required for TTS');
-      }
+      // Ensure service is initialized (lazy initialization)
+      const apiKey = this.getApiKey();
 
       // Sanitize text to remove AI formatting artifacts before TTS
       const cleanedText = sanitizeForExport(chapterText);
@@ -172,7 +190,7 @@ export class TTSService {
         const response = await fetch(this.apiUrl, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${this.apiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
