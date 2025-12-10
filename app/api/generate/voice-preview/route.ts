@@ -4,10 +4,10 @@ import { put, list, del } from '@vercel/blob';
 export const maxDuration = 30; // 30 seconds for preview generation
 
 // OpenAI TTS voices with their preview texts
+// Valid OpenAI TTS voices: alloy, ash, coral, echo, fable, nova, onyx, sage, shimmer
 const VOICE_PREVIEWS: Record<string, string> = {
   alloy: "Hello, I'm Morgan Blake. I bring clarity and precision to every word, making complex topics accessible and engaging for all listeners.",
   ash: "Greetings, I'm Alexander Grey. My voice carries the weight of experience, perfect for compelling narratives and thought-provoking content.",
-  ballad: "Welcome, I'm Sophia Nightingale. Let me take you on a journey through stories that touch the heart and stir the imagination.",
   coral: "Hi there, I'm Camille Rose. My warmth and energy bring life to every story, from adventure tales to heartfelt memoirs.",
   echo: "Good day, I'm Sebastian Cross. I offer a contemplative presence, ideal for philosophical works and scholarly narratives.",
   fable: "Hello and welcome! I'm Aurora Winters, your guide to magical worlds and creative adventures. Let your imagination soar!",
@@ -15,7 +15,6 @@ const VOICE_PREVIEWS: Record<string, string> = {
   onyx: "I'm Marcus Ashford. My commanding voice brings authority to investigative content, mysteries, and historical narratives.",
   sage: "Greetings, I'm Professor Elena Sage. I specialize in educational content, bringing knowledge to life with clarity and patience.",
   shimmer: "Hello, I'm Isabella Chen. Let me guide you through moments of calm and reflection with gentle, soothing narration.",
-  verse: "Hi, I'm Julian Verse. Poetry, literature, and the arts are my domain. Let words flow like music through your ears.",
 };
 
 // Cache TTL in seconds (24 hours)

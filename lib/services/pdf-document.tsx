@@ -27,6 +27,7 @@ import {
   getTrimSizeDimensions,
   inchesToPoints 
 } from '@/lib/utils/publishing-styles';
+import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
 // Use Google Fonts with built-in fallback
 const BODY_FONT = FontFamilies.primary;      // EBGaramond - elegant book serif
@@ -638,9 +639,11 @@ const styles = StyleSheet.create({
   },
 });
 
-// Helper to sanitize chapter content (remove duplicate titles)
+// Helper to sanitize chapter content (remove duplicate titles and AI artifacts)
+// Uses centralized sanitizer for consistency across all exports
 const sanitizeChapterContent = (chapter: { number: number; title: string; content: string }): string => {
-  let cleaned = chapter.content.trim();
+  // First, apply the centralized sanitizer to remove AI artifacts
+  let cleaned = sanitizeForExport(chapter.content.trim());
   
   const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   

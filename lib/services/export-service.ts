@@ -3,6 +3,7 @@ import { Reference, BibliographyConfig, ChapterReferences } from '@/lib/types/bi
 import { CitationService } from './citation-service';
 import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS } from '@/lib/types/publishing';
 import { generateHTMLStyles, getSceneBreakSymbol, formatChapterNumber, getChapterOrnament } from '@/lib/utils/publishing-styles';
+import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
 interface BookExport {
   title: string;
@@ -25,9 +26,10 @@ interface BookExport {
 }
 
 export class ExportService {
-  // Helper to sanitize chapter content (remove duplicate chapter titles)
+  // Helper to sanitize chapter content (remove duplicate chapter titles + AI artifacts)
   private static sanitizeChapterContent(chapter: { number: number; title: string; content: string }): string {
-    let cleaned = chapter.content.trim();
+    // First, apply the centralized sanitizer to remove AI artifacts
+    let cleaned = sanitizeForExport(chapter.content.trim());
     
     // Remove multiple patterns of duplicate chapter titles (more aggressive)
     const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');

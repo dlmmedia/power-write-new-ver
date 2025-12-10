@@ -63,7 +63,8 @@ interface GeneratedAudio {
   duration: number;
 }
 
-type VoiceType = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+// Valid OpenAI TTS voices: alloy, ash, coral, echo, fable, nova, onyx, sage, shimmer
+type VoiceType = 'alloy' | 'ash' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer';
 
 interface VoiceInfo {
   id: VoiceType;
@@ -174,17 +175,6 @@ export function AudioGenerator({
       gradient: 'from-stone-500 to-zinc-700',
     },
     { 
-      id: 'ballad', 
-      name: 'Sophia Nightingale',
-      title: 'Story Weaver',
-      description: 'Melodic and emotive voice that brings stories to life. Perfect for romantic and emotional narratives.',
-      expertise: ['Romance', 'Drama', 'Literary Fiction'],
-      gender: 'feminine',
-      style: 'Melodic & Emotive',
-      icon: Heart,
-      gradient: 'from-pink-400 to-rose-600',
-    },
-    { 
       id: 'coral', 
       name: 'Camille Rose',
       title: 'Dynamic Host',
@@ -250,17 +240,6 @@ export function AudioGenerator({
       icon: Heart,
       gradient: 'from-cyan-500 to-blue-600',
     },
-    { 
-      id: 'verse', 
-      name: 'Julian Verse',
-      title: 'Literary Artist',
-      description: 'Poetic and artistic with a lyrical quality. Julian brings beauty to poetry, literature, and artistic works.',
-      expertise: ['Poetry', 'Literature', 'Arts'],
-      gender: 'masculine',
-      style: 'Poetic & Lyrical',
-      icon: Book,
-      gradient: 'from-fuchsia-500 to-purple-600',
-    },
   ];
 
   // Sync chapters data when prop changes
@@ -293,10 +272,32 @@ export function AudioGenerator({
       setLoadingPreview(voiceId);
       try {
         const response = await fetch(`/api/generate/voice-preview?voice=${voiceId}`);
+        
+        if (!response.ok) {
+          console.error('Failed to fetch voice preview:', response.status, response.statusText);
+          setLoadingPreview(null);
+          return;
+        }
+        
         const data = await response.json();
         
         if (data.success && data.audioUrl) {
           audioUrl = data.audioUrl;
+          
+          // Pre-validate the audio URL with a HEAD request
+          try {
+            const headResponse = await fetch(audioUrl, { method: 'HEAD' });
+            if (!headResponse.ok) {
+              console.error('Audio URL validation failed:', headResponse.status, audioUrl);
+              // Don't cache invalid URLs
+              setLoadingPreview(null);
+              return;
+            }
+          } catch (headError) {
+            console.warn('Could not validate audio URL (CORS may block HEAD):', headError);
+            // Continue anyway - the audio element will handle the actual error
+          }
+          
           setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
         } else {
           console.error('Failed to get voice preview:', data.error);
@@ -322,14 +323,55 @@ export function AudioGenerator({
         setPlayingVoiceSample(null);
       };
       
-      audio.onerror = () => {
-        console.error('Error playing audio');
+      audio.onerror = (e) => {
+        const mediaError = audio.error;
+        let errorMessage = 'Unknown audio error';
+        
+        if (mediaError) {
+          switch (mediaError.code) {
+            case MediaError.MEDIA_ERR_ABORTED:
+              errorMessage = 'Audio playback was aborted';
+              break;
+            case MediaError.MEDIA_ERR_NETWORK:
+              errorMessage = 'Network error while loading audio';
+              break;
+            case MediaError.MEDIA_ERR_DECODE:
+              errorMessage = 'Audio decoding error - file may be corrupted';
+              break;
+            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+              errorMessage = 'Audio format not supported or URL invalid';
+              break;
+            default:
+              errorMessage = mediaError.message || 'Unknown media error';
+          }
+        }
+        
+        console.error('Error playing audio:', errorMessage, {
+          voiceId,
+          audioUrl,
+          errorCode: mediaError?.code,
+          errorMessage: mediaError?.message,
+        });
+        
+        // Clear the cached URL if there was an error so it can be regenerated
+        setVoicePreviewUrls(prev => {
+          const updated = { ...prev };
+          delete updated[voiceId];
+          return updated;
+        });
+        
         setPlayingVoiceSample(null);
       };
       
       await audio.play();
     } catch (error) {
       console.error('Error playing voice sample:', error);
+      // Clear the cached URL on error
+      setVoicePreviewUrls(prev => {
+        const updated = { ...prev };
+        delete updated[voiceId];
+        return updated;
+      });
       setPlayingVoiceSample(null);
     }
   };

@@ -67,7 +67,34 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
     };
 
     const handleError = () => {
-      const errorMsg = 'Failed to load audio';
+      const mediaError = audio.error;
+      let errorMsg = 'Failed to load audio';
+      
+      if (mediaError) {
+        switch (mediaError.code) {
+          case MediaError.MEDIA_ERR_ABORTED:
+            errorMsg = 'Audio loading was aborted';
+            break;
+          case MediaError.MEDIA_ERR_NETWORK:
+            errorMsg = 'Network error while loading audio';
+            break;
+          case MediaError.MEDIA_ERR_DECODE:
+            errorMsg = 'Audio decoding error - file may be corrupted';
+            break;
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            errorMsg = 'Audio format not supported or URL invalid';
+            break;
+          default:
+            errorMsg = mediaError.message || 'Unknown audio error';
+        }
+      }
+      
+      console.error('AudioPlayer error:', errorMsg, {
+        audioUrl,
+        errorCode: mediaError?.code,
+        errorMessage: mediaError?.message,
+      });
+      
       setError(errorMsg);
       setIsLoading(false);
       if (onError) onError(new Error(errorMsg));

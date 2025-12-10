@@ -44,6 +44,7 @@ import {
   getTrimSizeDimensions,
   inchesToPoints
 } from '@/lib/utils/publishing-styles';
+import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
 interface BookExport {
   title: string;
@@ -154,9 +155,11 @@ export class ExportServiceAdvanced {
 
   /**
    * Helper to aggressively remove duplicate chapter titles from content
+   * Uses centralized sanitizer for AI artifact removal
    */
   private static sanitizeChapterContent(chapter: { number: number; title: string; content: string }): string {
-    let cleaned = chapter.content.trim();
+    // First, apply the centralized sanitizer to remove AI artifacts
+    let cleaned = sanitizeForExport(chapter.content.trim());
     
     // Escape special regex characters in title
     const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

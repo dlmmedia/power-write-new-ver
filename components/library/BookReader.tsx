@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
@@ -8,6 +8,7 @@ import { AudioPlayer } from './AudioPlayer';
 import { BibliographySection } from './BibliographySection';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
+import { sanitizeForReading } from '@/lib/utils/text-sanitizer';
 
 interface Chapter {
   id: number;
@@ -790,14 +791,14 @@ export const BookReader: React.FC<BookReaderProps> = ({
                 </div>
               </div>
 
-              {/* Chapter Content */}
+              {/* Chapter Content - Sanitized for clean reading */}
               <div 
                 className={`prose prose-gray dark:prose-invert max-w-none ${fontSizeClasses[fontSize]} ${lineHeightClasses[fontSize]}`}
                 style={{
                   fontFamily: 'Georgia, serif',
                 }}
               >
-                {currentChapter.content.split('\n\n').map((paragraph, index) => (
+                {sanitizeForReading(currentChapter.content).split('\n\n').map((paragraph, index) => (
                   <p key={index} className="mb-4 text-gray-800 dark:text-gray-200 text-justify">
                     {paragraph}
                   </p>

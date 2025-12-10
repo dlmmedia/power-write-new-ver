@@ -1,5 +1,6 @@
 // TTS Service for Audiobook Generation using OpenAI TTS
 import { put } from '@vercel/blob';
+import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
 // OpenAI TTS supports 11 voices (as of 2024)
 export type VoiceId = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
@@ -55,14 +56,16 @@ export class TTSService {
         throw new Error('OPENAI_API_KEY is required for TTS');
       }
 
-      console.log(`Generating audiobook (${text.length} characters)...`);
+      // Sanitize text to remove AI formatting artifacts before TTS
+      const cleanedText = sanitizeForExport(text);
+      console.log(`Generating audiobook (${cleanedText.length} characters, sanitized from ${text.length})...`);
 
       const voice = config.voice || this.defaultVoice;
       const speed = config.speed || this.defaultSpeed;
       const model = config.model || this.defaultModel;
 
       // Split text into chunks if needed (OpenAI limit: 4096 chars)
-      const chunks = this.splitTextIntoChunks(text, 4000);
+      const chunks = this.splitTextIntoChunks(cleanedText, 4000);
       console.log(`Split into ${chunks.length} chunks`);
 
       const audioBuffers: Buffer[] = [];
@@ -123,7 +126,7 @@ export class TTSService {
       });
 
       // Estimate duration (rough: 150 words per minute, 5 chars per word)
-      const estimatedDuration = Math.ceil((text.length / 5) / 150 * 60);
+      const estimatedDuration = Math.ceil((cleanedText.length / 5) / 150 * 60);
 
       console.log(`Audiobook generated: ${blob.url}`);
       
@@ -152,14 +155,16 @@ export class TTSService {
         throw new Error('OPENAI_API_KEY is required for TTS');
       }
 
-      console.log(`Generating audio for chapter ${chapterNumber}...`);
+      // Sanitize text to remove AI formatting artifacts before TTS
+      const cleanedText = sanitizeForExport(chapterText);
+      console.log(`Generating audio for chapter ${chapterNumber} (${cleanedText.length} chars, sanitized from ${chapterText.length})...`);
 
       const voice = config.voice || this.defaultVoice;
       const speed = config.speed || this.defaultSpeed;
       const model = config.model || this.defaultModel;
 
       // Split if needed
-      const chunks = this.splitTextIntoChunks(chapterText, 4000);
+      const chunks = this.splitTextIntoChunks(cleanedText, 4000);
       const audioBuffers: Buffer[] = [];
       let totalSize = 0;
 
@@ -211,7 +216,7 @@ export class TTSService {
         allowOverwrite: false, // New file each time with timestamp
       });
 
-      const estimatedDuration = Math.ceil((chapterText.length / 5) / 150 * 60);
+      const estimatedDuration = Math.ceil((cleanedText.length / 5) / 150 * 60);
 
       console.log(`Chapter ${chapterNumber} audio generated: ${blob.url}`);
       

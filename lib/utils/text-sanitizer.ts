@@ -10,6 +10,7 @@ export interface SanitizationOptions {
   removeNumbering?: boolean;
   fixSpacing?: boolean;
   removeMetaText?: boolean;
+  removeAIArtifacts?: boolean;
 }
 
 const DEFAULT_OPTIONS: SanitizationOptions = {
@@ -19,6 +20,7 @@ const DEFAULT_OPTIONS: SanitizationOptions = {
   removeNumbering: true,
   fixSpacing: true,
   removeMetaText: true,
+  removeAIArtifacts: true,
 };
 
 /**
@@ -30,6 +32,11 @@ export function sanitizeText(
 ): string {
   const opts = { ...DEFAULT_OPTIONS, ...options };
   let sanitized = text;
+
+  // Remove AI artifacts first (before other processing)
+  if (opts.removeAIArtifacts) {
+    sanitized = removeAIArtifacts(sanitized);
+  }
 
   // Remove meta text (e.g., [END CHAPTER], [CONTINUE], etc.)
   if (opts.removeMetaText) {
@@ -62,6 +69,202 @@ export function sanitizeText(
   }
 
   return sanitized.trim();
+}
+
+/**
+ * Remove common AI formatting artifacts
+ * This includes double underscores, double hyphens, and other AI-specific patterns
+ * All AI-specific symbols are REMOVED, not converted to other characters
+ */
+export function removeAIArtifacts(text: string): string {
+  let clean = text;
+
+  // ==============================================
+  // DOUBLE UNDERSCORES & EMPHASIS MARKERS
+  // ==============================================
+  
+  // Remove __text__ emphasis patterns → text
+  clean = clean.replace(/_{2,}([^_]+)_{2,}/g, '$1');
+  
+  // Remove standalone double/triple underscores: __ or ___ → nothing
+  clean = clean.replace(/_{2,}/g, '');
+  
+  // Remove _text_ single underscore emphasis → text
+  clean = clean.replace(/_([^_\s][^_]*)_/g, '$1');
+
+  // ==============================================
+  // DOUBLE HYPHENS & DASHES (REMOVE, not convert)
+  // ==============================================
+  
+  // Remove standalone double/triple hyphens: -- or --- → space
+  clean = clean.replace(/\s*-{2,}\s*/g, ' ');
+  
+  // Remove spaced single hyphen patterns (often AI formatting): word - word → word word
+  clean = clean.replace(/\s+-\s+/g, ' ');
+  
+  // Remove multiple consecutive em-dashes or en-dashes
+  clean = clean.replace(/[—–]{2,}/g, '');
+  
+  // Remove standalone em-dashes and en-dashes at start/end of sentences
+  clean = clean.replace(/^[—–]\s*/gm, '');
+  clean = clean.replace(/\s*[—–]$/gm, '');
+
+  // ==============================================
+  // ASTERISKS & EMPHASIS
+  // ==============================================
+  
+  // Remove triple asterisks used for emphasis: ***text*** → text
+  clean = clean.replace(/\*{3,}([^*]+)\*{3,}/g, '$1');
+  
+  // Remove double asterisks used for bold: **text** → text
+  clean = clean.replace(/\*\*([^*]+)\*\*/g, '$1');
+  
+  // Remove single asterisks used for italic (but preserve scene breaks)
+  // Only match if not a scene break pattern like * * * or ***
+  clean = clean.replace(/(?<!\*)\*(?!\s*\*\s*\*|\*\*)([^*\n]+)\*(?!\*)/g, '$1');
+  
+  // Remove standalone asterisks (not scene breaks)
+  clean = clean.replace(/(?<!\*|\s\*\s)\*(?!\s*\*)/g, '');
+
+  // ==============================================
+  // AI INSTRUCTION ARTIFACTS
+  // ==============================================
+  
+  // Remove text in angle brackets (AI instructions): <instruction> → nothing
+  clean = clean.replace(/<[^>]+>/g, '');
+  
+  // Remove curly brace placeholders: {placeholder} → nothing
+  clean = clean.replace(/\{[^}]+\}/g, '');
+  
+  // Remove text between double curly braces: {{variable}} → nothing
+  clean = clean.replace(/\{\{[^}]+\}\}/g, '');
+  
+  // Remove square bracket instructions: [instruction here] → nothing
+  clean = clean.replace(/\[[^\]]*\]/g, '');
+
+  // ==============================================
+  // EXTRA PUNCTUATION PATTERNS
+  // ==============================================
+  
+  // Remove ellipsis artifacts (more than 3 dots)
+  clean = clean.replace(/\.{4,}/g, '...');
+  
+  // Fix spaced ellipsis: . . . → ...
+  clean = clean.replace(/\.\s*\.\s*\./g, '...');
+  
+  // Remove leading/trailing special characters per line
+  clean = clean.replace(/^[_*~`—–-]+|[_*~`—–-]+$/gm, '');
+  
+  // Remove double colons often used by AI: :: → :
+  clean = clean.replace(/::/g, ':');
+  
+  // Remove double equals signs: == → nothing
+  clean = clean.replace(/={2,}/g, '');
+  
+  // Remove pound/hash symbols used for headers: ### → nothing
+  clean = clean.replace(/^#{1,6}\s*/gm, '');
+
+  // ==============================================
+  // AI GENERATION MARKERS
+  // ==============================================
+  
+  // Remove [placeholder] style markers
+  clean = clean.replace(/\[\s*(insert|add|include|placeholder|here|todo|tbd|note|continue|continued|end|start|begin|section|chapter)\s*[^\]]*\]/gi, '');
+  
+  // Remove (Note: ...) style AI notes
+  clean = clean.replace(/\(Note:\s*[^)]+\)/gi, '');
+  
+  // Remove (TBD) (TODO) etc
+  clean = clean.replace(/\((TBD|TODO|FIXME|NOTE|WIP|DRAFT)\)/gi, '');
+  
+  // Remove AI meta comments
+  clean = clean.replace(/^(Note:|Author's Note:|Editor's Note:|AI Note:).*$/gim, '');
+  
+  // Remove "Chapter X:" patterns at start of content (duplicate titles)
+  clean = clean.replace(/^Chapter\s+\d+[:\s]*$/gim, '');
+
+  // ==============================================
+  // FORMATTING CLEANUP
+  // ==============================================
+  
+  // Remove tilde formatting: ~~text~~ → text
+  clean = clean.replace(/~~([^~]+)~~/g, '$1');
+  
+  // Remove backtick code formatting: `text` → text
+  clean = clean.replace(/`+([^`]+)`+/g, '$1');
+  
+  // Remove HTML-like emphasis tags: <em>text</em> → text
+  clean = clean.replace(/<\/?(?:em|strong|b|i|u|s|del|ins|mark|span)>/gi, '');
+  
+  // Remove markdown link syntax: [text](url) → text
+  clean = clean.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  
+  // Remove bare URLs on their own lines (often AI artifacts)
+  clean = clean.replace(/^https?:\/\/[^\s]+$/gm, '');
+
+  // ==============================================
+  // COMMON AI PHRASE ARTIFACTS
+  // ==============================================
+  
+  // Remove "continued..." patterns
+  clean = clean.replace(/\(continued\.{0,3}\)/gi, '');
+  clean = clean.replace(/\.{0,3}continued\.{0,3}$/gim, '');
+  
+  // Remove "to be continued" patterns
+  clean = clean.replace(/\(?to be continued\.{0,3}\)?/gi, '');
+  
+  // Remove "The End" if it appears mid-text
+  clean = clean.replace(/^(THE END|The End|\[END\]|\[THE END\])$/gm, '');
+
+  // ==============================================
+  // WHITESPACE NORMALIZATION
+  // ==============================================
+  
+  // Fix multiple spaces created by removals
+  clean = clean.replace(/  +/g, ' ');
+  
+  // Fix multiple newlines created by removals (max 2)
+  clean = clean.replace(/\n{3,}/g, '\n\n');
+  
+  // Remove spaces at start/end of lines
+  clean = clean.replace(/^[ \t]+|[ \t]+$/gm, '');
+  
+  // Remove empty lines at the very start/end
+  clean = clean.replace(/^\n+|\n+$/g, '');
+
+  return clean;
+}
+
+/**
+ * Sanitize content specifically for reading/display
+ * Optimized for clean reading experience
+ */
+export function sanitizeForReading(text: string): string {
+  return sanitizeText(text, {
+    removeMarkdown: true,
+    fixQuotes: true,
+    fixDashes: true,
+    removeNumbering: false, // Keep paragraph structure
+    fixSpacing: true,
+    removeMetaText: true,
+    removeAIArtifacts: true,
+  });
+}
+
+/**
+ * Sanitize content for export (PDF, HTML, etc.)
+ * Applies all cleaning for final output
+ */
+export function sanitizeForExport(text: string): string {
+  return sanitizeText(text, {
+    removeMarkdown: true,
+    fixQuotes: true,
+    fixDashes: true,
+    removeNumbering: false, // Keep chapter structure
+    fixSpacing: true,
+    removeMetaText: true,
+    removeAIArtifacts: true,
+  });
 }
 
 /**

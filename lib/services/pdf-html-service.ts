@@ -18,6 +18,7 @@ import {
   getRequiredFontsForSettings,
   getGoogleFontsLinkElement,
 } from '@/lib/utils/font-mapping';
+import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
 // Use flexible types to accept various bibliography formats
 interface BookExport {
@@ -1506,13 +1507,14 @@ ${settings.customCSS || ''}
   }
 
   /**
-   * Sanitize chapter content - remove duplicate titles
+   * Sanitize chapter content - remove duplicate titles + AI artifacts
    */
   private static sanitizeChapterContent(
     content: string,
     chapter: { number: number; title: string }
   ): string {
-    let cleaned = content.trim();
+    // First, apply the centralized sanitizer to remove AI artifacts
+    let cleaned = sanitizeForExport(content.trim());
 
     const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

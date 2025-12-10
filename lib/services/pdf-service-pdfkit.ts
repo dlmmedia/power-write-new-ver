@@ -10,6 +10,7 @@ import {
 } from '@/lib/types/publishing';
 import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
+import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
 // =============================================
 // PROFESSIONAL BOOK FORMATTING CONSTANTS
@@ -244,10 +245,12 @@ function getSceneBreakSymbol(settings?: PublishingSettings): string {
 }
 
 /**
- * Sanitize chapter content - remove duplicate titles and clean up text
+ * Sanitize chapter content - remove duplicate titles and AI artifacts
+ * Uses centralized sanitizer for consistency across all exports
  */
 function sanitizeChapterContent(chapter: { number: number; title: string; content: string }): string {
-  let cleaned = chapter.content.trim();
+  // First, apply the centralized sanitizer to remove AI artifacts
+  let cleaned = sanitizeForExport(chapter.content.trim());
   
   // Remove duplicate chapter titles from content
   const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
