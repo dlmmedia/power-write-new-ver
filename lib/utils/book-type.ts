@@ -130,3 +130,39 @@ export function getBookTypeInfo(book: BookResult | SelectedBook | BookWithCatego
     subCategory: categories[1],
   };
 }
+
+/**
+ * Determine if a book should be labeled as "A Novel By" based on its genre and book type
+ * Used for export services to conditionally show the author label
+ * 
+ * @param genre - The book's genre string
+ * @param bookType - The book type from publishing settings (e.g., 'novel', 'memoir', 'textbook')
+ * @returns true if the book is a novel/fiction and should show "A Novel By"
+ */
+export function isNovel(genre?: string, bookType?: string): boolean {
+  // Check explicit book types that are novels
+  const novelBookTypes = ['novel', 'novella', 'short-story-collection', 'young-adult', 'middle-grade'];
+  if (bookType && novelBookTypes.includes(bookType)) {
+    return true;
+  }
+  
+  // Check explicit book types that are NOT novels
+  const nonNovelBookTypes = [
+    'textbook', 'workbook', 'cookbook', 'coffee-table-book', 'art-book',
+    'memoir', 'biography', 'self-help', 'business', 'technical', 'poetry',
+    'journal', 'devotional', 'travel-guide', 'magazine', 'academic'
+  ];
+  if (bookType && nonNovelBookTypes.includes(bookType)) {
+    return false;
+  }
+  
+  // Check genre keywords for fiction/novel indicators
+  const searchText = (genre || '').toLowerCase();
+  const novelKeywords = [
+    'novel', 'fiction', 'thriller', 'mystery', 'romance', 'fantasy', 
+    'sci-fi', 'science fiction', 'horror', 'adventure', 'dystopian',
+    'literary fiction', 'crime fiction', 'detective', 'suspense'
+  ];
+  
+  return novelKeywords.some(keyword => searchText.includes(keyword));
+}

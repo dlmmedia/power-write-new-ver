@@ -19,6 +19,7 @@ import {
   getGoogleFontsLinkElement,
 } from '@/lib/utils/font-mapping';
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
+import { isNovel } from '@/lib/utils/book-type';
 
 // Use flexible types to accept various bibliography formats
 interface BookExport {
@@ -72,6 +73,40 @@ export class PDFHTMLService {
   }
 
   /**
+   * Fetch an image from URL and convert to base64 data URL
+   * This avoids CORS issues when embedding images in the PDF
+   */
+  private static async fetchImageAsBase64(url: string): Promise<string | undefined> {
+    if (!url) return undefined;
+    
+    // If already a data URL, return as-is
+    if (url.startsWith('data:')) {
+      return url;
+    }
+    
+    try {
+      console.log(`[PDF-HTML] Fetching image: ${url}`);
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error(`[PDF-HTML] Failed to fetch image: ${response.status} ${response.statusText}`);
+        return undefined;
+      }
+      
+      const buffer = await response.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      const mimeType = response.headers.get('content-type') || 'image/png';
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      
+      console.log(`[PDF-HTML] Image fetched successfully, size: ${buffer.byteLength} bytes`);
+      return dataUrl;
+    } catch (error) {
+      console.error(`[PDF-HTML] Error fetching image:`, error);
+      return undefined;
+    }
+  }
+
+  /**
    * Generate PDF from book data using HTML/CSS
    */
   static async generateBookPDF(book: BookExport): Promise<Buffer> {
@@ -80,6 +115,33 @@ export class PDFHTMLService {
     console.log(`[PDF-HTML] Chapters: ${book.chapters?.length || 0}`);
     console.log(`[PDF-HTML] Cover URL: ${book.coverUrl ? 'Yes' : 'No'}`);
     console.log(`[PDF-HTML] Back Cover URL: ${book.backCoverUrl ? 'Yes' : 'No'}`);
+
+    // Pre-fetch cover images and convert to base64 to avoid CORS issues
+    let coverBase64: string | undefined;
+    let backCoverBase64: string | undefined;
+    
+    if (book.coverUrl) {
+      console.log(`[PDF-HTML] Pre-fetching cover image...`);
+      coverBase64 = await this.fetchImageAsBase64(book.coverUrl);
+      if (coverBase64) {
+        console.log(`[PDF-HTML] Cover image converted to base64`);
+      }
+    }
+    
+    if (book.backCoverUrl) {
+      console.log(`[PDF-HTML] Pre-fetching back cover image...`);
+      backCoverBase64 = await this.fetchImageAsBase64(book.backCoverUrl);
+      if (backCoverBase64) {
+        console.log(`[PDF-HTML] Back cover image converted to base64`);
+      }
+    }
+
+    // Create a modified book object with base64 images
+    const bookWithBase64Images: BookExport = {
+      ...book,
+      coverUrl: coverBase64 || book.coverUrl,
+      backCoverUrl: backCoverBase64 || book.backCoverUrl,
+    };
 
     const browser = await this.getBrowser();
     let page: Page | null = null;
@@ -92,8 +154,8 @@ export class PDFHTMLService {
       const layout = BOOK_LAYOUTS[layoutType] || BOOK_LAYOUTS['novel-classic'];
       const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
 
-      // Generate HTML content with full publishing settings
-      const html = this.generateBookHTML(book, layout, settings);
+      // Generate HTML content with full publishing settings (using base64 images)
+      const html = this.generateBookHTML(bookWithBase64Images, layout, settings);
 
       // Set content with proper encoding
       await page.setContent(html, {
@@ -1179,6 +1241,10 @@ ${settings.customCSS || ''}
     const currentYear = new Date().getFullYear();
     const frontMatter = settings.frontMatter;
     let html = '';
+    
+    // Determine if this book should show "A Novel By" label
+    const bookType = settings?.bookType;
+    const showNovelLabel = isNovel(book.genre, bookType);
 
     // Half-title page
     if (frontMatter.halfTitlePage) {
@@ -1188,12 +1254,17 @@ ${settings.customCSS || ''}
       </section>`;
     }
 
-    // Title page
+    // Title page - conditionally show "A Novel By" only for novels
     if (frontMatter.titlePage) {
+      const authorSection = showNovelLabel 
+        ? `<p class="book-author-label" style="font-size: 0.7em; letter-spacing: 0.2em; text-transform: uppercase; color: #666; margin-bottom: 0.5em;">A Novel By</p>
+           <p class="book-author">${this.escapeHtml(book.author)}</p>`
+        : `<p class="book-author">by ${this.escapeHtml(book.author)}</p>`;
+      
       html += `
       <section class="title-page break-after">
         <h1 class="book-title">${this.escapeHtml(book.title)}</h1>
-        <p class="book-author">${this.escapeHtml(book.author)}</p>
+        ${authorSection}
         ${book.genre ? `<p class="book-genre">${this.escapeHtml(book.genre)}</p>` : ''}
         ${book.description ? `
         <div class="book-description" style="margin-top: 3em; font-style: italic; max-width: 80%; margin-left: auto; margin-right: auto;">

@@ -11,6 +11,7 @@ import {
 import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
 import { CitationService } from './citation-service';
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
+import { isNovel } from '@/lib/utils/book-type';
 
 // =============================================
 // PROFESSIONAL BOOK FORMATTING CONSTANTS
@@ -325,6 +326,10 @@ export class PDFServicePDFKit {
         const chapterSettings = settings.chapters || DEFAULT_PUBLISHING_SETTINGS.chapters;
         const headerFooterSettings = settings.headerFooter || DEFAULT_PUBLISHING_SETTINGS.headerFooter;
         
+        // Determine if this book should show "A Novel By" label
+        const bookType = settings?.bookType;
+        const showNovelLabel = isNovel(book.genre, bookType);
+        
         // Create the PDF document
         const doc = new PDFDocument({
           size: [dims.width, dims.height],
@@ -468,23 +473,34 @@ export class PDFServicePDFKit {
            .lineTo(dims.width / 2 + 40, titleDivY)
            .stroke();
         
-        // "A Novel By" label
-        doc.font('Times-Roman')
-           .fontSize(9)
-           .fillColor('#666666')
-           .text('A  N O V E L  B Y', dims.marginInside, titleDivY + 25, {
-             width: dims.contentWidth,
-             align: 'center',
-           });
-        
-        // Author name
-        doc.font('Times-Italic')
-           .fontSize(16)
-           .fillColor('#333333')
-           .text(book.author, dims.marginInside, titleDivY + 48, {
-             width: dims.contentWidth,
-             align: 'center',
-           });
+        // Author label - only show "A Novel By" for novels
+        if (showNovelLabel) {
+          doc.font('Times-Roman')
+             .fontSize(9)
+             .fillColor('#666666')
+             .text('A  N O V E L  B Y', dims.marginInside, titleDivY + 25, {
+               width: dims.contentWidth,
+               align: 'center',
+             });
+          
+          // Author name
+          doc.font('Times-Italic')
+             .fontSize(16)
+             .fillColor('#333333')
+             .text(book.author, dims.marginInside, titleDivY + 48, {
+               width: dims.contentWidth,
+               align: 'center',
+             });
+        } else {
+          // Just show "by Author Name" for non-novels
+          doc.font('Times-Italic')
+             .fontSize(16)
+             .fillColor('#333333')
+             .text(`by ${book.author}`, dims.marginInside, titleDivY + 35, {
+               width: dims.contentWidth,
+               align: 'center',
+             });
+        }
         
         // Description (if present)
         if (book.description) {

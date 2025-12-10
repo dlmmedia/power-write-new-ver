@@ -28,6 +28,7 @@ import {
   inchesToPoints 
 } from '@/lib/utils/publishing-styles';
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
+import { isNovel } from '@/lib/utils/book-type';
 
 // Use Google Fonts with built-in fallback
 const BODY_FONT = FontFamilies.primary;      // EBGaramond - elegant book serif
@@ -768,6 +769,10 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
   const charsPerPage = getCharsPerPage(settings);
   const chapterPageNumbers = calculateChapterPageNumbers(book.chapters, charsPerPage);
 
+  // Determine if this book should show "A Novel By" label
+  const bookType = settings?.bookType;
+  const showNovelLabel = isNovel(book.genre, bookType);
+
   return (
     <Document
       title={book.title}
@@ -801,8 +806,14 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
         <View style={styles.titleContainer}>
           <Text style={styles.titleMain}>{book.title}</Text>
           <View style={styles.titleDivider} />
-          <Text style={styles.titleAuthorLabel}>A Novel By</Text>
-          <Text style={styles.titleAuthor}>{book.author}</Text>
+          {showNovelLabel ? (
+            <>
+              <Text style={styles.titleAuthorLabel}>A Novel By</Text>
+              <Text style={styles.titleAuthor}>{book.author}</Text>
+            </>
+          ) : (
+            <Text style={styles.titleAuthor}>by {book.author}</Text>
+          )}
           {book.description && (
             <Text style={styles.titleDescription}>{book.description}</Text>
           )}

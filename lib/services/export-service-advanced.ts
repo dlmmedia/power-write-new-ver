@@ -45,6 +45,7 @@ import {
   inchesToPoints
 } from '@/lib/utils/publishing-styles';
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
+import { isNovel } from '@/lib/utils/book-type';
 
 interface BookExport {
   title: string;
@@ -232,6 +233,10 @@ export class ExportServiceAdvanced {
     // Get publishing settings (use defaults if not provided)
     const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
     
+    // Determine if this book should show "A Novel By" label
+    const bookType = settings?.bookType;
+    const showNovelLabel = isNovel(book.genre, bookType);
+    
     // Get trim size for page dimensions
     const trimSize = getTrimSizeDimensions(settings.trimSize);
     const pageWidthTwip = convertInchesToTwip(trimSize.width);
@@ -369,7 +374,8 @@ export class ExportServiceAdvanced {
     }
 
     // --- TITLE PAGE ---
-    frontMatterChildren.push(
+    // Conditionally show "A Novel By" only for novels
+    const titlePageElements: Paragraph[] = [
       new Paragraph({ text: '', spacing: { before: 2500 } }),
       new Paragraph({
         children: [
@@ -390,31 +396,54 @@ export class ExportServiceAdvanced {
         alignment: AlignmentType.CENTER,
         spacing: { after: 400 },
       }),
-      new Paragraph({
-        children: [
-          new TextRun({ text: 'A BOOK BY', font: FONTS.label, size: SIZES.tiny, color: COLORS.muted }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 100 },
-      }),
-      new Paragraph({
-        children: [
-          new TextRun({ text: book.author, font: FONTS.heading, size: 36, italics: true, color: COLORS.secondary }),
-        ],
-        alignment: AlignmentType.CENTER,
-        spacing: { after: 600 },
-      }),
-      ...(book.description ? [
+    ];
+    
+    // Add author label and name based on book type
+    if (showNovelLabel) {
+      titlePageElements.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: 'A NOVEL BY', font: FONTS.label, size: SIZES.tiny, color: COLORS.muted }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 100 },
+        }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: book.author, font: FONTS.heading, size: 36, italics: true, color: COLORS.secondary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 600 },
+        })
+      );
+    } else {
+      // Just show "by Author Name" for non-novels
+      titlePageElements.push(
+        new Paragraph({
+          children: [
+            new TextRun({ text: `by ${book.author}`, font: FONTS.heading, size: 36, italics: true, color: COLORS.secondary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 600 },
+        })
+      );
+    }
+    
+    // Add description and page break
+    if (book.description) {
+      titlePageElements.push(
         new Paragraph({
           children: [
             new TextRun({ text: book.description, font: FONTS.body, size: SIZES.small, color: COLORS.muted }),
           ],
           alignment: AlignmentType.CENTER,
           spacing: { before: 400, after: 400 },
-        }),
-      ] : []),
-      new Paragraph({ children: [new PageBreak()] })
-    );
+        })
+      );
+    }
+    titlePageElements.push(new Paragraph({ children: [new PageBreak()] }));
+    
+    frontMatterChildren.push(...titlePageElements);
 
     // --- COPYRIGHT PAGE ---
     const currentYear = new Date().getFullYear();
@@ -1406,6 +1435,10 @@ export class ExportServiceAdvanced {
 
     // Get publishing settings
     const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
+    
+    // Determine if this book should show "A Novel By" label
+    const bookType = settings?.bookType;
+    const showNovelLabel = isNovel(book.genre, bookType);
 
     try {
       // Generate CSS from publishing settings for KDP-optimized EPUB
@@ -1613,11 +1646,16 @@ export class ExportServiceAdvanced {
       // Prepare chapters for EPUB
       const epubChapters: EPubChapter[] = [];
 
-      // 1. Title Page
+      // 1. Title Page - conditionally show "A Novel By" only for novels
+      const authorSection = showNovelLabel
+        ? `<p class="book-author-label" style="font-size: 0.7em; letter-spacing: 0.15em; text-transform: uppercase; color: #666; margin-bottom: 0.3em;">A Novel By</p>
+           <p class="book-author">${this.escapeHtml(book.author)}</p>`
+        : `<p class="book-author">by ${this.escapeHtml(book.author)}</p>`;
+      
       const titlePageContent = `
         <div class="title-page">
           <p class="book-title">${this.escapeHtml(book.title)}</p>
-          <p class="book-author">by ${this.escapeHtml(book.author)}</p>
+          ${authorSection}
           ${book.genre ? `<p class="book-genre">${this.escapeHtml(book.genre)}</p>` : ''}
           ${book.description ? `<div class="description">${this.escapeHtml(book.description)}</div>` : ''}
         </div>

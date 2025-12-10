@@ -4,6 +4,7 @@ import { CitationService } from './citation-service';
 import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS } from '@/lib/types/publishing';
 import { generateHTMLStyles, getSceneBreakSymbol, formatChapterNumber, getChapterOrnament } from '@/lib/utils/publishing-styles';
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
+import { isNovel } from '@/lib/utils/book-type';
 
 interface BookExport {
   title: string;
@@ -575,13 +576,16 @@ export class ExportService {
     </div>`;
     }
     
-    // Title page
+    // Title page - conditionally show "A Novel By" only for novels
+    const bookType = book.publishingSettings?.bookType;
+    const showNovelLabel = isNovel(book.genre, bookType);
+    
     html += `
     <div class="title-page">
         <h1>${book.title}</h1>
         <div class="title-divider"></div>
-        <p class="title-author-label">A Novel By</p>
-        <p class="title-author">${book.author}</p>
+        ${showNovelLabel ? `<p class="title-author-label">A Novel By</p>` : ''}
+        <p class="title-author">${showNovelLabel ? '' : 'by '}${book.author}</p>
         ${book.description ? `<p class="title-description">${book.description}</p>` : ''}
     </div>`;
     
