@@ -17,7 +17,8 @@ import { BookConfiguration } from '@/lib/types/studio';
 export const maxDuration = 300; // 5 minutes per batch
 
 // Number of chapters to generate per request
-const CHAPTERS_PER_BATCH = 3;
+// Reduced to 1 to prevent Vercel timeout (each chapter can take 30-90s)
+const CHAPTERS_PER_BATCH = 1;
 
 interface GenerationRequest {
   userId: string;
@@ -135,62 +136,83 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
     }
 
     if (chaptersToGenerate.length === 0) {
-      // All chapters are done, move to cover generation
-      console.log(`[Incremental] All chapters complete, generating covers...`);
-      
-      const aiService = new AIService(config.aiSettings?.model, chapterModel);
-      
-      // Generate front cover
-      let coverUrl: string | undefined;
-      try {
-        console.log('[Incremental] Generating front cover...');
-        coverUrl = await aiService.generateCoverImage(
-          outline.title,
-          outline.author,
-          outline.genre,
-          outline.description,
-          'vivid'
-        );
-        console.log('[Incremental] Front cover generated successfully');
-      } catch (coverError) {
-        console.error('[Incremental] Failed to generate front cover:', coverError);
-      }
-
-      // Generate back cover
-      let backCoverUrl: string | undefined;
-      try {
-        console.log('[Incremental] Generating back cover...');
-        backCoverUrl = await aiService.generateBackCoverImage(
-          outline.title,
-          outline.author,
-          outline.genre,
-          outline.description,
-          'photographic'
-        );
-        console.log('[Incremental] Back cover generated successfully');
-      } catch (backCoverError) {
-        console.error('[Incremental] Failed to generate back cover:', backCoverError);
-      }
-
-      // Calculate final metadata
+      // All chapters are done - check if we need to generate covers or finalize
+      const currentBook = await getBook(currentBookId);
       const allChapters = await getBookChapters(currentBookId);
       const totalWords = allChapters.reduce((sum, ch) => sum + (ch.wordCount || 0), 0);
+      
+      // Check if covers already exist (from previous cover phase)
+      const coversExist = !!currentBook?.coverUrl;
+      
+      if (!coversExist) {
+        // Phase: Generate covers only (separate from chapters to prevent timeout)
+        console.log(`[Incremental] All chapters complete, generating covers...`);
+        
+        const aiService = new AIService(config.aiSettings?.model, chapterModel);
+        
+        // Generate front cover
+        let coverUrl: string | undefined;
+        try {
+          console.log('[Incremental] Generating front cover...');
+          coverUrl = await aiService.generateCoverImage(
+            outline.title,
+            outline.author,
+            outline.genre,
+            outline.description,
+            'vivid'
+          );
+          console.log('[Incremental] Front cover generated successfully');
+        } catch (coverError) {
+          console.error('[Incremental] Failed to generate front cover:', coverError);
+        }
 
-      // Update book to completed - include backCoverUrl in metadata
-      await updateBook(currentBookId, {
-        status: 'completed',
-        coverUrl,
-        metadata: {
-          wordCount: totalWords,
-          pageCount: Math.ceil(totalWords / 250),
-          readingTime: Math.ceil(totalWords / 250),
-          chapters: allChapters.length,
-          generatedAt: new Date(),
-          lastModified: new Date(),
-          modelUsed: chapterModel,
-          backCoverUrl: backCoverUrl, // Store back cover URL in metadata
-        } as any,
-      });
+        // Generate back cover
+        let backCoverUrl: string | undefined;
+        try {
+          console.log('[Incremental] Generating back cover...');
+          backCoverUrl = await aiService.generateBackCoverImage(
+            outline.title,
+            outline.author,
+            outline.genre,
+            outline.description,
+            'photographic'
+          );
+          console.log('[Incremental] Back cover generated successfully');
+        } catch (backCoverError) {
+          console.error('[Incremental] Failed to generate back cover:', backCoverError);
+        }
+
+        // Update book with covers but keep status as 'generating' for finalization
+        await updateBook(currentBookId, {
+          coverUrl,
+          metadata: {
+            wordCount: totalWords,
+            pageCount: Math.ceil(totalWords / 250),
+            readingTime: Math.ceil(totalWords / 250),
+            chapters: allChapters.length,
+            generatedAt: new Date(),
+            lastModified: new Date(),
+            modelUsed: chapterModel,
+            backCoverUrl: backCoverUrl,
+          } as any,
+        });
+
+        // Return cover phase - client will call again to finalize
+        return NextResponse.json({
+          success: true,
+          phase: 'cover',
+          bookId: currentBookId,
+          chaptersCompleted: totalChapters,
+          totalChapters,
+          progress: 95, // 95% after covers
+          message: 'Covers generated. Finalizing book...',
+        });
+      }
+
+      // Phase: Finalize book (covers already exist)
+      console.log(`[Incremental] Finalizing book...`);
+      
+      const aiService = new AIService(config.aiSettings?.model, chapterModel);
 
       // Create bibliography config and generate references if enabled
       if (config.bibliography?.include) {
@@ -266,7 +288,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
         }
       }
 
-      const book = await getBook(currentBookId);
+      // Update book to completed
+      await updateBook(currentBookId, {
+        status: 'completed',
+        metadata: {
+          wordCount: totalWords,
+          pageCount: Math.ceil(totalWords / 250),
+          readingTime: Math.ceil(totalWords / 250),
+          chapters: allChapters.length,
+          generatedAt: new Date(),
+          lastModified: new Date(),
+          modelUsed: chapterModel,
+          backCoverUrl: (currentBook?.metadata as any)?.backCoverUrl,
+        } as any,
+      });
 
       return NextResponse.json({
         success: true,
@@ -278,8 +313,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
         message: 'Book generation complete!',
         book: {
           id: currentBookId,
-          title: book?.title || outline.title,
-          author: book?.author || outline.author,
+          title: currentBook?.title || outline.title,
+          author: currentBook?.author || outline.author,
           chapters: allChapters.length,
           wordCount: totalWords,
           modelUsed: chapterModel,
