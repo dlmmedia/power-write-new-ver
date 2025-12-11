@@ -5,7 +5,7 @@ import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
 
-export const maxDuration = 300; // 5 minutes
+export const maxDuration = 900; // 15 minutes - Railway supports up to 15 min HTTP timeout
 
 export async function POST(request: NextRequest) {
   try {

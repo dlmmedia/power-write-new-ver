@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ttsService } from '@/lib/services/tts-service';
 import { ensureDemoUser, getBookWithChapters, getChapterByBookAndNumber, updateChapterAudio } from '@/lib/db/operations';
 
-export const maxDuration = 300; // 5 minutes for audio generation
+export const maxDuration = 600; // 10 minutes for audio generation - Railway supports up to 15 min
 
 export async function POST(request: NextRequest) {
   console.log('[Audio API] Request received');

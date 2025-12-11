@@ -14,11 +14,12 @@ import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
 
-export const maxDuration = 300; // 5 minutes per batch
+export const maxDuration = 900; // 15 minutes - Railway supports up to 15 min timeout
 
 // Number of chapters to generate per request
-// Reduced to 1 to prevent Vercel timeout (each chapter can take 30-90s)
-const CHAPTERS_PER_BATCH = 1;
+// Railway has 15-minute timeout, so we can process multiple chapters at once
+// This improves speed AND quality (better context between chapters)
+const CHAPTERS_PER_BATCH = 4;
 
 interface GenerationRequest {
   userId: string;
@@ -330,11 +331,22 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
     const aiService = new AIService(config.aiSettings?.model, chapterModel);
     
     // Build previous chapters context from existing chapters
+    // Include more context for better story coherence (Railway's longer timeout allows this)
     const sortedExisting = existingChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
-    const recentChapters = sortedExisting.slice(-2);
+    
+    // Include last 3 chapters with more content for better continuity
+    const recentChapters = sortedExisting.slice(-3);
     let previousChapters = recentChapters
-      .map((ch) => `Chapter ${ch.title}: ${ch.content?.substring(0, 500) || ''}...`)
-      .join('\n\n');
+      .map((ch) => `Chapter ${ch.chapterNumber} - ${ch.title}:\n${ch.content?.substring(0, 1500) || ''}...`)
+      .join('\n\n---\n\n');
+    
+    // Also include a brief summary of all previous chapters for overall context
+    if (sortedExisting.length > 3) {
+      const olderChaptersSummary = sortedExisting.slice(0, -3)
+        .map((ch) => `Ch ${ch.chapterNumber}: ${ch.title}`)
+        .join(', ');
+      previousChapters = `Previously: ${olderChaptersSummary}\n\n=== Recent Chapters (maintain continuity) ===\n\n${previousChapters}`;
+    }
 
     const generatedChapters: Array<{
       title: string;
@@ -368,8 +380,24 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
           chapterNumber: chapterNum,
         });
 
-        // Update context for next chapter
-        previousChapters = `Chapter ${chapter.title}: ${sanitizedContent.substring(0, 500)}...`;
+        // Update context for next chapter in the batch - include more content for better continuity
+        // Build context from recently generated chapters in this batch plus existing chapters
+        const allGeneratedSoFar = [...sortedExisting, ...generatedChapters.map(g => ({
+          chapterNumber: g.chapterNumber,
+          title: g.title,
+          content: g.content
+        }))];
+        const lastThree = allGeneratedSoFar.slice(-3);
+        previousChapters = lastThree
+          .map((ch) => `Chapter ${ch.chapterNumber} - ${ch.title}:\n${ch.content?.substring(0, 1500) || ''}...`)
+          .join('\n\n---\n\n');
+        
+        if (allGeneratedSoFar.length > 3) {
+          const olderSummary = allGeneratedSoFar.slice(0, -3)
+            .map((ch) => `Ch ${ch.chapterNumber}: ${ch.title}`)
+            .join(', ');
+          previousChapters = `Previously: ${olderSummary}\n\n=== Recent Chapters ===\n\n${previousChapters}`;
+        }
         
         console.log(`[Incremental] Chapter ${chapterNum} generated: ${wordCount} words`);
       } catch (chapterError) {

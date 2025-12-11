@@ -5,7 +5,7 @@ import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
 import { isNonFiction } from '@/lib/utils/book-type';
 
-export const maxDuration = 300; // 5 minutes max duration for Vercel
+export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {

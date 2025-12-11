@@ -1533,10 +1533,19 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
       const chapter = await this.generateChapter(outline, chapterNum, previousChapters, modelId, bibliographyConfig);
       chapters.push(chapter);
 
-      const recentChapters = chapters.slice(-2);
+      // Include more context for better story coherence
+      const recentChapters = chapters.slice(-3);
       previousChapters = recentChapters
-        .map((ch) => `Chapter ${ch.title}: ${ch.content.substring(0, 500)}...`)
-        .join('\n\n');
+        .map((ch, idx) => `Chapter ${chapters.length - recentChapters.length + idx + 1} - ${ch.title}:\n${ch.content.substring(0, 1500)}...`)
+        .join('\n\n---\n\n');
+      
+      // Also include brief summary of older chapters for overall context
+      if (chapters.length > 3) {
+        const olderChaptersSummary = chapters.slice(0, -3)
+          .map((ch, idx) => `Ch ${idx + 1}: ${ch.title}`)
+          .join(', ');
+        previousChapters = `Story so far: ${olderChaptersSummary}\n\n=== Recent Chapters (maintain continuity) ===\n\n${previousChapters}`;
+      }
     }
 
     // Generate bibliography references if enabled

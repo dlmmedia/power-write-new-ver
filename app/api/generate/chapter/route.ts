@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 
-export const maxDuration = 300; // 5 minutes for full chapter generation
+export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
 
 interface ChapterGenerationRequest {
