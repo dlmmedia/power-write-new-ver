@@ -152,6 +152,10 @@ export interface BookConfiguration {
     maxTokens: number;
     customSystemPrompt?: string;
     generationStrategy: 'sequential' | 'parallel' | 'hybrid';
+    // Generation speed preset - determines model and parallelization
+    generationSpeed?: 'quality' | 'balanced' | 'fast';
+    // Whether to use parallel chapter generation (default true)
+    useParallelGeneration?: boolean;
   };
 
   // O. Advanced Options
@@ -251,7 +255,9 @@ export const defaultBookConfiguration: BookConfiguration = {
     chapterModel: 'anthropic/claude-sonnet-4', // Premium model for chapter writing
     temperature: 0.85,
     maxTokens: 4000,
-    generationStrategy: 'sequential',
+    generationStrategy: 'parallel', // Default to parallel for speed
+    generationSpeed: 'quality', // Default to quality preset
+    useParallelGeneration: true, // Enable parallel generation by default
   },
 };
 
@@ -286,3 +292,33 @@ export const NARRATIVE_STRUCTURES = [
   { value: 'circular', label: 'Circular Narrative', description: 'Story ends where it begins' },
   { value: 'custom', label: 'Custom', description: 'Define your own structure' },
 ] as const;
+
+// Generation speed presets with model and settings info
+export const GENERATION_SPEED_OPTIONS = [
+  {
+    value: 'quality' as const,
+    label: '⭐ Quality',
+    description: 'Best writing quality with Claude Sonnet 4',
+    model: 'anthropic/claude-sonnet-4',
+    estimatedTime: '2-4 min per batch',
+    features: ['Superior coherence', 'Rich prose', 'Best for final drafts'],
+  },
+  {
+    value: 'balanced' as const,
+    label: '⚡ Balanced',
+    description: 'Fast generation with Gemini 2.5 Flash',
+    model: 'google/gemini-2.5-flash-preview',
+    estimatedTime: '30-60 sec per batch',
+    features: ['1M context window', 'Good quality', 'Great for iteration'],
+  },
+  {
+    value: 'fast' as const,
+    label: '🚀 Fast',
+    description: 'Fastest generation with Claude Haiku',
+    model: 'anthropic/claude-3.5-haiku',
+    estimatedTime: '15-30 sec per batch',
+    features: ['Quickest results', 'Good for outlines', 'Budget-friendly'],
+  },
+] as const;
+
+export type GenerationSpeed = typeof GENERATION_SPEED_OPTIONS[number]['value'];

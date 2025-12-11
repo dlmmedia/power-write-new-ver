@@ -29,6 +29,12 @@ interface GenerationProgress {
   totalChapters: number;
   progress: number;
   message: string;
+  // Enhanced progress tracking
+  currentBatch?: number[];
+  batchDuration?: string;
+  totalWords?: number;
+  isParallel?: boolean;
+  modelUsed?: string;
 }
 
 // Outline generation progress state
@@ -83,6 +89,7 @@ export default function StudioPage() {
   });
   const [generationType, setGenerationType] = useState<GenerationType>('none');
   const [showNoOutlineConfirm, setShowNoOutlineConfirm] = useState(false);
+  const [useStreaming, setUseStreaming] = useState(true); // Use streaming by default for real-time updates
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const tabs = [
@@ -94,15 +101,6 @@ export default function StudioPage() {
     { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: '📚' },
     { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
   ];
-
-  // Handle generate book click - check for outline first
-  const handleGenerateBookClick = useCallback(() => {
-    if (!outline) {
-      setShowNoOutlineConfirm(true);
-      return;
-    }
-    handleGenerateBook();
-  }, [outline]);
 
   // Incremental book generation with progress tracking
   const handleGenerateBook = useCallback(async () => {
@@ -170,6 +168,9 @@ export default function StudioPage() {
             config: config,
             modelId: chapterModel,
             bookId: currentBookId,
+            // Pass generation speed and parallel settings
+            generationSpeed: config.aiSettings?.generationSpeed || 'quality',
+            useParallel: config.aiSettings?.useParallelGeneration !== false,
           }),
           signal: abortControllerRef.current?.signal,
         });
@@ -305,6 +306,224 @@ export default function StudioPage() {
       }));
     }
   }, []);
+
+  // Streaming-based book generation with real-time progress updates
+  const handleGenerateBookStreaming = useCallback(async () => {
+    const canGenerate = canGenerateBook();
+    if (!canGenerate.allowed) {
+      alert(canGenerate.reason);
+      return;
+    }
+
+    const workingOutline = outline || {
+      title: config.basicInfo?.title || 'Untitled Book',
+      chapters: Array.from({ length: config.content?.numChapters || 10 }, (_, i) => ({
+        chapterNumber: i + 1,
+        title: `Chapter ${i + 1}`,
+        synopsis: `Content for chapter ${i + 1}`,
+        scenes: [],
+        estimatedWordCount: Math.floor((config.content?.targetWordCount || 30000) / (config.content?.numChapters || 10)),
+      })),
+    };
+
+    const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+    const totalChapters = workingOutline.chapters.length;
+    const generationSpeed = config.aiSettings?.generationSpeed || 'quality';
+    const useParallel = config.aiSettings?.useParallelGeneration !== false;
+
+    const confirmed = confirm(
+      `Generate full book with streaming: "${workingOutline.title}"?\n\n` +
+      `• ${totalChapters} chapters\n` +
+      `• Speed: ${generationSpeed} (${useParallel ? 'parallel' : 'sequential'})\n` +
+      `• Real-time progress updates\n\n` +
+      `Continue?`
+    );
+
+    if (!confirmed) return;
+
+    setIsGenerating(true);
+    setGenerationType('book');
+    abortControllerRef.current = new AbortController();
+
+    setGenerationProgress({
+      phase: 'creating',
+      chaptersCompleted: 0,
+      totalChapters,
+      progress: 0,
+      message: 'Connecting to generation stream...',
+      isParallel: useParallel,
+      modelUsed: chapterModel,
+    });
+
+    try {
+      const response = await fetch('/api/generate/book-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: getDemoUserId(),
+          outline: workingOutline,
+          config: config,
+          modelId: chapterModel,
+          generationSpeed,
+          useParallel,
+        }),
+        signal: abortControllerRef.current?.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response stream available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('event:')) {
+            const eventType = line.replace('event:', '').trim();
+            continue;
+          }
+          if (line.startsWith('data:')) {
+            try {
+              const data = JSON.parse(line.replace('data:', '').trim());
+              
+              // Handle different event types
+              if (data.phase === 'starting') {
+                setGenerationProgress(prev => ({
+                  ...prev,
+                  phase: 'generating',
+                  message: data.message || 'Starting generation...',
+                  isParallel: data.parallel,
+                  modelUsed: data.model,
+                }));
+              } else if (data.bookId && !generationProgress.bookId) {
+                setGenerationProgress(prev => ({
+                  ...prev,
+                  bookId: data.bookId,
+                  message: data.message || 'Book created',
+                }));
+              } else if (data.batch !== undefined) {
+                // Batch progress
+                setGenerationProgress(prev => ({
+                  ...prev,
+                  phase: 'generating',
+                  currentBatch: data.chapters || prev.currentBatch,
+                  chaptersCompleted: data.chaptersCompleted || prev.chaptersCompleted,
+                  progress: data.progress || prev.progress,
+                  totalWords: data.totalWords || prev.totalWords,
+                  batchDuration: data.batchDuration || prev.batchDuration,
+                  message: data.message || prev.message,
+                }));
+              } else if (data.chapterNumber !== undefined) {
+                // Individual chapter progress
+                setGenerationProgress(prev => ({
+                  ...prev,
+                  message: `Chapter ${data.chapterNumber}: ${data.title} (${data.wordCount} words)`,
+                }));
+              } else if (data.type === 'front' || data.type === 'back') {
+                // Cover progress
+                setGenerationProgress(prev => ({
+                  ...prev,
+                  phase: 'cover',
+                  message: data.message || `${data.type} cover generated`,
+                }));
+              } else if (data.chaptersCompleted !== undefined && data.totalWords !== undefined) {
+                // Completion
+                setGenerationProgress(prev => ({
+                  ...prev,
+                  phase: 'completed',
+                  chaptersCompleted: data.chaptersCompleted,
+                  totalWords: data.totalWords,
+                  progress: 100,
+                  message: data.message || 'Book generation complete!',
+                }));
+
+                // Clear caches and redirect
+                if (typeof window !== 'undefined' && 'caches' in window) {
+                  try {
+                    const cacheNames = await caches.keys();
+                    const bookCacheNames = cacheNames.filter(name => 
+                      name.includes('books') || name.includes('powerwrite-books')
+                    );
+                    await Promise.all(bookCacheNames.map(name => caches.delete(name)));
+                  } catch (error) {
+                    console.error('Failed to clear caches:', error);
+                  }
+                }
+
+                setTimeout(() => {
+                  alert(
+                    `Book generated successfully!\n\n` +
+                    `Title: ${data.title}\n` +
+                    `Chapters: ${data.chaptersCompleted}\n` +
+                    `Words: ${data.totalWords?.toLocaleString()}\n\n` +
+                    `Book ID: ${data.bookId}`
+                  );
+                  router.push('/library');
+                }, 500);
+              } else if (data.error) {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              // Ignore JSON parse errors for incomplete chunks
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Streaming generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      setGenerationProgress(prev => ({
+        ...prev,
+        phase: 'error',
+        message: `Error: ${errorMessage}`,
+      }));
+
+      if (generationProgress.bookId) {
+        const retry = confirm(
+          `Generation encountered an error: ${errorMessage}\n\n` +
+          `Progress has been saved. Would you like to retry?`
+        );
+        if (retry) {
+          handleGenerateBookStreaming();
+          return;
+        }
+      } else {
+        alert(`Failed to generate book: ${errorMessage}`);
+      }
+    } finally {
+      setIsGenerating(false);
+      setGenerationType('none');
+      abortControllerRef.current = null;
+    }
+  }, [outline, config, router, generationProgress.bookId]);
+
+  // Handle generate book click - check for outline first
+  const handleGenerateBookClick = useCallback(() => {
+    if (!outline) {
+      setShowNoOutlineConfirm(true);
+      return;
+    }
+    // Use streaming for real-time updates when enabled
+    if (useStreaming) {
+      handleGenerateBookStreaming();
+    } else {
+      handleGenerateBook();
+    }
+  }, [outline, useStreaming, handleGenerateBook, handleGenerateBookStreaming]);
 
   const handleAutoPopulate = () => {
     if (!selectedReferenceId) {
@@ -976,7 +1195,7 @@ export default function StudioPage() {
       {/* Book Generation Progress Modal */}
       {generationType === 'book' && generationProgress.phase !== 'idle' && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
             {/* Header */}
             <div className="text-center mb-6">
               <div className="relative w-24 h-24 mx-auto mb-4">
@@ -1005,6 +1224,23 @@ export default function StudioPage() {
                 {generationProgress.phase === 'completed' && 'Book Complete!'}
                 {generationProgress.phase === 'error' && 'Generation Error'}
               </h3>
+              {/* Mode indicator */}
+              {generationProgress.isParallel !== undefined && (
+                <div className="mt-2 flex items-center justify-center gap-2">
+                  <span className={`px-2 py-0.5 text-xs rounded-full ${
+                    generationProgress.isParallel 
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                      : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                  }`}>
+                    {generationProgress.isParallel ? '⚡ Parallel Mode' : '📝 Sequential Mode'}
+                  </span>
+                  {generationProgress.modelUsed && (
+                    <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
+                      {generationProgress.modelUsed.split('/').pop()}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Progress Bar */}
@@ -1014,13 +1250,13 @@ export default function StudioPage() {
                 <span>{generationProgress.progress}%</span>
               </div>
               <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div 
+                <div
                   className={`h-full transition-all duration-500 ease-out rounded-full ${
-                    generationProgress.phase === 'error' 
-                      ? 'bg-red-500' 
+                    generationProgress.phase === 'error'
+                      ? 'bg-red-500'
                       : generationProgress.phase === 'completed'
                         ? 'bg-green-500'
-                        : 'bg-yellow-500'
+                        : 'bg-gradient-to-r from-yellow-400 to-yellow-500'
                   }`}
                   style={{ width: `${generationProgress.progress}%` }}
                 />
@@ -1030,7 +1266,7 @@ export default function StudioPage() {
             {/* Chapter Progress */}
             {generationProgress.totalChapters > 0 && (
               <div className="mb-4">
-                <div className="flex items-center justify-center gap-4 mb-3">
+                <div className="flex items-center justify-center gap-6 mb-3">
                   <div className="text-center">
                     <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
                       {generationProgress.chaptersCompleted}
@@ -1044,22 +1280,44 @@ export default function StudioPage() {
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400">total</div>
                   </div>
+                  {generationProgress.totalWords && generationProgress.totalWords > 0 && (
+                    <>
+                      <div className="text-2xl text-gray-300 dark:text-gray-600">|</div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                          {generationProgress.totalWords.toLocaleString()}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">words</div>
+                      </div>
+                    </>
+                  )}
                 </div>
-                {/* Chapter progress dots */}
+                {/* Chapter progress dots with current batch highlighting */}
                 <div className="flex justify-center gap-1 flex-wrap">
-                  {Array.from({ length: generationProgress.totalChapters }).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                        i < generationProgress.chaptersCompleted
-                          ? 'bg-green-500'
-                          : i === generationProgress.chaptersCompleted
-                            ? 'bg-yellow-400 animate-pulse'
-                            : 'bg-gray-200 dark:bg-gray-700'
-                      }`}
-                    />
-                  ))}
+                  {Array.from({ length: generationProgress.totalChapters }).map((_, i) => {
+                    const chapterNum = i + 1;
+                    const isInCurrentBatch = generationProgress.currentBatch?.includes(chapterNum);
+                    return (
+                      <div
+                        key={i}
+                        className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                          i < generationProgress.chaptersCompleted
+                            ? 'bg-green-500'
+                            : isInCurrentBatch
+                              ? 'bg-yellow-400 animate-pulse ring-2 ring-yellow-300'
+                              : 'bg-gray-200 dark:bg-gray-700'
+                        }`}
+                        title={`Chapter ${chapterNum}${isInCurrentBatch ? ' (generating)' : ''}`}
+                      />
+                    );
+                  })}
                 </div>
+                {/* Batch duration info */}
+                {generationProgress.batchDuration && (
+                  <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-2">
+                    Last batch: {generationProgress.batchDuration}s
+                  </p>
+                )}
               </div>
             )}
 

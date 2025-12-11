@@ -1513,6 +1513,165 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     throw new Error('Could not extract image URL from OpenRouter response. Full response logged above.');
   }
 
+  /**
+   * Generate multiple chapters in parallel for faster book generation
+   * All chapters in the batch share the same previous context
+   * This trades some inter-chapter coherence for significant speed improvement (~4x faster)
+   */
+  async generateChapterBatch(
+    outline: BookOutline,
+    chapterNumbers: number[],
+    previousChaptersContext: string,
+    modelId?: string,
+    bibliographyConfig?: BibliographyGenerationConfig,
+    onChapterComplete?: (chapterNum: number, chapter: { title: string; content: string; wordCount: number }) => void
+  ): Promise<Array<{ title: string; content: string; wordCount: number; chapterNumber: number }>> {
+    console.log(`[Parallel] Generating chapters ${chapterNumbers.join(', ')} in parallel...`);
+    const startTime = Date.now();
+
+    // Generate all chapters in the batch simultaneously
+    const promises = chapterNumbers.map(async (num) => {
+      try {
+        const chapter = await this.generateChapter(
+          outline,
+          num,
+          previousChaptersContext,
+          modelId,
+          bibliographyConfig
+        );
+        
+        console.log(`[Parallel] Chapter ${num} completed: ${chapter.wordCount} words`);
+        
+        if (onChapterComplete) {
+          onChapterComplete(num, chapter);
+        }
+
+        return {
+          ...chapter,
+          chapterNumber: num,
+        };
+      } catch (error) {
+        console.error(`[Parallel] Error generating chapter ${num}:`, error);
+        throw error;
+      }
+    });
+
+    const results = await Promise.all(promises);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[Parallel] Batch of ${chapterNumbers.length} chapters completed in ${elapsed}s`);
+
+    // Sort by chapter number to ensure correct order
+    return results.sort((a, b) => a.chapterNumber - b.chapterNumber);
+  }
+
+  /**
+   * Build context string from completed chapters for continuity
+   */
+  buildChapterContext(
+    chapters: Array<{ title: string; content: string; chapterNumber?: number }>,
+    maxRecentChapters: number = 3
+  ): string {
+    if (chapters.length === 0) return '';
+
+    // Get the most recent chapters for detailed context
+    const recentChapters = chapters.slice(-maxRecentChapters);
+    let context = recentChapters
+      .map((ch, idx) => {
+        const chapterNum = ch.chapterNumber || (chapters.length - recentChapters.length + idx + 1);
+        return `Chapter ${chapterNum} - ${ch.title}:\n${ch.content.substring(0, 1500)}...`;
+      })
+      .join('\n\n---\n\n');
+
+    // Add brief summary of older chapters for overall context
+    if (chapters.length > maxRecentChapters) {
+      const olderChaptersSummary = chapters.slice(0, -maxRecentChapters)
+        .map((ch, idx) => `Ch ${ch.chapterNumber || idx + 1}: ${ch.title}`)
+        .join(', ');
+      context = `Story so far: ${olderChaptersSummary}\n\n=== Recent Chapters (maintain continuity) ===\n\n${context}`;
+    }
+
+    return context;
+  }
+
+  /**
+   * Generate full book with parallel batch processing
+   * Processes chapters in batches for speed while maintaining story continuity between batches
+   */
+  async generateFullBookParallel(
+    outline: BookOutline,
+    onProgress?: (completed: number, total: number, currentBatch?: number[]) => void,
+    modelId?: string,
+    bibliographyConfig?: BibliographyGenerationConfig,
+    batchSize: number = 4
+  ): Promise<{ chapters: Array<{ title: string; content: string; wordCount: number }>; references: GeneratedReference[] }> {
+    const totalChapters = outline.chapters.length;
+    const allChapters: Array<{ title: string; content: string; wordCount: number; chapterNumber: number }> = [];
+    
+    console.log(`[Parallel Book] Starting parallel generation: ${totalChapters} chapters, batch size ${batchSize}`);
+    const startTime = Date.now();
+
+    // Process chapters in batches
+    for (let batchStart = 0; batchStart < totalChapters; batchStart += batchSize) {
+      const batchEnd = Math.min(batchStart + batchSize, totalChapters);
+      const batchChapterNumbers: number[] = [];
+      
+      for (let i = batchStart; i < batchEnd; i++) {
+        batchChapterNumbers.push(i + 1); // Chapter numbers are 1-indexed
+      }
+
+      console.log(`[Parallel Book] Processing batch: chapters ${batchChapterNumbers.join(', ')}`);
+
+      // Build context from all previously completed chapters
+      const previousContext = this.buildChapterContext(allChapters);
+
+      // Generate this batch in parallel
+      const batchChapters = await this.generateChapterBatch(
+        outline,
+        batchChapterNumbers,
+        previousContext,
+        modelId,
+        bibliographyConfig,
+        (chapterNum, chapter) => {
+          // Report progress as each chapter completes
+          if (onProgress) {
+            onProgress(allChapters.length + 1, totalChapters, batchChapterNumbers);
+          }
+        }
+      );
+
+      // Add completed chapters
+      allChapters.push(...batchChapters);
+
+      // Report batch completion
+      if (onProgress) {
+        onProgress(allChapters.length, totalChapters);
+      }
+
+      console.log(`[Parallel Book] Batch complete. Total progress: ${allChapters.length}/${totalChapters}`);
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[Parallel Book] All chapters generated in ${elapsed}s`);
+
+    // Generate bibliography references if enabled
+    let references: GeneratedReference[] = [];
+    if (bibliographyConfig?.enabled) {
+      const chapterContents = allChapters.map(ch => ch.content);
+      references = await this.generateBibliographyReferences(
+        outline,
+        chapterContents,
+        bibliographyConfig,
+        modelId
+      );
+    }
+
+    // Return chapters without the chapterNumber field for compatibility
+    return {
+      chapters: allChapters.map(({ title, content, wordCount }) => ({ title, content, wordCount })),
+      references,
+    };
+  }
+
   async generateFullBook(
     outline: BookOutline,
     onProgress?: (chapter: number, total: number) => void,

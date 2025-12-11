@@ -6,6 +6,7 @@ import { Select } from '@/components/ui/Select';
 import { Textarea } from '@/components/ui/Textarea';
 import { useStudioStore } from '@/lib/store/studio-store';
 import { ModelSelection } from './ModelSelection';
+import { GENERATION_SPEED_OPTIONS, GenerationSpeed } from '@/lib/types/studio';
 
 const CONTENT_RATINGS = [
   { value: 'G', label: 'General Audiences', description: 'Suitable for all ages' },
@@ -67,6 +68,103 @@ export function AdvancedSettings() {
       {/* Generation Settings Tab */}
       {activeTab === 'generation' && (
         <div className="space-y-6">
+          {/* Generation Speed Selector - Primary Option */}
+          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-2xl">⚡</span>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white">Generation Speed</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Choose your priority: quality or speed
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {GENERATION_SPEED_OPTIONS.map((option) => {
+                const isSelected = (config.aiSettings?.generationSpeed || 'quality') === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => updateConfig({
+                      aiSettings: {
+                        ...config.aiSettings,
+                        generationSpeed: option.value as GenerationSpeed,
+                        // Auto-update the model based on speed selection
+                        chapterModel: option.model,
+                      },
+                    })}
+                    className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
+                      isSelected
+                        ? 'border-yellow-400 bg-white dark:bg-gray-900 shadow-lg ring-2 ring-yellow-400/50'
+                        : 'border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 hover:border-yellow-300 dark:hover:border-yellow-700'
+                    }`}
+                  >
+                    {isSelected && (
+                      <div className="absolute -top-2 -right-2 w-6 h-6 bg-yellow-400 rounded-full flex items-center justify-center">
+                        <span className="text-black text-sm">✓</span>
+                      </div>
+                    )}
+                    <div className="text-xl mb-2">{option.label}</div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                      {option.description}
+                    </p>
+                    <div className="text-xs text-gray-500 dark:text-gray-500 space-y-1">
+                      <div className="flex items-center gap-1">
+                        <span>⏱</span>
+                        <span>{option.estimatedTime}</span>
+                      </div>
+                      <ul className="space-y-0.5 mt-2">
+                        {option.features.map((feature, idx) => (
+                          <li key={idx} className="flex items-center gap-1">
+                            <span className="text-green-500">•</span>
+                            <span>{feature}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Parallel Generation Toggle */}
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+            <label className="flex items-center justify-between cursor-pointer">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">🔀</span>
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    Parallel Chapter Generation
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    Generate multiple chapters simultaneously (~4x faster)
+                  </p>
+                </div>
+              </div>
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  checked={config.aiSettings?.useParallelGeneration !== false}
+                  onChange={(e) => updateConfig({
+                    aiSettings: {
+                      ...config.aiSettings,
+                      useParallelGeneration: e.target.checked,
+                    },
+                  })}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 dark:peer-focus:ring-yellow-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-yellow-400"></div>
+              </div>
+            </label>
+            {config.aiSettings?.useParallelGeneration !== false && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 ml-9">
+                ⚠️ Chapters in the same batch share context. For maximum coherence, disable this option.
+              </p>
+            )}
+          </div>
+
           {/* AI Temperature/Creativity */}
           <div>
             <Label htmlFor="temperature">AI Creativity (Temperature)</Label>
@@ -92,28 +190,6 @@ export function AdvancedSettings() {
             </div>
             <p className="text-xs text-gray-500 mt-2">
               Higher values mean more unexpected plot twists and unique stylistic choices
-            </p>
-          </div>
-
-          {/* Generation Strategy */}
-          <div>
-            <Label htmlFor="generation-strategy">Generation Strategy</Label>
-            <Select
-              id="generation-strategy"
-              value={config.aiSettings?.generationStrategy || 'sequential'}
-              onChange={(e) => updateConfig({
-                aiSettings: {
-                  ...config.aiSettings,
-                  generationStrategy: e.target.value as any,
-                },
-              })}
-            >
-              <option value="sequential">Sequential - Generate chapters one by one (recommended)</option>
-              <option value="parallel">Parallel - Generate multiple chapters simultaneously</option>
-              <option value="hybrid">Hybrid - Mix of both approaches</option>
-            </Select>
-            <p className="text-xs text-gray-500 mt-1">
-              Sequential maintains better story continuity, parallel is faster
             </p>
           </div>
 
