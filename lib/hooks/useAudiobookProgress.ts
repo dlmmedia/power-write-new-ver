@@ -247,3 +247,4 @@ export function calculateBookProgress(
   return Math.min(100, (completedDuration / totalDuration) * 100);
 }
 
+

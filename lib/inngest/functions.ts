@@ -37,10 +37,24 @@ export const generateBookBackground = inngest.createFunction(
   { event: 'book/generation.started' },
   async ({ event, step }) => {
     const { bookId, userId, totalChapters, outline, config } = event.data;
-    const chapterModel = SPEED_MODEL_MAP[config.generationSpeed] || config.chapterModel;
+    
+    // Determine the model to use - PRIORITY ORDER:
+    // 1. User's selected chapterModel in config (from AI Models tab)
+    // 2. Speed preset fallback (only if no model explicitly selected)
+    // 3. Default fallback
+    const userSelectedModel = config.chapterModel;
+    const speedFallbackModel = config.generationSpeed && SPEED_MODEL_MAP[config.generationSpeed]
+      ? SPEED_MODEL_MAP[config.generationSpeed]
+      : 'anthropic/claude-sonnet-4';
+    
+    const chapterModel = userSelectedModel || speedFallbackModel;
 
     console.log(`[Inngest] Starting background generation for book ${bookId}: ${outline.title}`);
-    console.log(`[Inngest] Model: ${chapterModel}, Parallel: ${config.useParallel}`);
+    console.log(`[Inngest] Model Selection Debug:`);
+    console.log(`  - config.chapterModel: ${config.chapterModel || 'not set'}`);
+    console.log(`  - config.generationSpeed: ${config.generationSpeed || 'not set'}`);
+    console.log(`  - FINAL MODEL: ${chapterModel}`);
+    console.log(`[Inngest] Parallel: ${config.useParallel}`);
 
     // Step 1: Generate chapters in batches
     let completedChapters = 0;
@@ -197,7 +211,9 @@ export const generateBookBackground = inngest.createFunction(
           outline.author,
           outline.genre,
           outline.description,
-          'photographic'
+          'photographic',
+          undefined, // use default image model
+          { showPowerWriteBranding: false, showTagline: false } // don't show author branding
         );
       } catch (error) {
         console.error('[Inngest] Failed to generate back cover:', error);
@@ -317,3 +333,4 @@ export const generateBookBackground = inngest.createFunction(
 
 // Export all functions for the Inngest serve handler
 export const functions = [generateBookBackground];
+

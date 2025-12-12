@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
+import { getModelById, DEFAULT_CHAPTER_MODEL } from '@/lib/types/models';
 
 export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
@@ -21,6 +22,7 @@ interface ChapterGenerationRequest {
     keyPoints?: string[];
     estimatedWordCount: number;
   };
+  modelId?: string; // User-selected model
 }
 
 export async function POST(request: NextRequest) {
@@ -45,6 +47,7 @@ export async function POST(request: NextRequest) {
       targetWordCount,
       previousChaptersContext,
       outline,
+      modelId,
     } = body;
 
     console.log(`Generating chapter ${chapterNumber}: "${chapterTitle}" for "${bookTitle}"`);
@@ -97,10 +100,27 @@ Begin writing the chapter now. Write at least ${targetWordCount} words of engagi
       ? createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
       : null;
 
-    // Use a capable model for chapter generation
-    const model = openrouter 
-      ? openrouter('anthropic/claude-sonnet-4')
-      : openai!('gpt-4o');
+    // Use user-selected model or fall back to default
+    const selectedModelId = modelId || DEFAULT_CHAPTER_MODEL;
+    const modelInfo = getModelById(selectedModelId);
+    
+    console.log(`[Chapter Generation] Using model: ${selectedModelId} (provider: ${modelInfo?.provider || 'unknown'})`);
+    
+    // Get the appropriate model based on provider
+    let model;
+    if (modelInfo?.provider === 'openrouter' && openrouter) {
+      model = openrouter(selectedModelId);
+    } else if (modelInfo?.provider === 'openai' && openai) {
+      model = openai(selectedModelId);
+    } else if (openrouter) {
+      // Fallback: use OpenRouter with the selected model ID
+      model = openrouter(selectedModelId);
+    } else if (openai) {
+      // Fallback: use OpenAI with gpt-4o
+      model = openai('gpt-4o');
+    } else {
+      throw new Error('No AI provider available');
+    }
 
     console.log('Calling AI model for chapter generation...');
 

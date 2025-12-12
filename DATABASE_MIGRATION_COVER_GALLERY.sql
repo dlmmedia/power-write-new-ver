@@ -36,3 +36,4 @@ ON CONFLICT DO NOTHING;
 -- Run: SELECT COUNT(*) FROM cover_gallery;
 -- to verify the migration worked
 
+

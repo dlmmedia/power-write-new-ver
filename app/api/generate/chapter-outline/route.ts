@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIService } from '@/lib/services/ai-service';
+import { getModelById, DEFAULT_OUTLINE_MODEL } from '@/lib/types/models';
 
 export const maxDuration = 60; // 1 minute for outline generation
 export const runtime = 'nodejs';
@@ -15,6 +16,7 @@ interface ChapterOutlineRequest {
   customInstructions?: string;
   targetWordCount: number;
   previousChaptersContext?: string;
+  modelId?: string; // User-selected model
 }
 
 export async function POST(request: NextRequest) {
@@ -38,6 +40,7 @@ export async function POST(request: NextRequest) {
       customInstructions,
       targetWordCount,
       previousChaptersContext,
+      modelId,
     } = body;
 
     console.log(`Generating chapter outline for: ${bookTitle}, Chapter ${chapterNumber}`);
@@ -90,9 +93,27 @@ Return ONLY valid JSON in this exact format:
       ? createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
       : null;
 
-    const model = openrouter 
-      ? openrouter('anthropic/claude-sonnet-4')
-      : openai!('gpt-4o-mini');
+    // Use user-selected model or fall back to default
+    const selectedModelId = modelId || DEFAULT_OUTLINE_MODEL;
+    const modelInfo = getModelById(selectedModelId);
+    
+    console.log(`[Chapter Outline] Using model: ${selectedModelId} (provider: ${modelInfo?.provider || 'unknown'})`);
+    
+    // Get the appropriate model based on provider
+    let model;
+    if (modelInfo?.provider === 'openrouter' && openrouter) {
+      model = openrouter(selectedModelId);
+    } else if (modelInfo?.provider === 'openai' && openai) {
+      model = openai(selectedModelId);
+    } else if (openrouter) {
+      // Fallback: use OpenRouter with the selected model ID
+      model = openrouter(selectedModelId);
+    } else if (openai) {
+      // Fallback: use OpenAI with gpt-4o-mini
+      model = openai('gpt-4o-mini');
+    } else {
+      throw new Error('No AI provider available');
+    }
 
     const result = await generateText({
       model,
@@ -137,6 +158,7 @@ Return ONLY valid JSON in this exact format:
     );
   }
 }
+
 
 
 

@@ -22,6 +22,7 @@ interface AIChapterModalProps {
     status: 'draft' | 'completed';
     isEdited: boolean;
   }) => void;
+  modelId?: string; // User-selected model for generation
 }
 
 type GenerationStep = 'outline' | 'generating' | 'preview' | 'error';
@@ -42,6 +43,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
   nextChapterNumber,
   onClose,
   onChapterGenerated,
+  modelId,
 }) => {
   const [step, setStep] = useState<GenerationStep>('outline');
   const [chapterTitle, setChapterTitle] = useState('');
@@ -81,6 +83,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
           customInstructions,
           targetWordCount,
           previousChaptersContext: chapterContext,
+          modelId, // Pass user-selected model
         }),
       });
 
@@ -134,6 +137,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
           targetWordCount,
           previousChaptersContext: chapterContext,
           outline: generatedOutline,
+          modelId, // Pass user-selected model
         }),
       });
 
@@ -429,6 +433,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
     </div>
   );
 };
+
 
 
 

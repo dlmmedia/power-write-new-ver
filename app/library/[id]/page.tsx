@@ -71,6 +71,7 @@ interface BookDetail {
     targetWordCount: number;
     description: string;
     backCoverUrl?: string; // Back cover URL in metadata
+    modelUsed?: string; // Model used for generation
   };
   chapters: Chapter[];
   bibliography?: BibliographyData;
@@ -399,6 +400,7 @@ export default function BookDetailPage() {
           // Update local state
           setBook(prev => prev ? {...prev, chapters: updatedChapters} : null);
         }}
+        modelId={book.metadata.modelUsed}
       />
     );
   }

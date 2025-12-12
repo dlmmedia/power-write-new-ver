@@ -8,6 +8,19 @@ const nextConfig: NextConfig = {
   // Configure Turbopack (empty config to silence warning, webpack still used for build)
   turbopack: {},
   
+  // Suppress async params/searchParams warnings in development
+  // These warnings occur when DevTools inspects Promise-based params in Next.js 15+
+  experimental: {
+    reactCompiler: false,
+  },
+  
+  // Logging configuration to reduce noise from async API warnings
+  logging: {
+    fetches: {
+      fullUrl: false,
+    },
+  },
+  
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Handle pdfkit and its dependencies for server-side rendering

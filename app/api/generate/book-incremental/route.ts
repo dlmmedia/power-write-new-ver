@@ -139,14 +139,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
 
     await ensureDemoUser(userId);
 
-    // Determine the model to use based on speed preset or explicit modelId
-    let chapterModel: string;
-    if (generationSpeed && SPEED_MODEL_MAP[generationSpeed]) {
-      chapterModel = SPEED_MODEL_MAP[generationSpeed];
-      console.log(`[Incremental] Using speed preset '${generationSpeed}': ${chapterModel}`);
-    } else {
-      chapterModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
-    }
+    // Determine the model to use - PRIORITY ORDER:
+    // 1. Explicit modelId param (from API call)
+    // 2. User's selected chapterModel in config (from AI Models tab)
+    // 3. User's selected model in config
+    // 4. Speed preset fallback (only if no model explicitly selected)
+    // 5. Default fallback
+    const userSelectedModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model;
+    const speedFallbackModel = generationSpeed && SPEED_MODEL_MAP[generationSpeed] 
+      ? SPEED_MODEL_MAP[generationSpeed] 
+      : 'anthropic/claude-sonnet-4';
+    
+    const chapterModel = userSelectedModel || speedFallbackModel;
+    
+    console.log(`[Incremental] Model Selection Debug:`);
+    console.log(`  - modelId param: ${modelId || 'not provided'}`);
+    console.log(`  - config.chapterModel: ${(config.aiSettings as any)?.chapterModel || 'not set'}`);
+    console.log(`  - config.model: ${config.aiSettings?.model || 'not set'}`);
+    console.log(`  - generationSpeed: ${generationSpeed || 'not set'}`);
+    console.log(`  - FINAL MODEL: ${chapterModel}`);
+    
     const totalChapters = outline.chapters.length;
 
     // Phase 1: Create book record if this is the first call
@@ -245,7 +257,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
             outline.author,
             outline.genre,
             outline.description,
-            'photographic'
+            'photographic',
+            undefined, // use default image model
+            { showPowerWriteBranding: false, showTagline: false } // don't show author branding
           );
           console.log('[Incremental] Back cover generated successfully');
         } catch (backCoverError) {

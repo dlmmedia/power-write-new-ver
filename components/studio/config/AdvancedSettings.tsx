@@ -68,32 +68,93 @@ export function AdvancedSettings() {
       {/* Generation Settings Tab */}
       {activeTab === 'generation' && (
         <div className="space-y-6">
-          {/* Generation Speed Selector - Primary Option */}
-          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-2xl">⚡</span>
-              <div>
-                <h3 className="font-bold text-gray-900 dark:text-white">Generation Speed</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Choose your priority: quality or speed
-                </p>
+          {/* Current Model Display */}
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-xl">🤖</span>
+                <div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    Active Chapter Model
+                  </span>
+                  <p className="text-xs text-gray-500">
+                    {config.aiSettings?.generationSpeed 
+                      ? `Using ${config.aiSettings.generationSpeed} preset`
+                      : 'Using custom model from AI Models tab'
+                    }
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="font-semibold text-yellow-600 dark:text-yellow-400">
+                  {(config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4'}
+                </div>
               </div>
             </div>
+          </div>
+
+          {/* Generation Speed Selector - Optional Presets */}
+          <div className="bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30 border border-yellow-200 dark:border-yellow-800/50 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⚡</span>
+                <div>
+                  <h3 className="font-bold text-gray-900 dark:text-white">Speed Presets</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Quick presets for common use cases (optional)
+                  </p>
+                </div>
+              </div>
+              {config.aiSettings?.generationSpeed && (
+                <button
+                  onClick={() => updateConfig({
+                    aiSettings: {
+                      ...config.aiSettings,
+                      generationSpeed: undefined,
+                    },
+                  })}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  ✕ Clear Preset
+                </button>
+              )}
+            </div>
+
+            {!config.aiSettings?.generationSpeed && (
+              <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
+                  <span className="font-medium">Custom Model Active:</span> Using the model you selected in the AI Models tab. 
+                  Select a preset below to use a recommended model instead.
+                </p>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {GENERATION_SPEED_OPTIONS.map((option) => {
-                const isSelected = (config.aiSettings?.generationSpeed || 'quality') === option.value;
+                const isSelected = config.aiSettings?.generationSpeed === option.value;
                 return (
                   <button
                     key={option.value}
-                    onClick={() => updateConfig({
-                      aiSettings: {
-                        ...config.aiSettings,
-                        generationSpeed: option.value as GenerationSpeed,
-                        // Auto-update the model based on speed selection
-                        chapterModel: option.model,
-                      },
-                    })}
+                    onClick={() => {
+                      if (isSelected) {
+                        // Clicking selected preset deselects it
+                        updateConfig({
+                          aiSettings: {
+                            ...config.aiSettings,
+                            generationSpeed: undefined,
+                          },
+                        });
+                      } else {
+                        // Select this preset and set its model
+                        updateConfig({
+                          aiSettings: {
+                            ...config.aiSettings,
+                            generationSpeed: option.value as GenerationSpeed,
+                            chapterModel: option.model,
+                          },
+                        });
+                      }
+                    }}
                     className={`relative p-4 rounded-xl border-2 text-left transition-all duration-200 ${
                       isSelected
                         ? 'border-yellow-400 bg-white dark:bg-gray-900 shadow-lg ring-2 ring-yellow-400/50'

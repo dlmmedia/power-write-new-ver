@@ -25,6 +25,7 @@ interface BookEditorProps {
   chapters: Chapter[];
   onClose?: () => void;
   onSave?: (updatedChapters: Chapter[]) => void;
+  modelId?: string; // Model to use for AI chapter generation
 }
 
 interface FindReplaceState {
@@ -51,6 +52,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   chapters: initialChapters,
   onClose,
   onSave,
+  modelId,
 }) => {
   const [chapters, setChapters] = useState<Chapter[]>(initialChapters);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
@@ -1068,6 +1070,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           nextChapterNumber={chapters.length + 1}
           onClose={() => setShowAIChapterModal(false)}
           onChapterGenerated={addAIChapter}
+          modelId={modelId}
         />
       )}
     </div>

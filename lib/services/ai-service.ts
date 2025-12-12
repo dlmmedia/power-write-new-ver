@@ -261,7 +261,6 @@ export class AIService {
 
 === BOOK INFORMATION ===
 Title: "${title}"
-Written by: PowerWrite
 Publisher: DLM Media
 Genre: ${genre}
 
@@ -275,21 +274,17 @@ This must be a COMPLETE, ready-to-print book cover with EXACTLY these text eleme
    - Make it the dominant visual element - large, bold, perfectly legible
    - Font style: ${style === 'photographic' ? 'clean sans-serif or elegant serif' : 'decorative font matching the genre'}
 
-2. "Written by PowerWrite" (BELOW TITLE):
-   - Display "Written by PowerWrite" in a smaller, elegant font
-   - Position directly below the title
-   - Use a complementary style that doesn't compete with the title
-
-3. "DLM Media" PUBLISHER (BOTTOM):
+2. "DLM Media" PUBLISHER (BOTTOM):
    - Display "DLM Media" at the BOTTOM of the cover
    - Small, professional publisher text
    - Standard publisher position (bottom center, near the edge)
    - This should be the smallest text element
 
 === IMPORTANT: TEXT PLACEMENT ===
+- Do NOT include any author name on the cover
 - Do NOT duplicate any text
 - Only show "DLM Media" ONCE at the bottom
-- The hierarchy must be: TITLE (biggest) → "Written by PowerWrite" (medium) → "DLM Media" (smallest at bottom)
+- The hierarchy must be: TITLE (biggest) → "DLM Media" (smallest at bottom)
 
 === DESIGN SPECIFICATIONS ===
 - Aspect Ratio: Portrait orientation (2:3 ratio for book covers)
@@ -305,7 +300,7 @@ This must be a COMPLETE, ready-to-print book cover with EXACTLY these text eleme
 - Professional kerning and spacing
 - High contrast between text and background
 - Text should look professionally designed
-- Clear visual hierarchy between all three text elements
+- Clear visual hierarchy between text elements
 
 === QUALITY STANDARDS ===
 - Professional bookstore-quality cover design
@@ -314,7 +309,7 @@ This must be a COMPLETE, ready-to-print book cover with EXACTLY these text eleme
 - Balanced composition with proper visual hierarchy
 - The cover should look like a bestselling book at Barnes & Noble
 
-Generate a complete, professional book cover with all three text elements perfectly integrated.`;
+Generate a complete, professional book cover with the title and publisher perfectly integrated.`;
 
     return prompt;
   }

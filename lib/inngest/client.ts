@@ -62,3 +62,4 @@ export type PowerWriteEvents =
   | BookGenerationStartedEvent 
   | ChapterBatchRequestedEvent
   | BookGenerationCompletedEvent;
+

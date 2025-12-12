@@ -256,7 +256,8 @@ export const defaultBookConfiguration: BookConfiguration = {
     temperature: 0.85,
     maxTokens: 4000,
     generationStrategy: 'parallel', // Default to parallel for speed
-    generationSpeed: 'quality', // Default to quality preset
+    // generationSpeed is intentionally not set - use custom model by default
+    // User can select a speed preset if they want to override their custom model
     useParallelGeneration: true, // Enable parallel generation by default
   },
 };

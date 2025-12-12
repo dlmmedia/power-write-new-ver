@@ -15,7 +15,7 @@ import { BookConfiguration } from '@/lib/types/studio';
 export const maxDuration = 900; // 15 minutes
 export const dynamic = 'force-dynamic';
 
-// Speed model mapping
+// Speed model mapping - only used as fallback when no model explicitly selected
 const SPEED_MODEL_MAP = {
   quality: 'anthropic/claude-sonnet-4',
   balanced: 'google/gemini-2.5-flash-preview',
@@ -23,6 +23,14 @@ const SPEED_MODEL_MAP = {
 } as const;
 
 type GenerationSpeed = keyof typeof SPEED_MODEL_MAP;
+
+// Helper to get the speed-based fallback model
+function getSpeedFallbackModel(speed?: GenerationSpeed): string {
+  if (speed && SPEED_MODEL_MAP[speed]) {
+    return SPEED_MODEL_MAP[speed];
+  }
+  return 'anthropic/claude-sonnet-4'; // Default fallback
+}
 
 const CHAPTERS_PER_BATCH = 4;
 
@@ -84,13 +92,17 @@ export async function POST(request: NextRequest) {
       try {
         await ensureDemoUser(userId);
 
-        // Determine model
-        let chapterModel: string;
-        if (generationSpeed && SPEED_MODEL_MAP[generationSpeed]) {
-          chapterModel = SPEED_MODEL_MAP[generationSpeed];
-        } else {
-          chapterModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
-        }
+        // Determine model - prioritize user selection over speed-based defaults
+        // Priority: 1) explicit modelId param, 2) config.chapterModel, 3) config.model, 4) speed fallback
+        const userSelectedModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model;
+        const chapterModel: string = userSelectedModel || getSpeedFallbackModel(generationSpeed);
+        
+        console.log(`[Stream] Model Selection Debug:`);
+        console.log(`  - modelId param: ${modelId || 'not provided'}`);
+        console.log(`  - config.chapterModel: ${(config.aiSettings as any)?.chapterModel || 'not set'}`);
+        console.log(`  - config.model: ${config.aiSettings?.model || 'not set'}`);
+        console.log(`  - generationSpeed: ${generationSpeed || 'not set'}`);
+        console.log(`  - FINAL MODEL: ${chapterModel}`);
 
         const totalChapters = outline.chapters.length;
         const aiService = new AIService(config.aiSettings?.model, chapterModel);
@@ -331,7 +343,9 @@ export async function POST(request: NextRequest) {
             outline.author,
             outline.genre,
             outline.description,
-            'photographic'
+            'photographic',
+            undefined, // use default image model
+            { showPowerWriteBranding: false, showTagline: false } // don't show author branding
           );
           controller.enqueue(encoder.encode(createSSEMessage('cover_complete', {
             type: 'back',
@@ -465,3 +479,4 @@ async function generateSequentialBatch(
 
   return generatedChapters;
 }
+

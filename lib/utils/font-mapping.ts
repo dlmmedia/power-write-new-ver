@@ -296,3 +296,4 @@ export function getRequiredFontsForSettings(settings: {
   return Array.from(fonts);
 }
 
+

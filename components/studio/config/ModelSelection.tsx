@@ -49,6 +49,9 @@ export function ModelSelection() {
       aiSettings: {
         ...config.aiSettings,
         chapterModel: modelId,
+        // Clear speed preset when selecting a custom model
+        // This ensures the custom model is used for generation
+        generationSpeed: undefined,
       } as any,
     });
   };
@@ -258,6 +261,7 @@ export function ModelSelection() {
     </div>
   );
 }
+
 
 
 

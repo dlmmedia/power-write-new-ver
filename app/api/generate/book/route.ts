@@ -27,11 +27,19 @@ export async function POST(request: NextRequest) {
     // Ensure demo user exists
     await ensureDemoUser(userId);
 
-    // Determine the model to use for chapter generation
+    // Determine the model to use for chapter generation - PRIORITY ORDER:
+    // 1. Explicit modelId param (from API call)
+    // 2. User's selected chapterModel in config (from AI Models tab)
+    // 3. User's selected model in config
+    // 4. Default fallback
     const chapterModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
 
-    console.log(`Starting book generation: ${outline.title} (${outline.chapters.length} chapters)`);
-    console.log(`Using model for chapters: ${chapterModel}`);
+    console.log(`[Book] Starting book generation: ${outline.title} (${outline.chapters.length} chapters)`);
+    console.log(`[Book] Model Selection Debug:`);
+    console.log(`  - modelId param: ${modelId || 'not provided'}`);
+    console.log(`  - config.chapterModel: ${(config.aiSettings as any)?.chapterModel || 'not set'}`);
+    console.log(`  - config.model: ${config.aiSettings?.model || 'not set'}`);
+    console.log(`  - FINAL MODEL: ${chapterModel}`);
 
     // Create AI service with model selection
     const aiService = new AIService(
@@ -103,7 +111,9 @@ export async function POST(request: NextRequest) {
         outline.author,
         outline.genre,
         outline.description,
-        'photographic' // Default style for back cover
+        'photographic', // Default style for back cover
+        undefined, // use default image model
+        { showPowerWriteBranding: false, showTagline: false } // don't show author branding
       );
       console.log('Back cover generated successfully');
     } catch (backCoverError) {
