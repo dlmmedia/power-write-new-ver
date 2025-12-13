@@ -64,10 +64,10 @@ export function PricingSection() {
     <section className="py-20 bg-gradient-to-b from-gray-900 to-black">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)' }}>
             Simple, <span className="text-yellow-400">Transparent</span> Pricing
           </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-nav)' }}>
             Choose the plan that fits your writing goals. Upgrade, downgrade, or cancel anytime.
           </p>
         </div>
@@ -76,11 +76,12 @@ export function PricingSection() {
           {plans.map((plan, index) => (
             <div
               key={index}
-              className={`relative bg-gray-900 rounded-lg p-8 ${
+              className={`relative bg-gray-900 rounded-xl p-8 transition-all ${
                 plan.popular
                   ? 'border-2 border-yellow-400 shadow-xl shadow-yellow-400/20'
-                  : 'border border-gray-800'
+                  : 'border border-gray-800 hover:border-gray-700'
               }`}
+              style={{ boxShadow: plan.popular ? undefined : 'var(--shadow-card)' }}
             >
               {/* Popular Badge */}
               {plan.popular && (
@@ -93,14 +94,14 @@ export function PricingSection() {
 
               {/* Plan Name */}
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold mb-2">{plan.name}</h3>
+                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'var(--font-nav)' }}>{plan.name}</h3>
                 <p className="text-gray-400 text-sm">{plan.description}</p>
               </div>
 
               {/* Price */}
               <div className="text-center mb-8">
                 <div className="flex items-baseline justify-center gap-2">
-                  <span className="text-5xl font-bold text-yellow-400">
+                  <span className="text-5xl font-bold text-yellow-400" style={{ fontFamily: 'var(--font-code)' }}>
                     {plan.price}
                   </span>
                   <span className="text-gray-400">

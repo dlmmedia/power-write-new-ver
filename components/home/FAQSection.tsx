@@ -56,10 +56,10 @@ export function FAQSection() {
     <section className="py-20 bg-black">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)' }}>
             Frequently Asked <span className="text-yellow-400">Questions</span>
           </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-nav)' }}>
             Everything you need to know about PowerWrite
           </p>
         </div>
@@ -68,13 +68,14 @@ export function FAQSection() {
           {faqs.map((faq, index) => (
             <div
               key={index}
-              className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden hover:border-yellow-400 transition-colors"
+              className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-yellow-400 transition-all"
+              style={{ boxShadow: 'var(--shadow-card)' }}
             >
               <button
                 onClick={() => toggleFAQ(index)}
                 className="w-full px-6 py-5 text-left flex items-center justify-between gap-4 hover:bg-gray-800/50 transition-colors"
               >
-                <span className="font-semibold text-lg text-white">
+                <span className="font-semibold text-lg text-white" style={{ fontFamily: 'var(--font-nav)' }}>
                   {faq.question}
                 </span>
                 <span className={`text-yellow-400 text-2xl flex-shrink-0 transition-transform ${

@@ -334,3 +334,5 @@ export const generateBookBackground = inngest.createFunction(
 // Export all functions for the Inngest serve handler
 export const functions = [generateBookBackground];
 
+
+

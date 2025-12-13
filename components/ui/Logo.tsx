@@ -25,10 +25,11 @@ export function Logo({ size = 'md', className = '' }: LogoProps) {
         
         {/* Decorative pen stroke - diagonal line suggesting writing */}
         <svg 
-          className="absolute inset-0 w-full h-full opacity-20 group-hover:opacity-30 transition-opacity" 
+          className="absolute inset-0 w-full h-full opacity-40 group-hover:opacity-50 transition-opacity" 
           viewBox="0 0 40 40"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
+          style={{ boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)' }}
         >
           {/* Diagonal stroke representing a pen writing */}
           <path 

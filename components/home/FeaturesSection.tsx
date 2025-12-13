@@ -53,11 +53,11 @@ export function FeaturesSection() {
     <section className="py-20 bg-black">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)' }}>
             Everything You Need to Write
             <span className="text-yellow-400"> Amazing Books</span>
           </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-nav)' }}>
             Powerful features designed to help you create professional-quality books with ease
           </p>
         </div>
@@ -66,12 +66,13 @@ export function FeaturesSection() {
           {features.map((feature, index) => (
             <div
               key={index}
-              className="bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-yellow-400 transition-colors group"
+              className="bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-yellow-400 transition-all group hover:shadow-lg hover:shadow-yellow-400/5"
+              style={{ boxShadow: 'var(--shadow-card)' }}
             >
               <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">
                 {feature.icon}
               </div>
-              <h3 className="text-xl font-bold mb-3 text-white">
+              <h3 className="text-xl font-bold mb-3 text-white" style={{ fontFamily: 'var(--font-nav)' }}>
                 {feature.title}
               </h3>
               <p className="text-gray-400">

@@ -13,15 +13,15 @@ export default function LandingPage() {
   return (
     <main className="min-h-screen bg-black text-white">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600/20 bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <Logo size="md" />
-            <nav className="hidden md:flex space-x-6">
-              <a href="#features" className="text-gray-300 hover:text-white">Features</a>
-              <a href="#how-it-works" className="text-gray-300 hover:text-white">How It Works</a>
-              <a href="#pricing" className="text-gray-300 hover:text-white">Pricing</a>
-              <a href="/" className="text-yellow-400 hover:text-yellow-300 font-semibold">App</a>
+            <nav className="hidden md:flex space-x-6" style={{ fontFamily: 'var(--font-nav)' }}>
+              <a href="#features" className="text-gray-300 hover:text-white transition-colors">Features</a>
+              <a href="#how-it-works" className="text-gray-300 hover:text-white transition-colors">How It Works</a>
+              <a href="#pricing" className="text-gray-300 hover:text-white transition-colors">Pricing</a>
+              <a href="/" className="text-yellow-400 hover:text-yellow-300 font-semibold transition-colors">App</a>
             </nav>
           </div>
           <div className="flex items-center space-x-4">
@@ -60,11 +60,11 @@ export default function LandingPage() {
       <FAQSection />
 
       {/* Footer */}
-      <footer className="border-t border-gray-800 py-12 bg-black">
+      <footer className="border-t border-gray-800 py-12 bg-black" style={{ fontFamily: 'var(--font-nav)' }}>
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
             <div>
-              <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl inline-block mb-4">
+              <div className="bg-yellow-400 text-black font-bold px-3 py-1 text-2xl inline-block mb-4" style={{ boxShadow: 'var(--shadow-card)' }}>
                 PW
               </div>
               <p className="text-gray-400 text-sm">

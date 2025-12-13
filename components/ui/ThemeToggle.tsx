@@ -50,7 +50,7 @@ export function ThemeToggle() {
   );
 }
 
-// Compact version for header
+// Compact version for header - icon only
 export function ThemeToggleCompact() {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
@@ -58,19 +58,19 @@ export function ThemeToggleCompact() {
   return (
     <motion.button
       onClick={toggleTheme}
-      className="relative flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700 overflow-hidden group"
-      aria-label="Toggle theme"
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
+      className="relative p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      whileHover={{ scale: 1.05 }}
+      whileTap={{ scale: 0.95 }}
     >
-      <div className="relative w-5 h-5">
+      <div className="relative w-4 h-4">
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={theme}
-            initial={{ y: -20, opacity: 0, rotate: -90 }}
+            initial={{ y: -10, opacity: 0, rotate: -90 }}
             animate={{ y: 0, opacity: 1, rotate: 0 }}
-            exit={{ y: 20, opacity: 0, rotate: 90 }}
-            transition={{ duration: 0.2 }}
+            exit={{ y: 10, opacity: 0, rotate: 90 }}
+            transition={{ duration: 0.15 }}
             className="absolute inset-0 flex items-center justify-center"
           >
             {isDark ? (
@@ -81,13 +81,6 @@ export function ThemeToggleCompact() {
           </motion.div>
         </AnimatePresence>
       </div>
-      
-      <span className="text-sm font-medium text-gray-700 dark:text-gray-200 w-12 text-left">
-        {isDark ? 'Dark' : 'Light'}
-      </span>
-      
-      {/* Subtle background glow effect on hover */}
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-gray-200/50 dark:via-gray-600/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000" />
     </motion.button>
   );
 }

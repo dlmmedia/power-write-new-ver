@@ -135,9 +135,12 @@ export const BookCard: React.FC<BookCardProps> = ({
           )}
           
           {/* Subtle overlay gradient on hover - Darker for better visibility of select button */}
-          <div className={`absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 transition-opacity duration-300 ${
-            isHovered ? 'opacity-100' : 'opacity-0'
-          }`} />
+          <div 
+            className={`absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/30 transition-opacity duration-300 ${
+              isHovered ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{ fontFamily: '"Geist Mono", monospace' }}
+          />
 
           {/* Hover Action Overlay */}
           <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity duration-300 ${

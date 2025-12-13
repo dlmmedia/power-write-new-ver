@@ -218,7 +218,7 @@ export default function LibraryPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
             {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
@@ -231,7 +231,7 @@ export default function LibraryPage() {
                 <span className="font-medium">Home</span>
               </button>
               <Logo size="md" />
-              <h1 className="text-2xl font-bold">My Library</h1>
+              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>My Library</h1>
             </div>
 
             <div className="flex items-center gap-3">

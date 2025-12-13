@@ -178,7 +178,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white pb-32 md:pb-8 transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30">
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", monospace', letterSpacing: '0.2px', boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)' }}>
         <div className="container mx-auto px-4 py-4">
           {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
@@ -241,10 +241,10 @@ export default function Home() {
       </header>
 
       {/* Category Tabs */}
-      <section className="border-b border-gray-200 dark:border-gray-800 sticky top-[73px] md:top-[73px] z-30 bg-white/95 dark:bg-black/95 backdrop-blur-sm">
+      <section className="border-b border-gray-200 dark:border-gray-800 sticky top-[73px] md:top-[73px] z-30 bg-white/90 dark:bg-black/90 backdrop-blur-md" style={{ opacity: 0.92 }}>
         <div className="container mx-auto px-4">
           {/* Desktop Categories */}
-          <div className="hidden md:flex justify-between items-center py-4">
+          <div className="hidden md:flex justify-between items-center flex-wrap" style={{ paddingTop: '11px', paddingBottom: '11px', fontFamily: '"SF Compact Rounded", sans-serif', boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)' }}>
             <div className="flex items-center gap-4">
               {/* Quick access popular categories */}
               <div className="flex space-x-2">
@@ -262,6 +262,7 @@ export default function Home() {
                       <motion.div
                         layoutId="activeCategory"
                         className="absolute inset-0 bg-yellow-500 rounded-full"
+                        style={{ boxShadow: '0px 4px 12px 0px rgba(0, 0, 0, 0.15)' }}
                         transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                       />
                     )}
@@ -463,7 +464,7 @@ export default function Home() {
       <section className="py-6 md:py-12">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center mb-6 md:mb-8">
-            <h2 className="text-xl md:text-3xl font-bold flex items-center gap-2">
+            <h2 className="text-xl md:text-3xl font-bold flex items-center justify-start gap-2" style={{ fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", monospace' }}>
               {activeCategory === 'search' ? (
                  <>
                    <Search className="w-6 h-6 md:w-8 md:h-8" />

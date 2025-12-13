@@ -43,10 +43,10 @@ export function HowItWorks() {
     <section className="py-20 bg-gradient-to-b from-black to-gray-900">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+          <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)' }}>
             How It <span className="text-yellow-400">Works</span>
           </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-400 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-nav)' }}>
             From idea to finished book in 5 simple steps
           </p>
         </div>
@@ -66,10 +66,10 @@ export function HowItWorks() {
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 bg-gray-900 border border-gray-800 rounded-lg p-6 hover:border-yellow-400 transition-colors">
+                <div className="flex-1 bg-gray-900 border border-gray-800 rounded-xl p-6 hover:border-yellow-400 transition-all hover:shadow-lg hover:shadow-yellow-400/5" style={{ boxShadow: 'var(--shadow-card)' }}>
                   <div className="flex items-center gap-3 mb-3">
                     <span className="text-3xl">{step.icon}</span>
-                    <h3 className="text-2xl font-bold text-white">
+                    <h3 className="text-2xl font-bold text-white" style={{ fontFamily: 'var(--font-nav)' }}>
                       {step.title}
                     </h3>
                   </div>

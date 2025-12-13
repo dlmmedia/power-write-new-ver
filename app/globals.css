@@ -8,6 +8,21 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Design System - Typography */
+:root {
+  --font-header: SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  --font-nav: "SF Compact Rounded", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-code: "Geist Mono", ui-monospace, monospace;
+  
+  /* Shadows */
+  --shadow-header: 0px 4px 12px 0px rgba(0, 0, 0, 0.15);
+  --shadow-card: 0px 2px 8px 0px rgba(0, 0, 0, 0.1);
+  --shadow-elevated: 0px 8px 24px 0px rgba(0, 0, 0, 0.12);
+  
+  /* Spacing */
+  --letter-spacing-header: 0.2px;
+}
+
 /* Light Theme (Default) */
 :root,
 .light {

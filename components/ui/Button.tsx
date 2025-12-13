@@ -27,12 +27,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const baseStyles = 'inline-flex items-center justify-center font-semibold rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
     
     const variantStyles = {
-      primary: 'bg-yellow-400 text-black hover:bg-yellow-500 focus:ring-yellow-500',
+      primary: 'text-black hover:bg-yellow-500 focus:ring-yellow-500 border border-[#f0b000] backdrop-blur-[12px]',
       secondary: 'bg-gray-600 dark:bg-gray-700 text-white hover:bg-gray-700 dark:hover:bg-gray-600 focus:ring-gray-500',
       outline: 'border-2 border-yellow-600 dark:border-yellow-400 text-yellow-600 dark:text-yellow-400 hover:bg-yellow-400 hover:text-black focus:ring-yellow-500',
       ghost: 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 focus:ring-gray-500',
       danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     };
+
+    const primaryStyle = variant === 'primary' ? { backgroundColor: 'rgba(253, 200, 0, 1)', fontSize: '15px', lineHeight: '15px' } : {};
 
     const sizeStyles = {
       sm: 'px-3 py-1.5 text-sm',
@@ -49,6 +51,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           sizeStyles[size],
           className
         )}
+        style={primaryStyle}
         disabled={disabled || isLoading}
         {...props}
       >

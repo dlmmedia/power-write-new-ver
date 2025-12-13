@@ -39,12 +39,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           <input
             ref={ref}
             className={clsx(
-              'w-full bg-white dark:bg-gray-900 border rounded px-4 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-              error ? 'border-red-500' : 'border-gray-300 dark:border-gray-700',
+              'w-full bg-white dark:bg-gray-900 border rounded-lg px-4 py-2 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-sm',
+              error ? 'border-red-500' : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600',
               leftIcon && 'pl-10',
               rightIcon && 'pr-10',
               className
             )}
+            style={{ boxShadow: 'inset 0 1px 2px rgba(0, 0, 0, 0.05)' }}
             disabled={disabled}
             {...props}
           />

@@ -31,7 +31,7 @@ export function HeroSection() {
           </div>
 
           {/* Main Heading */}
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
+          <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)' }}>
             Write Your
             <span className="block text-yellow-400">Complete Book</span>
             in Minutes
@@ -64,16 +64,16 @@ export function HeroSection() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto">
-            <div>
+          <div className="grid grid-cols-3 gap-8 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-code)' }}>
+            <div className="p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10" style={{ boxShadow: 'var(--shadow-card)' }}>
               <div className="text-3xl md:text-4xl font-bold text-yellow-400">10K+</div>
               <div className="text-sm text-gray-400 mt-1">Books Generated</div>
             </div>
-            <div>
+            <div className="p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10" style={{ boxShadow: 'var(--shadow-card)' }}>
               <div className="text-3xl md:text-4xl font-bold text-yellow-400">500M+</div>
               <div className="text-sm text-gray-400 mt-1">Words Written</div>
             </div>
-            <div>
+            <div className="p-4 rounded-xl bg-white/5 backdrop-blur-sm border border-white/10" style={{ boxShadow: 'var(--shadow-card)' }}>
               <div className="text-3xl md:text-4xl font-bold text-yellow-400">95%</div>
               <div className="text-sm text-gray-400 mt-1">Satisfaction Rate</div>
             </div>

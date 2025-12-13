@@ -438,7 +438,7 @@ export default function BookDetailPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -450,7 +450,7 @@ export default function BookDetailPage() {
                 Library
               </button>
               <Logo size="md" />
-              <h1 className="text-2xl font-bold">{book.title}</h1>
+              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h1>
             </div>
 
             <div className="flex items-center gap-3">
@@ -606,7 +606,7 @@ export default function BookDetailPage() {
                   <div className="flex-1 space-y-4">
                     <div className="flex items-start justify-between">
                       <div>
-                        <h2 className="text-4xl font-bold mb-2">{book.title}</h2>
+                        <h2 className="text-4xl font-bold mb-2" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h2>
                         <p className="text-xl text-gray-600 dark:text-gray-400 mb-1">by {book.author}</p>
                         <div className="flex items-center gap-3 mt-3">
                           <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -680,7 +680,7 @@ export default function BookDetailPage() {
                 <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
 
                 <div className="relative z-10">
-                  <h3 className="text-2xl font-bold mb-8 flex items-center gap-3">
+                  <h3 className="text-2xl font-bold mb-8 flex items-center gap-3" style={{ fontFamily: 'var(--font-nav)' }}>
                     <div className="bg-yellow-400/20 p-2 rounded-lg">
                       <Activity className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                     </div>
@@ -776,7 +776,7 @@ export default function BookDetailPage() {
               {book.chapters && book.chapters.length > 0 && (
                 <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
                   <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-2xl font-bold flex items-center gap-2">
+                    <h3 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
                       <BookOpen className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                       Chapter Preview
                     </h3>
@@ -817,7 +817,7 @@ export default function BookDetailPage() {
             <div className="space-y-4">
               <div className="flex justify-between items-center mb-6">
                 <div>
-                  <h3 className="text-2xl font-bold flex items-center gap-2">
+                  <h3 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
                     <span className="text-yellow-600 dark:text-yellow-400">📚</span>
                     All Chapters
                   </h3>
@@ -899,7 +899,7 @@ export default function BookDetailPage() {
 
           {activeTab === 'cover' && (
             <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-              <h3 className="text-2xl font-bold mb-6 flex items-center gap-2">
+              <h3 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
                 <span className="text-yellow-600 dark:text-yellow-400">🎨</span>
                 Book Cover
               </h3>
@@ -1009,7 +1009,7 @@ export default function BookDetailPage() {
 
           {activeTab === 'settings' && (
             <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-              <h3 className="text-xl font-bold mb-6">Book Settings</h3>
+              <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Settings</h3>
               
               <div className="space-y-6">
                 <div>

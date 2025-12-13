@@ -38,6 +38,7 @@ export const Badge: React.FC<BadgeProps> = ({
         sizeStyles[size],
         className
       )}
+      style={{ fontFamily: 'var(--font-code)', boxShadow: 'var(--shadow-card)' }}
     >
       {children}
     </span>

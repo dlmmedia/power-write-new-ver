@@ -654,23 +654,21 @@ export default function StudioPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-white dark:bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
           {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => router.push('/')}
-                className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md font-medium"
+                className="group relative p-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 shadow-sm hover:shadow-md"
+                title="Back to Home"
               >
-                <span className="group-hover:-translate-x-0.5 transition-transform duration-200">←</span>
-                Back
+                <span className="group-hover:-translate-x-0.5 transition-transform duration-200 block">←</span>
               </button>
               <Logo size="md" />
-              <h1 className="text-2xl font-bold">Book Studio</h1>
-              <Button
-                variant="ghost"
-                size="sm"
+              <h1 className="text-xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>Book Studio</h1>
+              <button
                 onClick={() => {
                   if (config.basicInfo?.title || outline) {
                     const confirmed = confirm('Start a new book? This will clear all current configuration and outline.');
@@ -680,23 +678,18 @@ export default function StudioPage() {
                   setActiveTab('prompt');
                   setViewMode('config');
                 }}
-                className="text-yellow-600 hover:text-yellow-500"
+                className="text-yellow-600 hover:text-yellow-500 text-sm font-medium transition-colors"
+                title="Start a new book"
               >
-                ✨ New Book
-              </Button>
-              {/* Model indicator */}
-              <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
-                <span className="px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded">
-                  🤖 {currentChapterModel.split('/').pop()}
-                </span>
-              </div>
+                + New
+              </button>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <ThemeToggleCompact />
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
-                <Badge variant="info">
-                  {selectedBooks.length + uploadedReferences.length} Reference{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
+                <Badge variant="info" size="sm">
+                  {selectedBooks.length + uploadedReferences.length} Ref{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
                 </Badge>
               )}
               <Button
@@ -704,15 +697,15 @@ export default function StudioPage() {
                 size="sm"
                 onClick={() => setShowUploadModal(true)}
               >
-                📎 Upload References
+                📎 Upload
               </Button>
               {outline && (
                 <Button
                   variant="ghost"
-                  size="md"
+                  size="sm"
                   onClick={() => setViewMode(viewMode === 'config' ? 'outline' : 'config')}
                 >
-                  {viewMode === 'config' ? 'View Outline' : 'Edit Config'}
+                  {viewMode === 'config' ? 'Outline' : 'Config'}
                 </Button>
               )}
               <Button
@@ -721,8 +714,9 @@ export default function StudioPage() {
                 onClick={handleGenerateOutline}
                 isLoading={generationType === 'outline'}
                 disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
+                className="min-w-[140px]"
               >
-                {outline ? 'Regenerate Outline' : 'Generate Outline'}
+                Generate Outline
               </Button>
               <Button
                 variant="primary"
@@ -730,6 +724,7 @@ export default function StudioPage() {
                 onClick={handleGenerateBookClick}
                 isLoading={generationType === 'book'}
                 disabled={isGenerating}
+                className="min-w-[140px]"
               >
                 Generate Book
               </Button>
@@ -1007,9 +1002,9 @@ export default function StudioPage() {
             onClick={handleGenerateOutline}
             isLoading={generationType === 'outline'}
             disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
-            className="shadow-lg"
+            className="shadow-lg min-w-[140px]"
           >
-            {outline ? 'Regenerate' : 'Generate'} Outline
+            Generate Outline
           </Button>
           <Button
             variant="primary"

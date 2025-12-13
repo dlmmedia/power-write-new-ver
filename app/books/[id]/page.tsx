@@ -83,7 +83,7 @@ export default function BookDetailPage() {
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Header */}
-      <header className="border-b border-yellow-600 bg-black sticky top-0 z-30">
+      <header className="border-b border-yellow-600/20 bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-8">
             <Logo size="md" />
@@ -146,7 +146,7 @@ export default function BookDetailPage() {
           <div className="lg:col-span-2 space-y-8">
             {/* Title and Author */}
             <div>
-              <h1 className="text-5xl font-bold mb-4">{book.title}</h1>
+              <h1 className="text-5xl font-bold mb-4" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h1>
               <p className="text-2xl text-gray-300">
                 by {book.authors.join(', ')}
               </p>
@@ -177,7 +177,7 @@ export default function BookDetailPage() {
             {/* Categories */}
             {book.categories && book.categories.length > 0 && (
               <div>
-                <h2 className="text-xl font-semibold mb-3 text-yellow-400">Categories</h2>
+                <h2 className="text-xl font-semibold mb-3 text-yellow-400" style={{ fontFamily: 'var(--font-nav)' }}>Categories</h2>
                 <div className="flex flex-wrap gap-2">
                   {book.categories.map((category, idx) => (
                     <span
@@ -194,7 +194,7 @@ export default function BookDetailPage() {
             {/* Description */}
             {book.description && (
               <div>
-                <h2 className="text-xl font-semibold mb-3 text-yellow-400">Description</h2>
+                <h2 className="text-xl font-semibold mb-3 text-yellow-400" style={{ fontFamily: 'var(--font-nav)' }}>Description</h2>
                 <div 
                   className="text-gray-300 leading-relaxed prose prose-invert max-w-none"
                   dangerouslySetInnerHTML={{ __html: book.description }}
@@ -204,7 +204,7 @@ export default function BookDetailPage() {
             
             {/* Additional Details */}
             <div className="border-t border-gray-800 pt-8">
-              <h2 className="text-xl font-semibold mb-4 text-yellow-400">Book Details</h2>
+              <h2 className="text-xl font-semibold mb-4 text-yellow-400" style={{ fontFamily: 'var(--font-nav)' }}>Book Details</h2>
               <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {book.publisher && (
                   <>
@@ -241,7 +241,7 @@ export default function BookDetailPage() {
             
             {/* Google Books Preview */}
             <div className="border-t border-gray-800 pt-8">
-              <h2 className="text-xl font-semibold mb-4 text-yellow-400">Preview</h2>
+              <h2 className="text-xl font-semibold mb-4 text-yellow-400" style={{ fontFamily: 'var(--font-nav)' }}>Preview</h2>
               <div className="bg-gray-900 rounded-lg p-4">
                 <iframe
                   src={`https://books.google.com/books?id=${bookId}&lpg=PP1&pg=PP1&output=embed`}
