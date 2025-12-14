@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
 
     // Both tiers can view all books (shared library)
     // Free tier is limited to generating only 1 book, but can view all
-    let userBooks;
+    let userBooks: Awaited<ReturnType<typeof getAllBooks>> = [];
     try {
       userBooks = await getAllBooks();
     } catch (dbError) {
