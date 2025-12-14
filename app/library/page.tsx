@@ -61,49 +61,117 @@ export default function LibraryPage() {
 
   // Sync user on mount and fetch books
   useEffect(() => {
-    if (isUserLoaded && user) {
-      syncUser();
-      fetchBooks();
+    if (isUserLoaded) {
+      if (user) {
+        // User is authenticated - sync and fetch books
+        syncUser().then(() => {
+          fetchBooks();
+        }).catch(() => {
+          // Even if sync fails, try to fetch books (user might already exist)
+          fetchBooks();
+        });
+      } else {
+        // User is not authenticated - just fetch books (they might be public)
+        // Don't call syncUser if user is null to avoid 401 errors
+        fetchBooks();
+      }
     }
   }, [isUserLoaded, user]);
 
-  const syncUser = async () => {
+  const syncUser = async (retryCount = 0): Promise<boolean> => {
+    const maxRetries = 3;
+    const retryDelay = 500; // Start with 500ms delay
+
     try {
-      const response = await fetch('/api/user/sync');
+      const response = await fetch('/api/user/sync', {
+        credentials: 'include', // Ensure cookies are sent
+      });
+      
       if (!response.ok) {
+        // 401 is expected when user isn't authenticated yet - don't treat as error
+        if (response.status === 401) {
+          // If we haven't exhausted retries, retry with exponential backoff
+          if (retryCount < maxRetries) {
+            const delay = retryDelay * Math.pow(2, retryCount);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return syncUser(retryCount + 1);
+          }
+          // After retries, silently return false - user just isn't authenticated yet
+          return false;
+        }
+        
+        // Only log non-401 errors (500, 404, etc.)
         console.error('Sync user failed:', response.status);
-        return;
+        return false;
       }
+      
       const data = await response.json();
       if (data.success && data.user) {
         setUserTier(data.user.tier);
       }
+      return true;
     } catch (error) {
+      // Retry on network errors too
+      if (retryCount < maxRetries) {
+        const delay = retryDelay * Math.pow(2, retryCount);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return syncUser(retryCount + 1);
+      }
+      // Only log network errors if we've exhausted retries
+      // Don't log if it's likely an auth issue (network error during auth flow)
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        // Network error - might be auth related, don't log
+        return false;
+      }
       console.error('Error syncing user:', error);
+      return false;
     }
   };
 
-  const fetchBooks = async () => {
+  const fetchBooks = async (retryCount = 0) => {
+    const maxRetries = 3;
+    const retryDelay = 500; // Start with 500ms delay
+
     setLoading(true);
     try {
       // Add cache busting to ensure fresh data
       const timestamp = Date.now();
       const response = await fetch(`/api/books?_t=${timestamp}`, {
         cache: 'no-store',
+        credentials: 'include', // Ensure cookies are sent
         headers: {
           'Cache-Control': 'no-cache',
         },
       });
+      
       if (!response.ok) {
-        console.error('Fetch books failed:', response.status);
+        // If 500 or 401 and we haven't exhausted retries, retry with exponential backoff
+        if ((response.status === 500 || response.status === 401) && retryCount < maxRetries) {
+          const delay = retryDelay * Math.pow(2, retryCount);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchBooks(retryCount + 1);
+        }
+        
+        // Only log error if we've exhausted retries or it's not a retryable error
+        if (retryCount >= maxRetries || (response.status !== 500 && response.status !== 401)) {
+          console.error('Fetch books failed:', response.status);
+        }
         return;
       }
+      
       const data = await response.json();
       setBooks(data.books || []);
       if (data.tier) {
         setUserTier(data.tier);
       }
     } catch (error) {
+      // Retry on network errors too
+      if (retryCount < maxRetries) {
+        const delay = retryDelay * Math.pow(2, retryCount);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return fetchBooks(retryCount + 1);
+      }
+      // Only log if we've exhausted retries
       console.error('Error fetching books:', error);
     } finally {
       setLoading(false);

@@ -348,12 +348,16 @@ export default function BookDetailPage() {
     }
   };
 
-  const handleMoveChapter = async (chapterNumber: number, direction: 'up' | 'down') => {
+  const handleMoveChapter = async (chapterId: number, direction: 'up' | 'down') => {
     if (!book || !book.chapters || book.chapters.length < 2) return;
-
-    const index = book.chapters.findIndex((ch) => ch.number === chapterNumber);
     
-    // Can't move first chapter up or last chapter down
+    // Prevent multiple simultaneous reorder operations
+    if (isReorderingChapters) return;
+
+    const index = book.chapters.findIndex((ch) => ch.id === chapterId);
+    
+    // Can't find chapter or can't move first chapter up or last chapter down
+    if (index === -1) return;
     if (
       (direction === 'up' && index === 0) ||
       (direction === 'down' && index === book.chapters.length - 1)
@@ -362,6 +366,11 @@ export default function BookDetailPage() {
     }
 
     setIsReorderingChapters(true);
+
+    // Set a timeout fallback to ensure state always resets (safety net)
+    const timeoutId = setTimeout(() => {
+      setIsReorderingChapters(false);
+    }, 10000); // 10 second timeout as fallback
 
     try {
       const newIndex = direction === 'up' ? index - 1 : index + 1;
@@ -380,7 +389,10 @@ export default function BookDetailPage() {
       }));
 
       // Update local state immediately for responsive UI
-      setBook((prev) => prev ? { ...prev, chapters: renumberedChapters } : null);
+      setBook((prev) => {
+        if (!prev) return null;
+        return { ...prev, chapters: renumberedChapters };
+      });
 
       // Save to the API
       const response = await fetch(`/api/books/${book.id}/chapters`, {
@@ -399,17 +411,37 @@ export default function BookDetailPage() {
       });
 
       if (!response.ok) {
-        // Revert on error
+        // Read error message before reverting
+        let errorMessage = 'Unknown error';
+        try {
+          const data = await response.json();
+          errorMessage = data.error || errorMessage;
+        } catch (e) {
+          // If JSON parsing fails, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        
+        // Revert on error - refresh from server
         await fetchBookDetail();
-        const data = await response.json();
-        alert('Failed to reorder chapters: ' + (data.error || 'Unknown error'));
+        alert('Failed to reorder chapters: ' + errorMessage);
+        return; // Exit early on error, finally block will still execute
       }
+      
+      // Success - no need to refresh, local state is already updated
+      // The reorder is saved to the server and local state is in sync
     } catch (error) {
       console.error('Reorder error:', error);
       // Revert on error
-      await fetchBookDetail();
+      try {
+        await fetchBookDetail();
+      } catch (fetchError) {
+        console.error('Error fetching book detail:', fetchError);
+      }
       alert('Failed to reorder chapters. Please try again.');
     } finally {
+      // Clear the timeout since we're resetting manually
+      clearTimeout(timeoutId);
+      // Always reset the reordering state, even if there was an error
       setIsReorderingChapters(false);
     }
   };
@@ -869,14 +901,14 @@ export default function BookDetailPage() {
                             <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
                           </div>
                           {/* Reorder buttons */}
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMoveChapter(chapter.number, 'up');
+                                handleMoveChapter(chapter.id, 'up');
                               }}
                               disabled={chapter.number === 1 || isReorderingChapters}
-                              className="p-1.5 rounded-md text-gray-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                              className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                               title="Move up"
                             >
                               <ChevronUp className="w-4 h-4" />
@@ -884,10 +916,10 @@ export default function BookDetailPage() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMoveChapter(chapter.number, 'down');
+                                handleMoveChapter(chapter.id, 'down');
                               }}
                               disabled={chapter.number === book.chapters.length || isReorderingChapters}
-                              className="p-1.5 rounded-md text-gray-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                              className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                               title="Move down"
                             >
                               <ChevronDown className="w-4 h-4" />
@@ -955,14 +987,14 @@ export default function BookDetailPage() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             {/* Reorder Controls */}
-                            <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex flex-col gap-0.5 opacity-50 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMoveChapter(chapter.number, 'up');
+                                  handleMoveChapter(chapter.id, 'up');
                                 }}
                                 disabled={chapter.number === 1 || isReorderingChapters}
-                                className="p-1 rounded text-gray-400 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                 title="Move up"
                               >
                                 <ChevronUp className="w-4 h-4" />
@@ -970,10 +1002,10 @@ export default function BookDetailPage() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleMoveChapter(chapter.number, 'down');
+                                  handleMoveChapter(chapter.id, 'down');
                                 }}
                                 disabled={chapter.number === book.chapters.length || isReorderingChapters}
-                                className="p-1 rounded text-gray-400 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                                 title="Move down"
                               >
                                 <ChevronDown className="w-4 h-4" />

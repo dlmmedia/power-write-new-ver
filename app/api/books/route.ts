@@ -15,43 +15,80 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user tier
-    const tier = await getUserTier(clerkUserId);
+    // Get user tier (this is safe even if user doesn't exist - returns 'free')
+    let tier: 'free' | 'pro' = 'free';
+    try {
+      tier = await getUserTier(clerkUserId);
+    } catch (tierError) {
+      console.error('Error getting user tier:', tierError);
+      // Continue with default 'free' tier
+    }
 
     // Both tiers can view all books (shared library)
     // Free tier is limited to generating only 1 book, but can view all
-    const userBooks = await getAllBooks();
+    let userBooks;
+    try {
+      userBooks = await getAllBooks();
+    } catch (dbError) {
+      console.error('Error fetching books from database:', dbError);
+      // Return empty array if database query fails
+      userBooks = [];
+    }
 
     // Format books for response
     const books = userBooks.map(book => {
-      const metadata = book.metadata as any || {};
-      const bookData: any = {
-        id: book.id,
-        title: book.title,
-        author: book.author,
-        genre: book.genre,
-        subgenre: '',
-        status: book.status,
-        coverUrl: book.coverUrl || undefined,
-        createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
-        isOwner: book.userId === clerkUserId,
-        metadata: {
-          wordCount: metadata.wordCount || 0,
-          chapters: metadata.chapters || 0,
-          targetWordCount: metadata.targetWordCount || 0,
-          description: book.summary || '',
-          modelUsed: metadata.modelUsed || undefined,
-        },
-      };
-      
-      // Include outline and config for books still being generated (needed for resume)
-      // Only for books the user owns
-      if (book.status === 'generating' && book.userId === clerkUserId) {
-        bookData.outline = book.outline;
-        bookData.config = book.config;
+      try {
+        const metadata = (book.metadata as any) || {};
+        const bookData: any = {
+          id: book.id,
+          title: book.title || 'Untitled',
+          author: book.author || 'Unknown',
+          genre: book.genre || 'General Fiction',
+          subgenre: '',
+          status: book.status || 'in-progress',
+          coverUrl: book.coverUrl || undefined,
+          createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
+          isOwner: book.userId === clerkUserId,
+          metadata: {
+            wordCount: metadata.wordCount || 0,
+            chapters: metadata.chapters || 0,
+            targetWordCount: metadata.targetWordCount || 0,
+            description: book.summary || '',
+            modelUsed: metadata.modelUsed || undefined,
+          },
+        };
+        
+        // Include outline and config for books still being generated (needed for resume)
+        // Only for books the user owns
+        if (book.status === 'generating' && book.userId === clerkUserId) {
+          bookData.outline = book.outline || null;
+          bookData.config = book.config || null;
+        }
+        
+        return bookData;
+      } catch (bookError) {
+        // Log individual book errors but continue processing other books
+        console.error(`Error formatting book ${book.id}:`, bookError);
+        // Return a minimal valid book object
+        return {
+          id: book.id,
+          title: book.title || 'Untitled',
+          author: book.author || 'Unknown',
+          genre: book.genre || 'General Fiction',
+          subgenre: '',
+          status: book.status || 'in-progress',
+          coverUrl: undefined,
+          createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
+          isOwner: book.userId === clerkUserId,
+          metadata: {
+            wordCount: 0,
+            chapters: 0,
+            targetWordCount: 0,
+            description: '',
+            modelUsed: undefined,
+          },
+        };
       }
-      
-      return bookData;
     });
 
     return NextResponse.json({

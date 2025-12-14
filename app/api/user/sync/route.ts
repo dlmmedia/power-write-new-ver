@@ -10,7 +10,18 @@ export const runtime = 'nodejs';
  */
 export async function GET() {
   try {
-    const { userId } = await auth();
+    let authResult;
+    try {
+      authResult = await auth();
+    } catch (authError) {
+      console.error('[User Sync] Auth error:', authError);
+      return NextResponse.json(
+        { error: 'Authentication failed', details: authError instanceof Error ? authError.message : 'Unknown auth error' },
+        { status: 401 }
+      );
+    }
+
+    const { userId } = authResult;
 
     if (!userId) {
       return NextResponse.json(
@@ -20,7 +31,16 @@ export async function GET() {
     }
 
     // Get Clerk user data
-    const clerkUser = await currentUser();
+    let clerkUser;
+    try {
+      clerkUser = await currentUser();
+    } catch (clerkError) {
+      console.error('[User Sync] Clerk currentUser error:', clerkError);
+      return NextResponse.json(
+        { error: 'Failed to fetch user data', details: clerkError instanceof Error ? clerkError.message : 'Unknown error' },
+        { status: 500 }
+      );
+    }
 
     if (!clerkUser) {
       return NextResponse.json(
@@ -30,13 +50,34 @@ export async function GET() {
     }
 
     // Sync to database
-    const syncResult = await syncUserToDatabase({
-      id: clerkUser.id,
-      emailAddresses: clerkUser.emailAddresses,
-      firstName: clerkUser.firstName,
-      lastName: clerkUser.lastName,
-      imageUrl: clerkUser.imageUrl,
-    });
+    let syncResult;
+    try {
+      syncResult = await syncUserToDatabase({
+        id: clerkUser.id,
+        emailAddresses: clerkUser.emailAddresses || [],
+        firstName: clerkUser.firstName,
+        lastName: clerkUser.lastName,
+        imageUrl: clerkUser.imageUrl,
+      });
+    } catch (dbError) {
+      console.error('[User Sync] Database sync error:', dbError);
+      // If it's a unique constraint violation, try to get existing user info instead
+      if (dbError instanceof Error && dbError.message.includes('unique')) {
+        console.log('[User Sync] Attempting to fetch existing user info after unique constraint error');
+        const userInfo = await getUserInfo(userId);
+        if (userInfo) {
+          return NextResponse.json({
+            success: true,
+            user: userInfo,
+            isNew: false,
+          });
+        }
+      }
+      return NextResponse.json(
+        { error: 'Failed to sync user to database', details: dbError instanceof Error ? dbError.message : 'Unknown error' },
+        { status: 500 }
+      );
+    }
 
     // Get full user info
     const userInfo = await getUserInfo(userId);
@@ -47,7 +88,7 @@ export async function GET() {
       isNew: syncResult.isNew,
     });
   } catch (error) {
-    console.error('Error syncing user:', error);
+    console.error('[User Sync] Unexpected error:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       { error: 'Failed to sync user', details: message },
