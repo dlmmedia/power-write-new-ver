@@ -1,9 +1,9 @@
 import { NextRequest } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { AIService, BibliographyGenerationConfig } from '@/lib/services/ai-service';
 import { 
   createBook, 
   createMultipleChapters, 
-  ensureDemoUser, 
   getBook,
   getBookChapters,
   updateBook
@@ -11,6 +11,7 @@ import {
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
+import { canGenerateBook } from '@/lib/services/user-service';
 
 export const maxDuration = 900; // 15 minutes
 export const dynamic = 'force-dynamic';
@@ -35,7 +36,6 @@ function getSpeedFallbackModel(speed?: GenerationSpeed): string {
 const CHAPTERS_PER_BATCH = 4;
 
 interface StreamGenerationRequest {
-  userId: string;
   outline: BookOutline;
   config: BookConfiguration;
   modelId?: string;
@@ -51,6 +51,23 @@ function createSSEMessage(event: string, data: Record<string, unknown>): string 
 
 export async function POST(request: NextRequest) {
   const encoder = new TextEncoder();
+  
+  // Authenticate user
+  const { userId: clerkUserId } = await auth();
+  
+  if (!clerkUserId) {
+    return new Response(
+      encoder.encode(createSSEMessage('error', { error: 'Unauthorized' })),
+      {
+        status: 401,
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      }
+    );
+  }
   
   // Parse request body
   let body: StreamGenerationRequest;
@@ -70,9 +87,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { userId, outline, config, modelId, generationSpeed, useParallel = true, bookId } = body;
+  const { outline, config, modelId, generationSpeed, useParallel = true, bookId } = body;
+  const userId = clerkUserId;
 
-  if (!userId || !outline || !config) {
+  if (!outline || !config) {
     return new Response(
       encoder.encode(createSSEMessage('error', { error: 'Missing required fields' })),
       {
@@ -86,11 +104,28 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Check generation limits for new books
+  if (!bookId) {
+    const generationCheck = await canGenerateBook(userId);
+    if (!generationCheck.allowed) {
+      return new Response(
+        encoder.encode(createSSEMessage('error', { error: generationCheck.reason || 'Book limit reached' })),
+        {
+          status: 403,
+          headers: {
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+          },
+        }
+      );
+    }
+  }
+
   // Create readable stream for SSE
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        await ensureDemoUser(userId);
 
         // Determine model - prioritize user selection over speed-based defaults
         // Priority: 1) explicit modelId param, 2) config.chapterModel, 3) config.model, 4) speed fallback

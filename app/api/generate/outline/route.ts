@@ -1,15 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { AIService } from '@/lib/services/ai-service';
-import { ensureDemoUser } from '@/lib/db/operations';
 import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
 import { isNonFiction } from '@/lib/utils/book-type';
+import { syncUserToDatabase, canGenerateBook } from '@/lib/services/user-service';
 
 export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
+    // Authenticate user
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
     // Check for at least one API key
     if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
       console.error('No AI API keys configured');
@@ -20,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log('Request body received:', { userId: body.userId, hasConfig: !!body.config, modelId: body.modelId });
+    console.log('Request body received:', { userId: clerkUserId, hasConfig: !!body.config, modelId: body.modelId });
     
     interface ReferenceBook {
       title: string;
@@ -29,17 +40,16 @@ export async function POST(request: NextRequest) {
       genre?: string;
     }
     
-    const { userId, config, referenceBooks, modelId } = body as {
-      userId: string;
+    const { config, referenceBooks, modelId } = body as {
       config: BookConfiguration;
       referenceBooks?: ReferenceBook[];
       modelId?: string;
     };
 
     // Validate required fields
-    if (!userId || !config) {
+    if (!config) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, config' },
+        { error: 'Missing required fields: config' },
         { status: 400 }
       );
     }
@@ -51,9 +61,6 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-
-    // Ensure demo user exists in database
-    await ensureDemoUser(userId);
 
     console.log('Generating outline for:', config.basicInfo.title);
     console.log('Using model:', modelId || config.aiSettings?.model || 'default');

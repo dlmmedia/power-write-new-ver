@@ -17,8 +17,9 @@ import {
   Briefcase, Laptop, GraduationCap, Utensils, Plane, 
   Feather, Ghost, Heart, Rocket, Microscope, 
   Stethoscope, Lightbulb, Church, Skull,
-  LayoutGrid, List
+  LayoutGrid, List, LogIn
 } from 'lucide-react';
+import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 
 export default function Home() {
   const [books, setBooks] = useState<BookResult[]>([]);
@@ -215,6 +216,23 @@ export default function Home() {
                   Search
                 </Button>
               </form>
+              {/* Auth Buttons */}
+              <SignedOut>
+                <SignInButton mode="modal">
+                  <button className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-black dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all duration-200 flex items-center gap-2">
+                    <LogIn className="w-4 h-4" />
+                    Sign In
+                  </button>
+                </SignInButton>
+                <SignUpButton mode="modal">
+                  <button className="px-4 py-2 text-sm font-medium bg-yellow-500 hover:bg-yellow-600 text-black rounded-full transition-all duration-200">
+                    Sign Up
+                  </button>
+                </SignUpButton>
+              </SignedOut>
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
             </div>
           </div>
 
@@ -222,7 +240,19 @@ export default function Home() {
           <div className="md:hidden">
             <div className="flex items-center justify-between mb-3">
               <Logo size="sm" />
-              <ThemeToggleCompact />
+              <div className="flex items-center gap-2">
+                <ThemeToggleCompact />
+                <SignedOut>
+                  <SignInButton mode="modal">
+                    <button className="p-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full transition-all">
+                      <LogIn className="w-5 h-5" />
+                    </button>
+                  </SignInButton>
+                </SignedOut>
+                <SignedIn>
+                  <UserButton afterSignOutUrl="/" />
+                </SignedIn>
+              </div>
             </div>
             <form onSubmit={handleSearch} className="flex items-center gap-2">
               <Input

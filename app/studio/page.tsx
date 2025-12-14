@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser, UserButton, SignedIn } from '@clerk/nextjs';
 import { useBookStore } from '@/lib/store/book-store';
 import { useStudioStore } from '@/lib/store/studio-store';
 import { Button } from '@/components/ui/Button';
@@ -16,10 +17,12 @@ import { AdvancedSettings } from '@/components/studio/config/AdvancedSettings';
 import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
 import { SmartPrompt } from '@/components/studio/SmartPrompt';
-import { getDemoUserId, canGenerateBook } from '@/lib/services/demo-account';
+import { UpgradeModal } from '@/components/modals/UpgradeModal';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
+
+type UserTier = 'free' | 'pro';
 
 // Progress state for incremental generation
 interface GenerationProgress {
@@ -58,6 +61,7 @@ type ConfigTab =
 
 export default function StudioPage() {
   const router = useRouter();
+  const { user, isLoaded: isUserLoaded } = useUser();
   const { selectedBooks } = useBookStore();
   const { 
     config, 
@@ -91,6 +95,49 @@ export default function StudioPage() {
   const [showNoOutlineConfirm, setShowNoOutlineConfirm] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true); // Use streaming by default for real-time updates
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Tier management state
+  const [userTier, setUserTier] = useState<UserTier>('free');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [canGenerate, setCanGenerate] = useState<{ allowed: boolean; reason?: string }>({ allowed: true });
+
+  // Sync user on mount
+  useEffect(() => {
+    if (isUserLoaded && user) {
+      syncUser();
+    }
+  }, [isUserLoaded, user]);
+
+  const syncUser = async () => {
+    try {
+      const response = await fetch('/api/user/sync');
+      if (!response.ok) {
+        console.error('Sync user failed:', response.status);
+        return;
+      }
+      const data = await response.json();
+      if (data.success && data.user) {
+        setUserTier(data.user.tier);
+        // Check if user can generate
+        if (data.user.tier === 'free' && data.user.booksGenerated >= data.user.maxBooks) {
+          setCanGenerate({
+            allowed: false,
+            reason: `You've reached the free tier limit of ${data.user.maxBooks} book. Upgrade to Pro for unlimited book generation.`,
+          });
+        } else {
+          setCanGenerate({ allowed: true });
+        }
+      }
+    } catch (error) {
+      console.error('Error syncing user:', error);
+    }
+  };
+
+  const handleUpgradeSuccess = () => {
+    setUserTier('pro');
+    setCanGenerate({ allowed: true });
+    setShowUpgradeModal(false);
+  };
 
   const tabs = [
     { id: 'prompt' as ConfigTab, label: 'Smart Prompt', icon: '✨' },
@@ -104,9 +151,8 @@ export default function StudioPage() {
 
   // Incremental book generation with progress tracking
   const handleGenerateBook = useCallback(async () => {
-    const canGenerate = canGenerateBook();
     if (!canGenerate.allowed) {
-      alert(canGenerate.reason);
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -163,7 +209,6 @@ export default function StudioPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: getDemoUserId(),
             outline: workingOutline,
             config: config,
             modelId: chapterModel,
@@ -309,9 +354,8 @@ export default function StudioPage() {
 
   // Streaming-based book generation with real-time progress updates
   const handleGenerateBookStreaming = useCallback(async () => {
-    const canGenerate = canGenerateBook();
     if (!canGenerate.allowed) {
-      alert(canGenerate.reason);
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -360,7 +404,6 @@ export default function StudioPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: getDemoUserId(),
           outline: workingOutline,
           config: config,
           modelId: chapterModel,
@@ -548,9 +591,8 @@ export default function StudioPage() {
   };
 
   const handleGenerateOutline = async () => {
-    const canGenerate = canGenerateBook();
     if (!canGenerate.allowed) {
-      alert(canGenerate.reason);
+      setShowUpgradeModal(true);
       return;
     }
 
@@ -597,7 +639,6 @@ export default function StudioPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: getDemoUserId(),
           config: config,
           referenceBooks: selectedBooks,
           modelId: outlineModel,
@@ -653,6 +694,13 @@ export default function StudioPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
+      {/* Upgrade Modal */}
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)}
+        onSuccess={handleUpgradeSuccess}
+      />
+
       {/* Header */}
       <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
@@ -683,10 +731,22 @@ export default function StudioPage() {
               >
                 + New
               </button>
+              {/* Tier indicator */}
+              {userTier === 'free' && !canGenerate.allowed && (
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
+                >
+                  ✨ Upgrade to Pro
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
               <ThemeToggleCompact />
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
                 <Badge variant="info" size="sm">
                   {selectedBooks.length + uploadedReferences.length} Ref{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
@@ -761,6 +821,9 @@ export default function StudioPage() {
                   ✨ New
                 </Button>
                 <ThemeToggleCompact />
+                <SignedIn>
+                  <UserButton afterSignOutUrl="/" />
+                </SignedIn>
               </div>
             </div>
             <h1 className="text-lg font-bold mb-3">Book Studio</h1>

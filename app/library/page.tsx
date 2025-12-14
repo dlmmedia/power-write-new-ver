@@ -2,27 +2,27 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useUser, UserButton, SignedIn } from '@clerk/nextjs';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
-import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
+import { UpgradeModal } from '@/components/modals/UpgradeModal';
 import { 
   Library, 
   CheckCircle2, 
   Type, 
   Layers,
-  Search,
   Plus,
   ArrowLeft,
-  MoreVertical,
   Play,
   Loader2,
   BookOpen,
   FileText,
   Palette,
-  Image as ImageIcon
+  Crown,
+  Sparkles
 } from 'lucide-react';
 
 interface BookListItem {
@@ -35,6 +35,7 @@ interface BookListItem {
   createdAt: string;
   outline?: any;
   config?: any;
+  isOwner?: boolean;
   metadata: {
     wordCount: number;
     chapters: number;
@@ -42,8 +43,11 @@ interface BookListItem {
   };
 }
 
+type UserTier = 'free' | 'pro';
+
 export default function LibraryPage() {
   const router = useRouter();
+  const { user, isLoaded: isUserLoaded } = useUser();
   const [books, setBooks] = useState<BookListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,29 +56,64 @@ export default function LibraryPage() {
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
   const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string }>>({});
+  const [userTier, setUserTier] = useState<UserTier>('free');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
 
+  // Sync user on mount and fetch books
   useEffect(() => {
-    fetchBooks();
-  }, []);
+    if (isUserLoaded && user) {
+      syncUser();
+      fetchBooks();
+    }
+  }, [isUserLoaded, user]);
+
+  const syncUser = async () => {
+    try {
+      const response = await fetch('/api/user/sync');
+      if (!response.ok) {
+        console.error('Sync user failed:', response.status);
+        return;
+      }
+      const data = await response.json();
+      if (data.success && data.user) {
+        setUserTier(data.user.tier);
+      }
+    } catch (error) {
+      console.error('Error syncing user:', error);
+    }
+  };
 
   const fetchBooks = async () => {
     setLoading(true);
     try {
       // Add cache busting to ensure fresh data
       const timestamp = Date.now();
-      const response = await fetch(`/api/books?userId=${getDemoUserId()}&_t=${timestamp}`, {
+      const response = await fetch(`/api/books?_t=${timestamp}`, {
         cache: 'no-store',
         headers: {
           'Cache-Control': 'no-cache',
         },
       });
+      if (!response.ok) {
+        console.error('Fetch books failed:', response.status);
+        return;
+      }
       const data = await response.json();
       setBooks(data.books || []);
+      if (data.tier) {
+        setUserTier(data.tier);
+      }
     } catch (error) {
       console.error('Error fetching books:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleUpgradeSuccess = () => {
+    setUserTier('pro');
+    setShowUpgradeModal(false);
+    fetchBooks(); // Refresh to show all books
   };
 
   const handleGenerateCover = async (bookId: number, e?: React.MouseEvent) => {
@@ -136,7 +175,6 @@ export default function LibraryPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            userId: getDemoUserId(),
             outline: book.outline,
             config: book.config,
             modelId: chapterModel,
@@ -215,8 +253,17 @@ export default function LibraryPage() {
 
   const genres = ['all', ...Array.from(new Set(books.map((b) => b.genre)))];
 
+  const libraryTitle = 'Library';
+
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
+      {/* Upgrade Modal */}
+      <UpgradeModal 
+        isOpen={showUpgradeModal} 
+        onClose={() => setShowUpgradeModal(false)}
+        onSuccess={handleUpgradeSuccess}
+      />
+
       {/* Header */}
       <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
@@ -231,7 +278,22 @@ export default function LibraryPage() {
                 <span className="font-medium">Home</span>
               </button>
               <Logo size="md" />
-              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>My Library</h1>
+              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{libraryTitle}</h1>
+              {/* Tier Badge */}
+              {userTier === 'pro' ? (
+                <Badge variant="success" size="sm" className="flex items-center gap-1">
+                  <Crown className="w-3 h-3" />
+                  Pro
+                </Badge>
+              ) : (
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Upgrade to Pro
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -240,6 +302,9 @@ export default function LibraryPage() {
                 <Plus className="w-4 h-4" />
                 New Book
               </Button>
+              <SignedIn>
+                <UserButton afterSignOutUrl="/" />
+              </SignedIn>
             </div>
           </div>
 
@@ -261,9 +326,28 @@ export default function LibraryPage() {
                   <Plus className="w-4 h-4" />
                   New
                 </Button>
+                <SignedIn>
+                  <UserButton afterSignOutUrl="/" />
+                </SignedIn>
               </div>
             </div>
-            <h1 className="text-lg font-bold mt-2">My Library</h1>
+            <div className="flex items-center gap-2 mt-2">
+              <h1 className="text-lg font-bold">{libraryTitle}</h1>
+              {userTier === 'pro' ? (
+                <Badge variant="success" size="sm" className="flex items-center gap-1">
+                  <Crown className="w-3 h-3" />
+                  Pro
+                </Badge>
+              ) : (
+                <button
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Upgrade
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </header>

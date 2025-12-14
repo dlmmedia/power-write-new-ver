@@ -28,13 +28,16 @@ import {
   Archive, 
   Copy,
   ChevronLeft,
+  ChevronUp,
+  ChevronDown,
   Edit3,
   Book,
   FileText,
   Activity,
   CheckCircle2,
   AlertCircle,
-  Headphones
+  Headphones,
+  GripVertical
 } from 'lucide-react';
 import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
 
@@ -97,6 +100,7 @@ export default function BookDetailPage() {
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [isArchiving, setIsArchiving] = useState(false);
   const [showAudiobookPlayer, setShowAudiobookPlayer] = useState(false);
+  const [isReorderingChapters, setIsReorderingChapters] = useState(false);
 
   useEffect(() => {
     if (bookId) {
@@ -341,6 +345,72 @@ export default function BookDetailPage() {
       alert('Failed to duplicate book. Please try again.');
     } finally {
       setIsDuplicating(false);
+    }
+  };
+
+  const handleMoveChapter = async (chapterNumber: number, direction: 'up' | 'down') => {
+    if (!book || !book.chapters || book.chapters.length < 2) return;
+
+    const index = book.chapters.findIndex((ch) => ch.number === chapterNumber);
+    
+    // Can't move first chapter up or last chapter down
+    if (
+      (direction === 'up' && index === 0) ||
+      (direction === 'down' && index === book.chapters.length - 1)
+    ) {
+      return;
+    }
+
+    setIsReorderingChapters(true);
+
+    try {
+      const newIndex = direction === 'up' ? index - 1 : index + 1;
+      const reorderedChapters = [...book.chapters];
+      
+      // Swap the chapters
+      [reorderedChapters[index], reorderedChapters[newIndex]] = [
+        reorderedChapters[newIndex],
+        reorderedChapters[index],
+      ];
+
+      // Renumber all chapters based on their new positions
+      const renumberedChapters = reorderedChapters.map((ch, idx) => ({
+        ...ch,
+        number: idx + 1,
+      }));
+
+      // Update local state immediately for responsive UI
+      setBook((prev) => prev ? { ...prev, chapters: renumberedChapters } : null);
+
+      // Save to the API
+      const response = await fetch(`/api/books/${book.id}/chapters`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapters: renumberedChapters.map((ch) => ({
+            id: ch.id,
+            number: ch.number,
+            title: ch.title,
+            content: ch.content,
+            wordCount: ch.wordCount,
+            status: ch.status,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        // Revert on error
+        await fetchBookDetail();
+        const data = await response.json();
+        alert('Failed to reorder chapters: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Reorder error:', error);
+      // Revert on error
+      await fetchBookDetail();
+      alert('Failed to reorder chapters. Please try again.');
+    } finally {
+      setIsReorderingChapters(false);
     }
   };
 
@@ -788,23 +858,55 @@ export default function BookDetailPage() {
                     {book.chapters.slice(0, 3).map((chapter, idx) => (
                       <div
                         key={chapter.id}
-                        className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all cursor-pointer"
-                        onClick={() => openReaderAtChapter(idx)}
+                        className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all group"
                       >
                         <div className="flex items-start justify-between mb-2">
-                          <div className="flex items-center gap-3">
+                          <div 
+                            className="flex items-center gap-3 flex-1 cursor-pointer"
+                            onClick={() => openReaderAtChapter(idx)}
+                          >
                             <span className="text-yellow-600 dark:text-yellow-400 font-bold text-lg">Ch. {chapter.number}</span>
                             <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
                           </div>
+                          {/* Reorder buttons */}
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveChapter(chapter.number, 'up');
+                              }}
+                              disabled={chapter.number === 1 || isReorderingChapters}
+                              className="p-1.5 rounded-md text-gray-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                              title="Move up"
+                            >
+                              <ChevronUp className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMoveChapter(chapter.number, 'down');
+                              }}
+                              disabled={chapter.number === book.chapters.length || isReorderingChapters}
+                              className="p-1.5 rounded-md text-gray-500 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                              title="Move down"
+                            >
+                              <ChevronDown className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                          {chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read
-                        </p>
-                        {chapter.content && (
-                          <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 italic">
-                            {chapter.content.substring(0, 200)}...
+                        <div 
+                          className="cursor-pointer"
+                          onClick={() => openReaderAtChapter(idx)}
+                        >
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                            {chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read
                           </p>
-                        )}
+                          {chapter.content && (
+                            <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 italic">
+                              {chapter.content.substring(0, 200)}...
+                            </p>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -823,6 +925,11 @@ export default function BookDetailPage() {
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
                     {book.chapters?.length || 0} chapters • {book.metadata.wordCount.toLocaleString()} total words
+                    {book.chapters && book.chapters.length > 1 && (
+                      <span className="ml-2 text-yellow-600 dark:text-yellow-500">
+                        • Hover to reorder
+                      </span>
+                    )}
                   </p>
                 </div>
                 {book.chapters && book.chapters.length > 0 && (
@@ -842,16 +949,46 @@ export default function BookDetailPage() {
                   {book.chapters.map((chapter, idx) => (
                     <div
                       key={chapter.id}
-                      className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-5 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all cursor-pointer group"
-                      onClick={() => openReaderAtChapter(idx)}
+                      className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-5 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all group"
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
-                            <div className="bg-yellow-400 dark:bg-yellow-500 text-black font-bold rounded-full w-10 h-10 flex items-center justify-center text-sm">
+                            {/* Reorder Controls */}
+                            <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveChapter(chapter.number, 'up');
+                                }}
+                                disabled={chapter.number === 1 || isReorderingChapters}
+                                className="p-1 rounded text-gray-400 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                title="Move up"
+                              >
+                                <ChevronUp className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMoveChapter(chapter.number, 'down');
+                                }}
+                                disabled={chapter.number === book.chapters.length || isReorderingChapters}
+                                className="p-1 rounded text-gray-400 hover:text-yellow-600 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                                title="Move down"
+                              >
+                                <ChevronDown className="w-4 h-4" />
+                              </button>
+                            </div>
+                            <div 
+                              className="bg-yellow-400 dark:bg-yellow-500 text-black font-bold rounded-full w-10 h-10 flex items-center justify-center text-sm cursor-pointer"
+                              onClick={() => openReaderAtChapter(idx)}
+                            >
                               {chapter.number}
                             </div>
-                            <div className="flex-1">
+                            <div 
+                              className="flex-1 cursor-pointer"
+                              onClick={() => openReaderAtChapter(idx)}
+                            >
                               <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors">
                                 {chapter.title}
                               </h4>
@@ -866,14 +1003,20 @@ export default function BookDetailPage() {
                             </div>
                           </div>
                           {chapter.content && (
-                            <div className="mt-3 pl-13">
+                            <div 
+                              className="mt-3 pl-13 cursor-pointer"
+                              onClick={() => openReaderAtChapter(idx)}
+                            >
                               <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed italic">
                                 "{chapter.content.substring(0, 250).trim()}..."
                               </p>
                             </div>
                           )}
                         </div>
-                        <div className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div 
+                          className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          onClick={() => openReaderAtChapter(idx)}
+                        >
                           <div className="text-yellow-600 dark:text-yellow-400 text-2xl">→</div>
                         </div>
                       </div>

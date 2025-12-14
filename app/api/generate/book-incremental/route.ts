@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { AIService, BibliographyGenerationConfig } from '@/lib/services/ai-service';
 import { 
   createBook, 
   createMultipleChapters, 
-  ensureDemoUser, 
   upsertBibliographyConfig,
   createBibliographyReference,
   getBook,
@@ -13,6 +13,7 @@ import {
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
+import { canGenerateBook } from '@/lib/services/user-service';
 
 export const maxDuration = 900; // 15 minutes - Railway supports up to 15 min timeout
 
@@ -31,7 +32,6 @@ const SPEED_MODEL_MAP = {
 type GenerationSpeed = keyof typeof SPEED_MODEL_MAP;
 
 interface GenerationRequest {
-  userId: string;
   outline: BookOutline;
   config: BookConfiguration;
   modelId?: string;
@@ -118,10 +118,29 @@ async function generateSequentially(
 
 export async function POST(request: NextRequest): Promise<NextResponse<GenerationResponse>> {
   try {
-    const body = await request.json();
-    const { userId, outline, config, modelId, bookId, startChapter, generationSpeed, useParallel = true } = body as GenerationRequest;
+    // Authenticate user
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { 
+          success: false, 
+          phase: 'creating',
+          bookId: 0,
+          chaptersCompleted: 0,
+          totalChapters: 0,
+          progress: 0,
+          message: 'Unauthorized',
+          error: 'Unauthorized' 
+        },
+        { status: 401 }
+      );
+    }
 
-    if (!userId || !outline || !config) {
+    const body = await request.json();
+    const { outline, config, modelId, bookId, startChapter, generationSpeed, useParallel = true } = body as GenerationRequest;
+
+    if (!outline || !config) {
       return NextResponse.json(
         { 
           success: false, 
@@ -131,13 +150,33 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
           totalChapters: 0,
           progress: 0,
           message: 'Missing required fields',
-          error: 'Missing required fields: userId, outline, config' 
+          error: 'Missing required fields: outline, config' 
         },
         { status: 400 }
       );
     }
 
-    await ensureDemoUser(userId);
+    // Check if user can generate (only for new books, not continuations)
+    if (!bookId) {
+      const generationCheck = await canGenerateBook(clerkUserId);
+      if (!generationCheck.allowed) {
+        return NextResponse.json(
+          { 
+            success: false, 
+            phase: 'creating',
+            bookId: 0,
+            chaptersCompleted: 0,
+            totalChapters: 0,
+            progress: 0,
+            message: generationCheck.reason || 'Book limit reached',
+            error: 'Book limit reached' 
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const userId = clerkUserId;
 
     // Determine the model to use - PRIORITY ORDER:
     // 1. Explicit modelId param (from API call)

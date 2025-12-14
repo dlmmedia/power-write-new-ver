@@ -14,6 +14,7 @@
     "@ai-sdk/anthropic": "^2.0.39",
     "@ai-sdk/google": "^2.0.25",
     "@ai-sdk/openai": "^2.0.56",
+    "@clerk/nextjs": "^6.36.2",
     "@fontsource/crimson-pro": "^5.2.8",
     "@fontsource/eb-garamond": "^5.2.7",
     "@fontsource/lora": "^5.2.8",
