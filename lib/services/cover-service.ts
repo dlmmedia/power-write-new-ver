@@ -336,7 +336,7 @@ Generate a complete, publication-ready front cover with all specified text eleme
 
   /**
    * Generate AI prompt for professional FRONT book cover (Legacy method)
-   * Creates covers with title, "Written by PowerWrite", and DLM Media publisher branding
+   * Creates covers with title, "Produced by PowerWrite", and DLM Media publisher branding
    */
   static generateAIPrompt(request: CoverGenerationRequest, options: CoverDesignOptions): string {
     // If new customization options are provided, use enhanced method
@@ -378,7 +378,7 @@ Display EXACTLY these text elements in this order:
    - Use ${genreStyle.typography}
    - Large, bold, perfectly legible
 
-2. "Written by PowerWrite" (BELOW TITLE):
+2. "Produced by PowerWrite" (BELOW TITLE):
    - Smaller, elegant font below the title
    - Complementary style
 
@@ -390,7 +390,7 @@ Display EXACTLY these text elements in this order:
 === IMPORTANT ===
 - Do NOT duplicate any text
 - Only show "DLM Media" ONCE at the bottom
-- Hierarchy: TITLE (biggest) → "Written by PowerWrite" (medium) → "DLM Media" (smallest)
+- Hierarchy: TITLE (biggest) → "Produced by PowerWrite" (medium) → "DLM Media" (smallest)
 
 === DESIGN STYLE ===
 - Visual Style: ${style}
@@ -468,7 +468,7 @@ Create a complete, professional front cover with all three text elements beautif
    "${cleanDescription}"
 
 2. AUTHOR CREDIT (MIDDLE):
-   "Written by PowerWrite"
+   "Produced by PowerWrite"
    - Elegant, professional styling
    - Decorative separator line above
 
@@ -795,8 +795,8 @@ Generate a complete, professional back cover design.`;
     
     // Build author line based on branding preference
     const authorLine = author 
-      ? (showPowerWriteBranding ? `Written by ${author}` : author)
-      : (showPowerWriteBranding ? 'Written by PowerWrite' : '');
+      ? (showPowerWriteBranding ? `Produced by ${author}` : author)
+      : (showPowerWriteBranding ? 'Produced by PowerWrite' : '');
     
     return `data:image/svg+xml,${encodeURIComponent(`
       <svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
@@ -1098,7 +1098,7 @@ Generate a complete, professional back cover design.`;
     <div class="content">
       <div class="synopsis">${cleanDescription}</div>
       <div class="divider"></div>
-      <div class="author-credit">Written by PowerWrite</div>
+      <div class="author-credit">Produced by PowerWrite</div>
       <div class="publisher-section">
         <div class="publisher-name">DLM Media</div>
         <div class="publisher-url">www.dlmworld.com</div>

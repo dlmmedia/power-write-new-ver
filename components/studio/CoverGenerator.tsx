@@ -737,7 +737,7 @@ export default function CoverGenerator({
         <div className="flex items-center justify-between">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              "Written by PowerWrite" Branding
+              "Produced by PowerWrite" Branding
             </label>
             <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
               Display PowerWrite branding on the cover
