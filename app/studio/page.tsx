@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useUser, UserButton, SignedIn } from '@clerk/nextjs';
 import { useBookStore } from '@/lib/store/book-store';
 import { useStudioStore } from '@/lib/store/studio-store';
+import { useUserTier } from '@/contexts/UserTierContext';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { BasicInfo } from '@/components/studio/config/BasicInfo';
@@ -17,10 +18,11 @@ import { AdvancedSettings } from '@/components/studio/config/AdvancedSettings';
 import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
 import { SmartPrompt } from '@/components/studio/SmartPrompt';
-import { UpgradeModal } from '@/components/modals/UpgradeModal';
+import { ProFeatureGate, ProButton } from '@/components/pro/ProFeatureGate';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
+import { Lock, Crown, Sparkles } from 'lucide-react';
 
 type UserTier = 'free' | 'pro';
 
@@ -74,6 +76,10 @@ export default function StudioPage() {
     resetConfig,
     clearOutline
   } = useStudioStore();
+  
+  // Use global tier context
+  const { userTier, isProUser, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  
   const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -96,48 +102,8 @@ export default function StudioPage() {
   const [useStreaming, setUseStreaming] = useState(true); // Use streaming by default for real-time updates
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Tier management state
-  const [userTier, setUserTier] = useState<UserTier>('free');
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [canGenerate, setCanGenerate] = useState<{ allowed: boolean; reason?: string }>({ allowed: true });
-
-  // Sync user on mount
-  useEffect(() => {
-    if (isUserLoaded && user) {
-      syncUser();
-    }
-  }, [isUserLoaded, user]);
-
-  const syncUser = async () => {
-    try {
-      const response = await fetch('/api/user/sync');
-      if (!response.ok) {
-        console.error('Sync user failed:', response.status);
-        return;
-      }
-      const data = await response.json();
-      if (data.success && data.user) {
-        setUserTier(data.user.tier);
-        // Check if user can generate
-        if (data.user.tier === 'free' && data.user.booksGenerated >= data.user.maxBooks) {
-          setCanGenerate({
-            allowed: false,
-            reason: `You've reached the free tier limit of ${data.user.maxBooks} book. Upgrade to Pro for unlimited book generation.`,
-          });
-        } else {
-          setCanGenerate({ allowed: true });
-        }
-      }
-    } catch (error) {
-      console.error('Error syncing user:', error);
-    }
-  };
-
-  const handleUpgradeSuccess = () => {
-    setUserTier('pro');
-    setCanGenerate({ allowed: true });
-    setShowUpgradeModal(false);
-  };
+  // Check if user can generate (Pro users only)
+  const canGenerate = isProUser;
 
   const tabs = [
     { id: 'prompt' as ConfigTab, label: 'Smart Prompt', icon: '✨' },
@@ -151,8 +117,8 @@ export default function StudioPage() {
 
   // Incremental book generation with progress tracking
   const handleGenerateBook = useCallback(async () => {
-    if (!canGenerate.allowed) {
-      setShowUpgradeModal(true);
+    if (!canGenerate) {
+      triggerUpgradeModal('generate-book');
       return;
     }
 
@@ -354,8 +320,8 @@ export default function StudioPage() {
 
   // Streaming-based book generation with real-time progress updates
   const handleGenerateBookStreaming = useCallback(async () => {
-    if (!canGenerate.allowed) {
-      setShowUpgradeModal(true);
+    if (!canGenerate) {
+      triggerUpgradeModal('generate-book');
       return;
     }
 
@@ -591,8 +557,8 @@ export default function StudioPage() {
   };
 
   const handleGenerateOutline = async () => {
-    if (!canGenerate.allowed) {
-      setShowUpgradeModal(true);
+    if (!canGenerate) {
+      triggerUpgradeModal('generate-outline');
       return;
     }
 
@@ -694,12 +660,27 @@ export default function StudioPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Upgrade Modal */}
-      <UpgradeModal 
-        isOpen={showUpgradeModal} 
-        onClose={() => setShowUpgradeModal(false)}
-        onSuccess={handleUpgradeSuccess}
-      />
+      {/* Free Tier Banner */}
+      {!isProUser && (
+        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3">
+          <div className="container mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Lock className="w-5 h-5" />
+              <div>
+                <p className="font-medium text-sm">Free Tier - Read Only Access</p>
+                <p className="text-white/80 text-xs">Book generation requires Pro access. Upgrade to create unlimited books.</p>
+              </div>
+            </div>
+            <button
+              onClick={() => triggerUpgradeModal('generate-book')}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-purple-600 rounded-lg font-medium text-sm hover:bg-white/90 transition-all"
+            >
+              <Crown className="w-4 h-4" />
+              Upgrade to Pro
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
@@ -732,12 +713,13 @@ export default function StudioPage() {
                 + New
               </button>
               {/* Tier indicator */}
-              {userTier === 'free' && !canGenerate.allowed && (
+              {!isProUser && (
                 <button
-                  onClick={() => setShowUpgradeModal(true)}
+                  onClick={() => triggerUpgradeModal('generate-book')}
                   className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
                 >
-                  ✨ Upgrade to Pro
+                  <Crown className="w-3 h-3" />
+                  Upgrade to Pro
                 </button>
               )}
             </div>
@@ -768,26 +750,49 @@ export default function StudioPage() {
                   {viewMode === 'config' ? 'Outline' : 'Config'}
                 </Button>
               )}
-              <Button
-                variant="outline"
-                size="md"
-                onClick={handleGenerateOutline}
-                isLoading={generationType === 'outline'}
-                disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
-                className="min-w-[140px]"
-              >
-                Generate Outline
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                onClick={handleGenerateBookClick}
-                isLoading={generationType === 'book'}
-                disabled={isGenerating}
-                className="min-w-[140px]"
-              >
-                Generate Book
-              </Button>
+              {isProUser ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    onClick={handleGenerateOutline}
+                    isLoading={generationType === 'outline'}
+                    disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
+                    className="min-w-[140px]"
+                  >
+                    Generate Outline
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="md"
+                    onClick={handleGenerateBookClick}
+                    isLoading={generationType === 'book'}
+                    disabled={isGenerating}
+                    className="min-w-[140px]"
+                  >
+                    Generate Book
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => triggerUpgradeModal('generate-outline')}
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                  >
+                    <Lock className="w-4 h-4" />
+                    Generate Outline
+                    <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
+                  </button>
+                  <button
+                    onClick={() => triggerUpgradeModal('generate-book')}
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                  >
+                    <Lock className="w-4 h-4" />
+                    Generate Book
+                    <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
@@ -1059,26 +1064,38 @@ export default function StudioPage() {
 
         {/* Mobile Floating Action Buttons */}
         <div className="md:hidden fixed bottom-20 right-4 flex flex-col gap-3 z-20">
-          <Button
-            variant="outline"
-            size="md"
-            onClick={handleGenerateOutline}
-            isLoading={generationType === 'outline'}
-            disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
-            className="shadow-lg min-w-[140px]"
-          >
-            Generate Outline
-          </Button>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={handleGenerateBookClick}
-            isLoading={generationType === 'book'}
-            disabled={isGenerating}
-            className="shadow-lg"
-          >
-            Generate Book
-          </Button>
+          {isProUser ? (
+            <>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleGenerateOutline}
+                isLoading={generationType === 'outline'}
+                disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
+                className="shadow-lg min-w-[140px]"
+              >
+                Generate Outline
+              </Button>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleGenerateBookClick}
+                isLoading={generationType === 'book'}
+                disabled={isGenerating}
+                className="shadow-lg"
+              >
+                Generate Book
+              </Button>
+            </>
+          ) : (
+            <button
+              onClick={() => triggerUpgradeModal('generate-book')}
+              className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+            >
+              <Crown className="w-4 h-4" />
+              Upgrade to Generate
+            </button>
+          )}
         </div>
       </div>
 

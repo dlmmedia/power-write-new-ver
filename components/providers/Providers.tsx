@@ -2,8 +2,10 @@
 
 import { useEffect } from 'react';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { UserTierProvider } from '@/contexts/UserTierContext';
 import { PWAProvider } from './PWAProvider';
 import { PWALayout } from '@/components/layout/PWALayout';
+import { GlobalUpgradeModal } from '@/components/modals/GlobalUpgradeModal';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // Suppress Next.js 15+ async params/searchParams warnings in development
@@ -33,7 +35,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <PWAProvider>
       <ThemeProvider>
-        <PWALayout>{children}</PWALayout>
+        <UserTierProvider>
+          <PWALayout>{children}</PWALayout>
+          <GlobalUpgradeModal />
+        </UserTierProvider>
       </ThemeProvider>
     </PWAProvider>
   );

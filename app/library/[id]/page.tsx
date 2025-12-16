@@ -14,6 +14,7 @@ import { FlipBookCover } from '@/components/library/FlipBookCover';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Logo } from '@/components/ui/Logo';
+import { useUserTier } from '@/contexts/UserTierContext';
 import type { BibliographyConfig, Reference } from '@/lib/types/bibliography';
 
 import { 
@@ -37,7 +38,10 @@ import {
   CheckCircle2,
   AlertCircle,
   Headphones,
-  GripVertical
+  GripVertical,
+  Lock,
+  Crown,
+  Sparkles
 } from 'lucide-react';
 import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
 
@@ -84,6 +88,7 @@ export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams();
   const bookId = params?.id;
+  const { isProUser, showUpgradeModal: triggerUpgradeModal } = useUserTier();
 
   const [book, setBook] = useState<BookDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -130,6 +135,12 @@ export default function BookDetailPage() {
 
   const handleExport = async (format: 'pdf' | 'docx' | 'txt' | 'md' | 'html' | 'epub') => {
     if (!book) return;
+    
+    // Check if Pro user
+    if (!isProUser) {
+      triggerUpgradeModal('export-book');
+      return;
+    }
     
     setIsExporting(true);
     setShowExportMenu(false);
@@ -315,6 +326,12 @@ export default function BookDetailPage() {
 
   const handleDuplicateBook = async () => {
     if (!book) return;
+    
+    // Check if Pro user
+    if (!isProUser) {
+      triggerUpgradeModal('duplicate-book');
+      return;
+    }
 
     const confirmed = confirm(
       `Duplicate "${book.title}"?\n\n` +
@@ -557,16 +574,51 @@ export default function BookDetailPage() {
 
             <div className="flex items-center gap-3">
               <ThemeToggleCompact />
+              {/* Tier Badge */}
+              {isProUser ? (
+                <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700">
+                  <Crown className="w-3 h-3" />
+                  Pro
+                </span>
+              ) : (
+                <button
+                  onClick={() => triggerUpgradeModal()}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
+                >
+                  <Sparkles className="w-3 h-3" />
+                  Upgrade
+                </button>
+              )}
               {book.chapters && book.chapters.length > 0 && (
                 <>
-                  <Button variant="outline" onClick={() => setShowBibliography(true)} className="flex items-center gap-2">
-                    <BookOpen className="w-4 h-4" />
-                    Bibliography
-                  </Button>
-                  <Button variant="outline" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
-                    <Edit3 className="w-4 h-4" />
-                    Edit
-                  </Button>
+                  {isProUser ? (
+                    <Button variant="outline" onClick={() => setShowBibliography(true)} className="flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" />
+                      Bibliography
+                    </Button>
+                  ) : (
+                    <button
+                      onClick={() => triggerUpgradeModal('bibliography')}
+                      className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Bibliography
+                    </button>
+                  )}
+                  {isProUser ? (
+                    <Button variant="outline" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+                      <Edit3 className="w-4 h-4" />
+                      Edit
+                    </Button>
+                  ) : (
+                    <button
+                      onClick={() => triggerUpgradeModal('edit-book')}
+                      className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Edit
+                    </button>
+                  )}
                   <Button variant="primary" onClick={startReading} className="flex items-center gap-2">
                     <Book className="w-4 h-4" />
                     Read Book
@@ -584,24 +636,35 @@ export default function BookDetailPage() {
                 </>
               )}
               <div className="relative">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowExportMenu(!showExportMenu)}
-                  disabled={isExporting}
-                  className="flex items-center gap-2"
-                >
-                  {isExporting ? (
-                    <>
-                      <span className="animate-spin mr-2">⏳</span>
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-4 h-4" />
-                      Export
-                    </>
-                  )}
-                </Button>
+                {isProUser ? (
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    disabled={isExporting}
+                    className="flex items-center gap-2"
+                  >
+                    {isExporting ? (
+                      <>
+                        <span className="animate-spin mr-2">⏳</span>
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4" />
+                        Export
+                      </>
+                    )}
+                  </Button>
+                ) : (
+                  <button
+                    onClick={() => triggerUpgradeModal('export-book')}
+                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-all"
+                  >
+                    <Lock className="w-4 h-4" />
+                    Export
+                    <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
+                  </button>
+                )}
                 
                 {showExportMenu && (
                   <>
@@ -765,10 +828,21 @@ export default function BookDetailPage() {
                             Listen ({chaptersWithAudio} ch)
                           </Button>
                         )}
-                        <Button variant="outline" size="lg" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
-                          <Edit3 className="w-5 h-5" />
-                          Edit
-                        </Button>
+                        {isProUser ? (
+                          <Button variant="outline" size="lg" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
+                            <Edit3 className="w-5 h-5" />
+                            Edit
+                          </Button>
+                        ) : (
+                          <button
+                            onClick={() => triggerUpgradeModal('edit-book')}
+                            className="flex items-center gap-2 px-6 py-3 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg font-medium hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                          >
+                            <Lock className="w-5 h-5" />
+                            Edit
+                            <span className="text-xs bg-purple-200 dark:bg-purple-800 px-1.5 py-0.5 rounded">PRO</span>
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>
@@ -966,9 +1040,19 @@ export default function BookDetailPage() {
                 </div>
                 {book.chapters && book.chapters.length > 0 && (
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setIsEditing(true)}>
-                      ✏️ Edit
-                    </Button>
+                    {isProUser ? (
+                      <Button variant="outline" onClick={() => setIsEditing(true)}>
+                        ✏️ Edit
+                      </Button>
+                    ) : (
+                      <button
+                        onClick={() => triggerUpgradeModal('edit-book')}
+                        className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                      >
+                        <Lock className="w-4 h-4" />
+                        Edit
+                      </button>
+                    )}
                     <Button variant="primary" onClick={startReading}>
                       📖 Start Reading
                     </Button>
@@ -1078,39 +1162,70 @@ export default function BookDetailPage() {
                 <span className="text-yellow-600 dark:text-yellow-400">🎨</span>
                 Book Cover
               </h3>
-              <CoverGenerator
-                bookId={book.id}
-                title={book.title}
-                author={book.author}
-                genre={book.genre}
-                description={book.metadata.description || ''}
-                targetAudience="General"
-                themes={[]}
-                currentCoverUrl={book.coverUrl}
-                currentBackCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
-                onCoverGenerated={(coverUrl, metadata) => {
-                  // Update local state with new cover
-                  setBook(prev => prev ? { ...prev, coverUrl } : null);
-                  // Show success message
-                  alert('✓ Front cover generated successfully!');
-                }}
-                onBackCoverGenerated={(backCoverUrl, metadata) => {
-                  // Update local state with new back cover
-                  setBook(prev => prev ? { 
-                    ...prev, 
-                    backCoverUrl,
-                    metadata: { ...prev.metadata, backCoverUrl }
-                  } : null);
-                  // Show success message
-                  alert('✓ Back cover generated successfully!');
-                }}
-              />
+              {isProUser ? (
+                <CoverGenerator
+                  bookId={book.id}
+                  title={book.title}
+                  author={book.author}
+                  genre={book.genre}
+                  description={book.metadata.description || ''}
+                  targetAudience="General"
+                  themes={[]}
+                  currentCoverUrl={book.coverUrl}
+                  currentBackCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
+                  onCoverGenerated={(coverUrl, metadata) => {
+                    // Update local state with new cover
+                    setBook(prev => prev ? { ...prev, coverUrl } : null);
+                    // Show success message
+                    alert('✓ Front cover generated successfully!');
+                  }}
+                  onBackCoverGenerated={(backCoverUrl, metadata) => {
+                    // Update local state with new back cover
+                    setBook(prev => prev ? { 
+                      ...prev, 
+                      backCoverUrl,
+                      metadata: { ...prev.metadata, backCoverUrl }
+                    } : null);
+                    // Show success message
+                    alert('✓ Back cover generated successfully!');
+                  }}
+                />
+              ) : (
+                <div className="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+                  <div className="mb-6">
+                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/30">
+                      <Lock className="w-10 h-10 text-white" />
+                    </div>
+                  </div>
+                  <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Cover Generation is a Pro Feature</h4>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                    Upgrade to Pro to generate beautiful AI-powered book covers for your books.
+                  </p>
+                  <button
+                    onClick={() => triggerUpgradeModal('generate-cover')}
+                    className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2 mx-auto"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Upgrade to Pro
+                  </button>
+                  
+                  {/* Show existing cover if available */}
+                  {book.coverUrl && (
+                    <div className="mt-8 pt-8 border-t border-purple-200 dark:border-purple-800">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Current Cover (View Only)</p>
+                      <div className="w-48 h-72 mx-auto rounded-lg overflow-hidden shadow-lg">
+                        <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'audio' && book.chapters && book.chapters.length > 0 && (
             <div className="space-y-6">
-              {/* Audiobook Player Link */}
+              {/* Audiobook Player Link - Available to all users if audio exists */}
               {hasAudio && (
                 <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 rounded-xl border border-amber-500/30 p-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -1147,19 +1262,42 @@ export default function BookDetailPage() {
                 </div>
               )}
 
-              <AudioGenerator
-                bookId={book.id}
-                bookTitle={book.title}
-                chapters={book.chapters}
-                userId={getDemoUserId()}
-                onAudioGenerated={(data) => {
-                  if (data.type === 'full') {
-                    setAudioUrl(data.audioUrl);
-                  }
-                  // Refresh book data to show new audio
-                  fetchBookDetail();
-                }}
-              />
+              {/* Audio Generation - Pro only */}
+              {isProUser ? (
+                <AudioGenerator
+                  bookId={book.id}
+                  bookTitle={book.title}
+                  chapters={book.chapters}
+                  userId={getDemoUserId()}
+                  onAudioGenerated={(data) => {
+                    if (data.type === 'full') {
+                      setAudioUrl(data.audioUrl);
+                    }
+                    // Refresh book data to show new audio
+                    fetchBookDetail();
+                  }}
+                />
+              ) : (
+                <div className="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+                  <div className="mb-6">
+                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/30">
+                      <Lock className="w-10 h-10 text-white" />
+                    </div>
+                  </div>
+                  <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Audio Generation is a Pro Feature</h4>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                    Upgrade to Pro to generate high-quality AI narration for your books.
+                    {hasAudio && ' You can still listen to existing audio above.'}
+                  </p>
+                  <button
+                    onClick={() => triggerUpgradeModal('generate-audio')}
+                    className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2 mx-auto"
+                  >
+                    <Sparkles className="w-5 h-5" />
+                    Upgrade to Pro
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -1173,13 +1311,34 @@ export default function BookDetailPage() {
           )}
 
           {activeTab === 'publishing' && (
-            <PublishingSettings
-              bookId={book.id}
-              bookTitle={book.title}
-              onSave={() => {
-                alert('✓ Publishing settings saved successfully!');
-              }}
-            />
+            isProUser ? (
+              <PublishingSettings
+                bookId={book.id}
+                bookTitle={book.title}
+                onSave={() => {
+                  alert('✓ Publishing settings saved successfully!');
+                }}
+              />
+            ) : (
+              <div className="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
+                <div className="mb-6">
+                  <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/30">
+                    <Lock className="w-10 h-10 text-white" />
+                  </div>
+                </div>
+                <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Publishing Settings is a Pro Feature</h4>
+                <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                  Upgrade to Pro to access publishing settings and prepare your book for distribution.
+                </p>
+                <button
+                  onClick={() => triggerUpgradeModal('publishing-settings')}
+                  className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2 mx-auto"
+                >
+                  <Sparkles className="w-5 h-5" />
+                  Upgrade to Pro
+                </button>
+              </div>
+            )
           )}
 
           {activeTab === 'settings' && (

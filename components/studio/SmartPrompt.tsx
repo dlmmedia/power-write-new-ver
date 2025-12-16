@@ -285,6 +285,7 @@ export function SmartPrompt() {
           placeholder="Describe your book idea in detail...&#10;&#10;Example: Write a fantasy novel about a young blacksmith who discovers they can forge magical weapons. The story should follow their journey from a small village to becoming a legendary weapon smith, exploring themes of destiny, craftsmanship, and the true meaning of power. Make it a medium-length novel with vivid descriptions and complex characters."
           rows={6}
           className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+          suppressHydrationWarning
         />
         <div className="absolute bottom-3 right-3 text-xs text-gray-400">
           {prompt.length} characters

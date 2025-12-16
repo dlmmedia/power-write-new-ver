@@ -163,6 +163,49 @@ export async function getBookChapters(bookId: number): Promise<BookChapter[]> {
     .orderBy(bookChapters.chapterNumber);
 }
 
+// Get audio stats for multiple books (for library listing)
+export interface BookAudioStats {
+  bookId: number;
+  chaptersWithAudio: number;
+  totalChapters: number;
+  totalDuration: number; // in seconds
+}
+
+export async function getBooksAudioStats(bookIds: number[]): Promise<Map<number, BookAudioStats>> {
+  if (bookIds.length === 0) return new Map();
+
+  const chapters = await db
+    .select()
+    .from(bookChapters)
+    .where(inArray(bookChapters.bookId, bookIds));
+
+  const statsMap = new Map<number, BookAudioStats>();
+
+  // Initialize stats for all book IDs
+  bookIds.forEach(id => {
+    statsMap.set(id, {
+      bookId: id,
+      chaptersWithAudio: 0,
+      totalChapters: 0,
+      totalDuration: 0,
+    });
+  });
+
+  // Aggregate stats from chapters
+  chapters.forEach(chapter => {
+    const stats = statsMap.get(chapter.bookId);
+    if (stats) {
+      stats.totalChapters++;
+      if (chapter.audioUrl) {
+        stats.chaptersWithAudio++;
+        stats.totalDuration += chapter.audioDuration || 0;
+      }
+    }
+  });
+
+  return statsMap;
+}
+
 export async function updateChapter(
   id: number,
   data: Partial<InsertBookChapter>

@@ -271,3 +271,4 @@ export async function getAllBooks() {
     .from(generatedBooks)
     .orderBy(desc(generatedBooks.createdAt));
 }
+

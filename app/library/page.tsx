@@ -3,12 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser, UserButton, SignedIn } from '@clerk/nextjs';
+import { useUserTier } from '@/contexts/UserTierContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
-import { UpgradeModal } from '@/components/modals/UpgradeModal';
 import { 
   Library, 
   CheckCircle2, 
@@ -22,7 +22,9 @@ import {
   FileText,
   Palette,
   Crown,
-  Sparkles
+  Sparkles,
+  Lock,
+  Headphones
 } from 'lucide-react';
 
 interface BookListItem {
@@ -41,6 +43,11 @@ interface BookListItem {
     chapters: number;
     modelUsed?: string;
   };
+  audioStats?: {
+    chaptersWithAudio: number;
+    totalChapters: number;
+    totalDuration: number;
+  } | null;
 }
 
 type UserTier = 'free' | 'pro';
@@ -48,6 +55,7 @@ type UserTier = 'free' | 'pro';
 export default function LibraryPage() {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUser();
+  const { userTier, isProUser, showUpgradeModal: triggerUpgradeModal, setUserTier, syncUser: contextSyncUser } = useUserTier();
   const [books, setBooks] = useState<BookListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -55,16 +63,14 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
-  const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string }>>({});
-  const [userTier, setUserTier] = useState<UserTier>('free');
-  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [generationProgress, setGenerationProgress] = useState<{[key: number]: { progress: number; message: string }}>({});
 
   // Sync user on mount and fetch books
   useEffect(() => {
     if (isUserLoaded) {
       if (user) {
         // User is authenticated - sync and fetch books
-        syncUser().then(() => {
+        contextSyncUser().then(() => {
           fetchBooks();
         }).catch(() => {
           // Even if sync fails, try to fetch books (user might already exist)
@@ -72,61 +78,12 @@ export default function LibraryPage() {
         });
       } else {
         // User is not authenticated - just fetch books (they might be public)
-        // Don't call syncUser if user is null to avoid 401 errors
         fetchBooks();
       }
     }
-  }, [isUserLoaded, user]);
+  }, [isUserLoaded, user, contextSyncUser]);
 
-  const syncUser = async (retryCount = 0): Promise<boolean> => {
-    const maxRetries = 3;
-    const retryDelay = 500; // Start with 500ms delay
-
-    try {
-      const response = await fetch('/api/user/sync', {
-        credentials: 'include', // Ensure cookies are sent
-      });
-      
-      if (!response.ok) {
-        // 401 is expected when user isn't authenticated yet - don't treat as error
-        if (response.status === 401) {
-          // If we haven't exhausted retries, retry with exponential backoff
-          if (retryCount < maxRetries) {
-            const delay = retryDelay * Math.pow(2, retryCount);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return syncUser(retryCount + 1);
-          }
-          // After retries, silently return false - user just isn't authenticated yet
-          return false;
-        }
-        
-        // Only log non-401 errors (500, 404, etc.)
-        console.error('Sync user failed:', response.status);
-        return false;
-      }
-      
-      const data = await response.json();
-      if (data.success && data.user) {
-        setUserTier(data.user.tier);
-      }
-      return true;
-    } catch (error) {
-      // Retry on network errors too
-      if (retryCount < maxRetries) {
-        const delay = retryDelay * Math.pow(2, retryCount);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return syncUser(retryCount + 1);
-      }
-      // Only log network errors if we've exhausted retries
-      // Don't log if it's likely an auth issue (network error during auth flow)
-      if (error instanceof TypeError && error.message.includes('fetch')) {
-        // Network error - might be auth related, don't log
-        return false;
-      }
-      console.error('Error syncing user:', error);
-      return false;
-    }
-  };
+  // Note: User sync is now handled by UserTierContext
 
   const fetchBooks = async (retryCount = 0) => {
     const maxRetries = 3;
@@ -178,14 +135,16 @@ export default function LibraryPage() {
     }
   };
 
-  const handleUpgradeSuccess = () => {
-    setUserTier('pro');
-    setShowUpgradeModal(false);
-    fetchBooks(); // Refresh to show all books
-  };
+  // Upgrade success is handled by the GlobalUpgradeModal and UserTierContext
 
   const handleGenerateCover = async (bookId: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation(); // Prevent navigation to book detail
+    
+    // Check if Pro user
+    if (!isProUser) {
+      triggerUpgradeModal('generate-cover');
+      return;
+    }
     
     setGeneratingCovers(prev => new Set(prev).add(bookId));
     
@@ -221,6 +180,12 @@ export default function LibraryPage() {
   // Continue generating a book that was interrupted
   const handleContinueGeneration = useCallback(async (book: BookListItem, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    
+    // Check if Pro user
+    if (!isProUser) {
+      triggerUpgradeModal('continue-generation');
+      return;
+    }
     
     if (!book.outline || !book.config) {
       alert('Unable to continue: Book outline or config is missing');
@@ -321,17 +286,20 @@ export default function LibraryPage() {
 
   const genres = ['all', ...Array.from(new Set(books.map((b) => b.genre)))];
 
+  // Helper function to format duration in seconds to a readable format
+  const formatDuration = (seconds: number): string => {
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return `${mins}m`;
+    const hours = Math.floor(mins / 60);
+    const remainingMins = mins % 60;
+    return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
+  };
+
   const libraryTitle = 'Library';
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Upgrade Modal */}
-      <UpgradeModal 
-        isOpen={showUpgradeModal} 
-        onClose={() => setShowUpgradeModal(false)}
-        onSuccess={handleUpgradeSuccess}
-      />
-
       {/* Header */}
       <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
@@ -348,14 +316,14 @@ export default function LibraryPage() {
               <Logo size="md" />
               <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{libraryTitle}</h1>
               {/* Tier Badge */}
-              {userTier === 'pro' ? (
+              {isProUser ? (
                 <Badge variant="success" size="sm" className="flex items-center gap-1">
                   <Crown className="w-3 h-3" />
                   Pro
                 </Badge>
               ) : (
                 <button
-                  onClick={() => setShowUpgradeModal(true)}
+                  onClick={() => triggerUpgradeModal()}
                   className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
                 >
                   <Sparkles className="w-3 h-3" />
@@ -366,10 +334,21 @@ export default function LibraryPage() {
 
             <div className="flex items-center gap-3">
               <ThemeToggleCompact />
-              <Button variant="primary" onClick={() => router.push('/studio')} className="flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                New Book
-              </Button>
+              {isProUser ? (
+                <Button variant="primary" onClick={() => router.push('/studio')} className="flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  New Book
+                </Button>
+              ) : (
+                <button
+                  onClick={() => triggerUpgradeModal('generate-book')}
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                >
+                  <Lock className="w-4 h-4" />
+                  New Book
+                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
+                </button>
+              )}
               <SignedIn>
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
@@ -390,10 +369,20 @@ export default function LibraryPage() {
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggleCompact />
-                <Button variant="primary" size="sm" onClick={() => router.push('/studio')} className="flex items-center gap-1">
-                  <Plus className="w-4 h-4" />
-                  New
-                </Button>
+                {isProUser ? (
+                  <Button variant="primary" size="sm" onClick={() => router.push('/studio')} className="flex items-center gap-1">
+                    <Plus className="w-4 h-4" />
+                    New
+                  </Button>
+                ) : (
+                  <button
+                    onClick={() => triggerUpgradeModal('generate-book')}
+                    className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                  >
+                    <Lock className="w-3 h-3" />
+                    New
+                  </button>
+                )}
                 <SignedIn>
                   <UserButton afterSignOutUrl="/" />
                 </SignedIn>
@@ -401,14 +390,14 @@ export default function LibraryPage() {
             </div>
             <div className="flex items-center gap-2 mt-2">
               <h1 className="text-lg font-bold">{libraryTitle}</h1>
-              {userTier === 'pro' ? (
+              {isProUser ? (
                 <Badge variant="success" size="sm" className="flex items-center gap-1">
                   <Crown className="w-3 h-3" />
                   Pro
                 </Badge>
               ) : (
                 <button
-                  onClick={() => setShowUpgradeModal(true)}
+                  onClick={() => triggerUpgradeModal()}
                   className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
                 >
                   <Sparkles className="w-3 h-3" />
@@ -459,7 +448,7 @@ export default function LibraryPage() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
           <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-yellow-400 dark:hover:border-yellow-500">
             <div className="flex items-center gap-3 mb-2">
               <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-lg text-yellow-600 dark:text-yellow-400 group-hover:scale-110 transition-transform">
@@ -505,6 +494,29 @@ export default function LibraryPage() {
               {books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)}
             </div>
           </div>
+
+          {/* Audio Stats */}
+          {(() => {
+            const totalChaptersWithAudio = books.reduce((sum, b) => sum + (b.audioStats?.chaptersWithAudio || 0), 0);
+            const totalAudioDuration = books.reduce((sum, b) => sum + (b.audioStats?.totalDuration || 0), 0);
+            if (totalChaptersWithAudio === 0) return null;
+            return (
+              <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-green-400 dark:hover:border-green-500">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
+                    <Headphones className="w-5 h-5" />
+                  </div>
+                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Audio</div>
+                </div>
+                <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                  {totalChaptersWithAudio}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {formatDuration(totalAudioDuration)} total
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Books Grid */}
@@ -523,9 +535,20 @@ export default function LibraryPage() {
             <p className="text-gray-600 dark:text-gray-400 text-base md:text-lg mb-4">
               {searchQuery || filterGenre !== 'all' ? 'No books match your filters' : 'No books yet'}
             </p>
-            <Button variant="primary" size="md" onClick={() => router.push('/studio')}>
-              Create Your First Book
-            </Button>
+            {isProUser ? (
+              <Button variant="primary" size="md" onClick={() => router.push('/studio')}>
+                Create Your First Book
+              </Button>
+            ) : (
+              <button
+                onClick={() => triggerUpgradeModal('generate-book')}
+                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2 mx-auto"
+              >
+                <Lock className="w-4 h-4" />
+                Create Your First Book
+                <span className="text-xs bg-white/20 px-2 py-1 rounded">PRO</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
@@ -565,46 +588,72 @@ export default function LibraryPage() {
                                 </p>
                               </div>
                             )}
-                            <button
-                              onClick={(e) => handleContinueGeneration(book, e)}
-                              disabled={continuingBooks.has(book.id)}
-                              className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-yellow-600 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {continuingBooks.has(book.id) ? (
+                            {isProUser ? (
+                              <button
+                                onClick={(e) => handleContinueGeneration(book, e)}
+                                disabled={continuingBooks.has(book.id)}
+                                className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-yellow-600 disabled:cursor-not-allowed transition-colors"
+                              >
+                                {continuingBooks.has(book.id) ? (
+                                  <span className="flex items-center gap-2">
+                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                                    </svg>
+                                    Generating...
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-2">
+                                    <Play className="w-4 h-4" />
+                                    Continue Generation
+                                  </span>
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); triggerUpgradeModal('continue-generation'); }}
+                                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                              >
                                 <span className="flex items-center gap-2">
-                                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                  </svg>
+                                  <Lock className="w-4 h-4" />
+                                  Continue Generation
+                                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          /* Generate Cover Button */
+                          isProUser ? (
+                            <button
+                              onClick={(e) => handleGenerateCover(book.id, e)}
+                              disabled={generatingCovers.has(book.id)}
+                              className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                            >
+                              {generatingCovers.has(book.id) ? (
+                                <span className="flex items-center gap-2">
+                                  <Loader2 className="animate-spin h-4 w-4" />
                                   Generating...
                                 </span>
                               ) : (
                                 <span className="flex items-center gap-2">
-                                  <Play className="w-4 h-4" />
-                                  Continue Generation
+                                  <Palette className="w-4 h-4" />
+                                  Generate Cover
                                 </span>
                               )}
                             </button>
-                          </div>
-                        ) : (
-                          /* Generate Cover Button */
-                          <button
-                            onClick={(e) => handleGenerateCover(book.id, e)}
-                            disabled={generatingCovers.has(book.id)}
-                            className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                          >
-                            {generatingCovers.has(book.id) ? (
+                          ) : (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); triggerUpgradeModal('generate-cover'); }}
+                              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
+                            >
                               <span className="flex items-center gap-2">
-                                <Loader2 className="animate-spin h-4 w-4" />
-                                Generating...
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-2">
-                                <Palette className="w-4 h-4" />
+                                <Lock className="w-4 h-4" />
                                 Generate Cover
+                                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
                               </span>
-                            )}
-                          </button>
+                            </button>
+                          )
                         )}
                       </div>
                     </div>
@@ -626,17 +675,26 @@ export default function LibraryPage() {
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">by {book.author}</p>
                   <p className="text-xs text-gray-500 mb-3">{book.genre}</p>
 
-                  <div className="flex items-center gap-4 text-sm">
+                  <div className="flex flex-wrap items-center gap-3 text-sm">
                     <div className="flex items-center gap-1">
                       <BookOpen className="w-4 h-4 text-yellow-500" />
-                      <span className="text-gray-400">{book.metadata?.chapters || 0} chapters</span>
+                      <span className="text-gray-400">{book.metadata?.chapters || 0} ch</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <FileText className="w-4 h-4 text-yellow-500" />
                       <span className="text-gray-400">
-                        {(book.metadata?.wordCount || 0).toLocaleString()} words
+                        {(book.metadata?.wordCount || 0).toLocaleString()}
                       </span>
                     </div>
+                    {/* Audio Indicator */}
+                    {book.audioStats && book.audioStats.chaptersWithAudio > 0 && (
+                      <div className="flex items-center gap-1" title={`${book.audioStats.chaptersWithAudio}/${book.audioStats.totalChapters} chapters have audio (${formatDuration(book.audioStats.totalDuration)})`}>
+                        <Headphones className="w-4 h-4 text-green-500" />
+                        <span className="text-green-500 font-medium">
+                          {book.audioStats.chaptersWithAudio}/{book.audioStats.totalChapters}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-800 text-xs text-gray-500">

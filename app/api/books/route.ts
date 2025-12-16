@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getUserTier, getAllBooks } from '@/lib/services/user-service';
+import { getBooksAudioStats } from '@/lib/db/operations';
 
 export const runtime = 'nodejs';
 
@@ -35,10 +36,21 @@ export async function GET(request: NextRequest) {
       userBooks = [];
     }
 
+    // Get audio stats for all books
+    let audioStatsMap = new Map<number, { chaptersWithAudio: number; totalChapters: number; totalDuration: number }>();
+    try {
+      const bookIds = userBooks.map(book => book.id);
+      audioStatsMap = await getBooksAudioStats(bookIds);
+    } catch (audioError) {
+      console.error('Error fetching audio stats:', audioError);
+      // Continue without audio stats
+    }
+
     // Format books for response
     const books = userBooks.map(book => {
       try {
         const metadata = (book.metadata as any) || {};
+        const audioStats = audioStatsMap.get(book.id);
         const bookData: any = {
           id: book.id,
           title: book.title || 'Untitled',
@@ -56,6 +68,11 @@ export async function GET(request: NextRequest) {
             description: book.summary || '',
             modelUsed: metadata.modelUsed || undefined,
           },
+          audioStats: audioStats ? {
+            chaptersWithAudio: audioStats.chaptersWithAudio,
+            totalChapters: audioStats.totalChapters,
+            totalDuration: audioStats.totalDuration,
+          } : null,
         };
         
         // Include outline and config for books still being generated (needed for resume)
@@ -87,6 +104,7 @@ export async function GET(request: NextRequest) {
             description: '',
             modelUsed: undefined,
           },
+          audioStats: null,
         };
       }
     });
