@@ -1240,24 +1240,14 @@ export default function BookDetailPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex gap-3 w-full sm:w-auto">
-                      <Button 
-                        variant="outline" 
-                        onClick={() => setShowAudiobookPlayer(true)}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2"
-                      >
-                        <Headphones className="w-4 h-4" />
-                        Quick Listen
-                      </Button>
-                      <Button 
-                        variant="primary" 
-                        onClick={() => router.push(`/library/${book.id}/listen`)}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-2"
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        Full Experience
-                      </Button>
-                    </div>
+                    <Button 
+                      variant="primary" 
+                      onClick={() => router.push(`/library/${book.id}/listen`)}
+                      className="flex items-center justify-center gap-2 px-6"
+                    >
+                      <Headphones className="w-4 h-4" />
+                      Listen Now
+                    </Button>
                   </div>
                 </div>
               )}

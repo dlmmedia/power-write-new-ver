@@ -16,9 +16,6 @@ import {
   AlertCircle,
   List,
   X,
-  Bookmark,
-  BookmarkCheck,
-  RotateCcw,
 } from 'lucide-react';
 import { AudiobookChapterList } from './AudiobookChapterList';
 
@@ -80,7 +77,6 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
   const [showChapterList, setShowChapterList] = useState(false);
   const [isHoveringProgress, setIsHoveringProgress] = useState(false);
   const [hoverTime, setHoverTime] = useState(0);
-  const [isBookmarked, setIsBookmarked] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
   const currentChapter = chaptersWithAudio[currentChapterIndex];
@@ -91,11 +87,10 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
     const savedProgress = localStorage.getItem(`audiobook-progress-${bookId}`);
     if (savedProgress) {
       try {
-        const { chapterIndex, time, bookmarked } = JSON.parse(savedProgress);
+        const { chapterIndex, time } = JSON.parse(savedProgress);
         if (chapterIndex !== undefined && chapterIndex < chaptersWithAudio.length) {
           setCurrentChapterIndex(chapterIndex);
           setCurrentTime(time || 0);
-          setIsBookmarked(bookmarked || false);
         }
       } catch (e) {
         console.error('Failed to parse saved progress', e);
@@ -109,7 +104,6 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
       const progress = {
         chapterIndex: currentChapterIndex,
         time: currentTime,
-        bookmarked: isBookmarked,
         updatedAt: Date.now(),
       };
       localStorage.setItem(`audiobook-progress-${bookId}`, JSON.stringify(progress));
@@ -118,7 +112,7 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
 
     const interval = setInterval(saveProgress, 5000); // Save every 5 seconds
     return () => clearInterval(interval);
-  }, [bookId, currentChapterIndex, currentTime, isBookmarked, onProgressUpdate]);
+  }, [bookId, currentChapterIndex, currentTime, onProgressUpdate]);
 
   // Audio event handlers
   useEffect(() => {
@@ -289,36 +283,6 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
     setIsMuted(!isMuted);
   };
 
-  const toggleBookmark = () => {
-    setIsBookmarked(!isBookmarked);
-    // Save immediately when bookmarking
-    const progress = {
-      chapterIndex: currentChapterIndex,
-      time: currentTime,
-      bookmarked: !isBookmarked,
-      updatedAt: Date.now(),
-    };
-    localStorage.setItem(`audiobook-progress-${bookId}`, JSON.stringify(progress));
-  };
-
-  const restoreBookmark = () => {
-    const savedProgress = localStorage.getItem(`audiobook-progress-${bookId}`);
-    if (savedProgress) {
-      try {
-        const { chapterIndex, time } = JSON.parse(savedProgress);
-        if (chapterIndex !== undefined) {
-          setCurrentChapterIndex(chapterIndex);
-          if (audioRef.current && time) {
-            audioRef.current.currentTime = time;
-            setCurrentTime(time);
-          }
-        }
-      } catch (e) {
-        console.error('Failed to restore bookmark', e);
-      }
-    }
-  };
-
   const formatTime = (seconds: number): string => {
     if (isNaN(seconds)) return '0:00';
     const hrs = Math.floor(seconds / 3600);
@@ -389,42 +353,16 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
         {onClose && (
           <motion.button
             onClick={onClose}
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white font-medium transition-all backdrop-blur-sm border border-white/10"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
             <ChevronLeft className="w-5 h-5" />
-            <span className="text-sm font-medium hidden sm:inline">Back</span>
+            <span className="text-sm">Back</span>
           </motion.button>
         )}
         
         <div className="flex items-center gap-3">
-          {/* Bookmark button */}
-          <motion.button
-            onClick={toggleBookmark}
-            className={`p-2 rounded-full transition-colors ${
-              isBookmarked 
-                ? 'bg-amber-500/20 text-amber-400' 
-                : 'bg-gray-800/50 text-gray-400 hover:text-white'
-            }`}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            title={isBookmarked ? 'Remove bookmark' : 'Bookmark position'}
-          >
-            {isBookmarked ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}
-          </motion.button>
-
-          {/* Restore bookmark */}
-          <motion.button
-            onClick={restoreBookmark}
-            className="p-2 rounded-full bg-gray-800/50 text-gray-400 hover:text-white transition-colors"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.9 }}
-            title="Restore last position"
-          >
-            <RotateCcw className="w-5 h-5" />
-          </motion.button>
-
           {/* Chapter list toggle */}
           <motion.button
             onClick={() => setShowChapterList(!showChapterList)}
