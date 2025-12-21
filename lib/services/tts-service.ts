@@ -1,14 +1,30 @@
-// TTS Service for Audiobook Generation using OpenAI TTS
+// TTS Service for Audiobook Generation using OpenAI TTS and Gemini TTS
 import { put } from '@vercel/blob';
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 
+// TTS Provider types
+export type TTSProvider = 'openai' | 'gemini';
+
 // OpenAI TTS supports 11 voices (as of 2024)
-export type VoiceId = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+export type OpenAIVoiceId = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+
+// Gemini TTS supports 30 voices
+export type GeminiVoiceId = 
+  | 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Leda' | 'Orus' | 'Aoede'
+  | 'Callirrhoe' | 'Autonoe' | 'Enceladus' | 'Iapetus' | 'Umbriel' | 'Algieba'
+  | 'Despina' | 'Erinome' | 'Algenib' | 'Rasalgethi' | 'Laomedeia' | 'Achernar'
+  | 'Alnilam' | 'Schedar' | 'Gacrux' | 'Pulcherrima' | 'Achird' | 'Zubenelgenubi'
+  | 'Vindemiatrix' | 'Sadachbia' | 'Sadaltager' | 'Sulafat';
+
+// Combined voice type for backwards compatibility
+export type VoiceId = OpenAIVoiceId | GeminiVoiceId;
 
 export interface TTSConfig {
+  provider?: TTSProvider;
   voice?: VoiceId;
-  speed?: number; // 0.25 to 4.0
-  model?: 'tts-1' | 'tts-1-hd';
+  speed?: number; // 0.25 to 4.0 for OpenAI, Gemini uses natural language prompts
+  model?: 'tts-1' | 'tts-1-hd'; // OpenAI models
+  geminiModel?: 'gemini-2.5-pro-preview-tts' | 'gemini-2.5-flash-preview-tts'; // Gemini models
 }
 
 export interface AudioResult {
@@ -17,13 +33,20 @@ export interface AudioResult {
   size: number; // file size in bytes
 }
 
+// Gemini API URL
+const GEMINI_TTS_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
 export class TTSService {
-  private apiKey: string | null = null;
-  private readonly apiUrl: string = 'https://api.openai.com/v1/audio/speech';
+  private openaiApiKey: string | null = null;
+  private geminiApiKey: string | null = null;
+  private readonly openaiApiUrl: string = 'https://api.openai.com/v1/audio/speech';
   private readonly defaultVoice: TTSConfig['voice'] = 'alloy';
+  private readonly defaultGeminiVoice: GeminiVoiceId = 'Kore';
   private readonly defaultSpeed: number = 1.0;
   private readonly defaultModel: TTSConfig['model'] = 'tts-1'; // Cost-effective
-  private initialized: boolean = false;
+  private readonly defaultGeminiModel: TTSConfig['geminiModel'] = 'gemini-2.5-flash-preview-tts';
+  private openaiInitialized: boolean = false;
+  private geminiInitialized: boolean = false;
 
   constructor() {
     // Don't throw in constructor to avoid build-time errors
@@ -31,15 +54,13 @@ export class TTSService {
   }
   
   /**
-   * Initialize the service - called lazily when needed
-   * Throws if API key is not available
+   * Initialize OpenAI service - called lazily when needed
    */
-  private ensureInitialized(): void {
-    if (this.initialized) return;
+  private ensureOpenAIInitialized(): void {
+    if (this.openaiInitialized) return;
     
-    // Use OpenAI API directly
     if (!process.env.OPENAI_API_KEY) {
-      throw new Error('OPENAI_API_KEY is required for TTS');
+      throw new Error('OPENAI_API_KEY is required for OpenAI TTS');
     }
     
     // Validate BLOB token is available (but don't throw - will check at upload time)
@@ -50,34 +71,93 @@ export class TTSService {
     }
     
     console.log('✓ TTS using OpenAI API');
-    this.apiKey = process.env.OPENAI_API_KEY;
-    this.initialized = true;
+    this.openaiApiKey = process.env.OPENAI_API_KEY;
+    this.openaiInitialized = true;
+  }
+
+  /**
+   * Initialize Gemini service - called lazily when needed
+   */
+  private ensureGeminiInitialized(): void {
+    if (this.geminiInitialized) return;
+    
+    const apiKey = process.env.GEMINI_API_KEY;
+    console.log(`[Gemini TTS] Checking API key: ${apiKey ? `found (${apiKey.substring(0, 10)}...)` : 'NOT FOUND'}`);
+    
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is required for Gemini TTS');
+    }
+    
+    // Validate BLOB token is available (but don't throw - will check at upload time)
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      console.warn('⚠️ BLOB_READ_WRITE_TOKEN is not configured. Audio generation will fail until configured.');
+    } else {
+      console.log('✓ Blob storage configured');
+    }
+    
+    console.log('✓ TTS using Gemini API');
+    this.geminiApiKey = apiKey;
+    this.geminiInitialized = true;
   }
   
   /**
-   * Get the API key (ensures initialization)
+   * Initialize the appropriate service based on provider
    */
-  private getApiKey(): string {
-    this.ensureInitialized();
-    return this.apiKey!;
+  private ensureInitialized(provider: TTSProvider = 'openai'): void {
+    if (provider === 'gemini') {
+      this.ensureGeminiInitialized();
+    } else {
+      this.ensureOpenAIInitialized();
+    }
+  }
+  
+  /**
+   * Get the OpenAI API key (ensures initialization)
+   */
+  private getOpenAIApiKey(): string {
+    this.ensureOpenAIInitialized();
+    return this.openaiApiKey!;
+  }
+
+  /**
+   * Get the Gemini API key (ensures initialization)
+   */
+  private getGeminiApiKey(): string {
+    this.ensureGeminiInitialized();
+    return this.geminiApiKey!;
   }
 
   /**
    * Generate audiobook for full text
-   * Splits long text into chunks if needed (OpenAI has 4096 char limit)
+   * Supports both OpenAI and Gemini providers
    */
   async generateAudiobook(
     text: string,
     config: TTSConfig = {},
     bookTitle?: string
   ): Promise<AudioResult> {
-    try {
-      // Ensure service is initialized (lazy initialization)
-      const apiKey = this.getApiKey();
+    const provider = config.provider || 'openai';
+    
+    if (provider === 'gemini') {
+      return this.generateGeminiAudiobook(text, config, bookTitle);
+    }
+    
+    return this.generateOpenAIAudiobook(text, config, bookTitle);
+  }
 
-      // Sanitize text to remove AI formatting artifacts before TTS
+  /**
+   * Generate audiobook using OpenAI TTS
+   */
+  private async generateOpenAIAudiobook(
+    text: string,
+    config: TTSConfig = {},
+    bookTitle?: string
+  ): Promise<AudioResult> {
+    try {
+      const apiKey = this.getOpenAIApiKey();
+
       const cleanedText = sanitizeForExport(text);
-      console.log(`Generating audiobook (${cleanedText.length} characters, sanitized from ${text.length})...`);
+      console.log(`[OpenAI TTS] Generating audiobook (${cleanedText.length} characters)...`);
 
       const voice = config.voice || this.defaultVoice;
       const speed = config.speed || this.defaultSpeed;
@@ -85,16 +165,15 @@ export class TTSService {
 
       // Split text into chunks if needed (OpenAI limit: 4096 chars)
       const chunks = this.splitTextIntoChunks(cleanedText, 4000);
-      console.log(`Split into ${chunks.length} chunks`);
+      console.log(`[OpenAI TTS] Split into ${chunks.length} chunks`);
 
       const audioBuffers: Buffer[] = [];
       let totalSize = 0;
 
-      // Generate audio for each chunk
       for (let i = 0; i < chunks.length; i++) {
-        console.log(`Generating audio chunk ${i + 1}/${chunks.length}...`);
+        console.log(`[OpenAI TTS] Generating audio chunk ${i + 1}/${chunks.length}...`);
         
-        const response = await fetch(this.apiUrl, {
+        const response = await fetch(this.openaiApiUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -120,34 +199,27 @@ export class TTSService {
         totalSize += buffer.length;
       }
 
-      // Combine all audio buffers
       const combinedBuffer = Buffer.concat(audioBuffers);
-
-      // Upload to Vercel Blob
-      // Include timestamp in filename to prevent browser caching issues when regenerating
       const timestamp = Date.now();
       const filename = bookTitle 
         ? `audiobooks/${this.sanitizeFilename(bookTitle)}-full-${timestamp}.mp3`
         : `audiobooks/book-${timestamp}.mp3`;
       
-      // Validate blob token before upload
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
         throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload audio file.');
       }
       
-      console.log(`Uploading to Vercel Blob: ${filename}`);
+      console.log(`[OpenAI TTS] Uploading to Vercel Blob: ${filename}`);
       const blob = await put(filename, combinedBuffer, {
         access: 'public',
         contentType: 'audio/mpeg',
         token: process.env.BLOB_READ_WRITE_TOKEN,
-        addRandomSuffix: false, // Don't add random suffix
-        allowOverwrite: false, // New file each time with timestamp
+        addRandomSuffix: false,
+        allowOverwrite: false,
       });
 
-      // Estimate duration (rough: 150 words per minute, 5 chars per word)
       const estimatedDuration = Math.ceil((cleanedText.length / 5) / 150 * 60);
-
-      console.log(`Audiobook generated: ${blob.url}`);
+      console.log(`[OpenAI TTS] Audiobook generated: ${blob.url}`);
       
       return {
         audioUrl: blob.url,
@@ -155,13 +227,187 @@ export class TTSService {
         size: totalSize,
       };
     } catch (error) {
-      console.error('Error generating audiobook:', error);
+      console.error('[OpenAI TTS] Error generating audiobook:', error);
       throw new Error(`Failed to generate audiobook: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
   /**
+   * Generate audiobook using Gemini TTS
+   */
+  private async generateGeminiAudiobook(
+    text: string,
+    config: TTSConfig = {},
+    bookTitle?: string
+  ): Promise<AudioResult> {
+    try {
+      const apiKey = this.getGeminiApiKey();
+
+      const cleanedText = sanitizeForExport(text);
+      console.log(`[Gemini TTS] Generating audiobook (${cleanedText.length} characters)...`);
+
+      const voice = (config.voice as GeminiVoiceId) || this.defaultGeminiVoice;
+      const geminiModel = config.geminiModel || this.defaultGeminiModel;
+
+      // Split text into chunks (Gemini TTS can timeout on long text, use smaller chunks)
+      const chunks = this.splitTextIntoChunks(cleanedText, 1500);
+      console.log(`[Gemini TTS] Split into ${chunks.length} chunks`);
+
+      const audioBuffers: Buffer[] = [];
+      let totalSize = 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        console.log(`[Gemini TTS] Generating audio chunk ${i + 1}/${chunks.length}...`);
+        
+        const buffer = await this.generateGeminiAudioChunk(chunks[i], voice, geminiModel, apiKey);
+        audioBuffers.push(buffer);
+        totalSize += buffer.length;
+      }
+
+      const combinedBuffer = Buffer.concat(audioBuffers);
+      const timestamp = Date.now();
+      const filename = bookTitle 
+        ? `audiobooks/${this.sanitizeFilename(bookTitle)}-gemini-full-${timestamp}.wav`
+        : `audiobooks/book-gemini-${timestamp}.wav`;
+      
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload audio file.');
+      }
+      
+      console.log(`[Gemini TTS] Uploading to Vercel Blob: ${filename}`);
+      const blob = await put(filename, combinedBuffer, {
+        access: 'public',
+        contentType: 'audio/wav',
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false,
+        allowOverwrite: false,
+      });
+
+      const estimatedDuration = Math.ceil((cleanedText.length / 5) / 150 * 60);
+      console.log(`[Gemini TTS] Audiobook generated: ${blob.url}`);
+      
+      return {
+        audioUrl: blob.url,
+        duration: estimatedDuration,
+        size: totalSize,
+      };
+    } catch (error) {
+      console.error('[Gemini TTS] Error generating audiobook:', error);
+      throw new Error(`Failed to generate Gemini audiobook: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate a single audio chunk using Gemini TTS API
+   */
+  private async generateGeminiAudioChunk(
+    text: string,
+    voice: GeminiVoiceId,
+    model: string,
+    apiKey: string
+  ): Promise<Buffer> {
+    const url = `${GEMINI_TTS_API_URL}/${model}:generateContent?key=${apiKey}`;
+    
+    console.log(`[Gemini TTS] Calling API with voice: ${voice}, model: ${model}, text length: ${text.length}`);
+    
+    const requestBody = {
+      contents: [{
+        parts: [{ text }]
+      }],
+      generationConfig: {
+        responseModalities: ['AUDIO'],
+        speechConfig: {
+          voiceConfig: {
+            prebuiltVoiceConfig: {
+              voiceName: voice
+            }
+          }
+        }
+      }
+    };
+
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Gemini TTS API error: ${response.status} ${errorText}`);
+      }
+
+    const data = await response.json();
+    
+    // Extract audio data from response
+    const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (!audioData) {
+      throw new Error('No audio data in Gemini response');
+    }
+
+    // Decode base64 audio data
+    const pcmBuffer = Buffer.from(audioData, 'base64');
+    
+    // Convert PCM to WAV (Gemini returns PCM 16bit 24kHz mono)
+    return this.pcmToWav(pcmBuffer, 24000, 1, 16);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('[Gemini TTS] Chunk generation error:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Gemini TTS request timed out after 5 minutes');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Convert raw PCM data to WAV format
+   */
+  private pcmToWav(pcmBuffer: Buffer, sampleRate: number, channels: number, bitsPerSample: number): Buffer {
+    const byteRate = sampleRate * channels * (bitsPerSample / 8);
+    const blockAlign = channels * (bitsPerSample / 8);
+    const dataSize = pcmBuffer.length;
+    const headerSize = 44;
+    const fileSize = headerSize + dataSize - 8;
+
+    const wavBuffer = Buffer.alloc(headerSize + dataSize);
+    
+    // RIFF header
+    wavBuffer.write('RIFF', 0);
+    wavBuffer.writeUInt32LE(fileSize, 4);
+    wavBuffer.write('WAVE', 8);
+    
+    // fmt chunk
+    wavBuffer.write('fmt ', 12);
+    wavBuffer.writeUInt32LE(16, 16); // fmt chunk size
+    wavBuffer.writeUInt16LE(1, 20); // audio format (PCM)
+    wavBuffer.writeUInt16LE(channels, 22);
+    wavBuffer.writeUInt32LE(sampleRate, 24);
+    wavBuffer.writeUInt32LE(byteRate, 28);
+    wavBuffer.writeUInt16LE(blockAlign, 32);
+    wavBuffer.writeUInt16LE(bitsPerSample, 34);
+    
+    // data chunk
+    wavBuffer.write('data', 36);
+    wavBuffer.writeUInt32LE(dataSize, 40);
+    pcmBuffer.copy(wavBuffer, 44);
+    
+    return wavBuffer;
+  }
+
+  /**
    * Generate audio for a single chapter
+   * Supports both OpenAI and Gemini providers
    */
   async generateChapterAudio(
     chapterText: string,
@@ -169,25 +415,40 @@ export class TTSService {
     bookTitle: string,
     config: TTSConfig = {}
   ): Promise<AudioResult> {
-    try {
-      // Ensure service is initialized (lazy initialization)
-      const apiKey = this.getApiKey();
+    const provider = config.provider || 'openai';
+    
+    if (provider === 'gemini') {
+      return this.generateGeminiChapterAudio(chapterText, chapterNumber, bookTitle, config);
+    }
+    
+    return this.generateOpenAIChapterAudio(chapterText, chapterNumber, bookTitle, config);
+  }
 
-      // Sanitize text to remove AI formatting artifacts before TTS
+  /**
+   * Generate chapter audio using OpenAI TTS
+   */
+  private async generateOpenAIChapterAudio(
+    chapterText: string,
+    chapterNumber: number,
+    bookTitle: string,
+    config: TTSConfig = {}
+  ): Promise<AudioResult> {
+    try {
+      const apiKey = this.getOpenAIApiKey();
+
       const cleanedText = sanitizeForExport(chapterText);
-      console.log(`Generating audio for chapter ${chapterNumber} (${cleanedText.length} chars, sanitized from ${chapterText.length})...`);
+      console.log(`[OpenAI TTS] Generating audio for chapter ${chapterNumber} (${cleanedText.length} chars)...`);
 
       const voice = config.voice || this.defaultVoice;
       const speed = config.speed || this.defaultSpeed;
       const model = config.model || this.defaultModel;
 
-      // Split if needed
       const chunks = this.splitTextIntoChunks(cleanedText, 4000);
       const audioBuffers: Buffer[] = [];
       let totalSize = 0;
 
       for (const chunk of chunks) {
-        const response = await fetch(this.apiUrl, {
+        const response = await fetch(this.openaiApiUrl, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${apiKey}`,
@@ -214,29 +475,24 @@ export class TTSService {
       }
 
       const combinedBuffer = Buffer.concat(audioBuffers);
-
-      // Upload to Vercel Blob
-      // Include timestamp in filename to prevent browser caching issues when regenerating
       const timestamp = Date.now();
       const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}-${timestamp}.mp3`;
       
-      // Validate blob token before upload
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
         throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload audio file.');
       }
       
-      console.log(`Uploading chapter ${chapterNumber} to Vercel Blob: ${filename}`);
+      console.log(`[OpenAI TTS] Uploading chapter ${chapterNumber} to Vercel Blob: ${filename}`);
       const blob = await put(filename, combinedBuffer, {
         access: 'public',
         contentType: 'audio/mpeg',
         token: process.env.BLOB_READ_WRITE_TOKEN,
-        addRandomSuffix: false, // Don't add random suffix
-        allowOverwrite: false, // New file each time with timestamp
+        addRandomSuffix: false,
+        allowOverwrite: false,
       });
 
       const estimatedDuration = Math.ceil((cleanedText.length / 5) / 150 * 60);
-
-      console.log(`Chapter ${chapterNumber} audio generated: ${blob.url}`);
+      console.log(`[OpenAI TTS] Chapter ${chapterNumber} audio generated: ${blob.url}`);
       
       return {
         audioUrl: blob.url,
@@ -244,8 +500,70 @@ export class TTSService {
         size: totalSize,
       };
     } catch (error) {
-      console.error(`Error generating chapter ${chapterNumber} audio:`, error);
+      console.error(`[OpenAI TTS] Error generating chapter ${chapterNumber} audio:`, error);
       throw new Error(`Failed to generate chapter audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate chapter audio using Gemini TTS
+   */
+  private async generateGeminiChapterAudio(
+    chapterText: string,
+    chapterNumber: number,
+    bookTitle: string,
+    config: TTSConfig = {}
+  ): Promise<AudioResult> {
+    try {
+      const apiKey = this.getGeminiApiKey();
+
+      const cleanedText = sanitizeForExport(chapterText);
+      console.log(`[Gemini TTS] Generating audio for chapter ${chapterNumber} (${cleanedText.length} chars)...`);
+
+      const voice = (config.voice as GeminiVoiceId) || this.defaultGeminiVoice;
+      const geminiModel = config.geminiModel || this.defaultGeminiModel;
+
+      // Use smaller chunks for Gemini to avoid timeouts
+      const chunks = this.splitTextIntoChunks(cleanedText, 1500);
+      const audioBuffers: Buffer[] = [];
+      let totalSize = 0;
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        console.log(`[Gemini TTS] Processing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
+        const buffer = await this.generateGeminiAudioChunk(chunk, voice, geminiModel, apiKey);
+        audioBuffers.push(buffer);
+        totalSize += buffer.length;
+      }
+
+      const combinedBuffer = Buffer.concat(audioBuffers);
+      const timestamp = Date.now();
+      const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}-gemini-${timestamp}.wav`;
+      
+      if (!process.env.BLOB_READ_WRITE_TOKEN) {
+        throw new Error('BLOB_READ_WRITE_TOKEN is not configured. Cannot upload audio file.');
+      }
+      
+      console.log(`[Gemini TTS] Uploading chapter ${chapterNumber} to Vercel Blob: ${filename}`);
+      const blob = await put(filename, combinedBuffer, {
+        access: 'public',
+        contentType: 'audio/wav',
+        token: process.env.BLOB_READ_WRITE_TOKEN,
+        addRandomSuffix: false,
+        allowOverwrite: false,
+      });
+
+      const estimatedDuration = Math.ceil((cleanedText.length / 5) / 150 * 60);
+      console.log(`[Gemini TTS] Chapter ${chapterNumber} audio generated: ${blob.url}`);
+      
+      return {
+        audioUrl: blob.url,
+        duration: estimatedDuration,
+        size: totalSize,
+      };
+    } catch (error) {
+      console.error(`[Gemini TTS] Error generating chapter ${chapterNumber} audio:`, error);
+      throw new Error(`Failed to generate Gemini chapter audio: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

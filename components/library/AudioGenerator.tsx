@@ -31,12 +31,25 @@ import {
   Heart,
   Shield,
   Star,
-  Package
+  Package,
+  Globe,
+  Feather,
+  Compass,
+  Moon,
+  Sun,
+  Wind,
+  Flame,
+  Cloud,
+  Leaf,
+  Waves,
+  Mountain,
+  Cpu,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { AudioPlayer } from './AudioPlayer';
 import JSZip from 'jszip';
+import type { TTSProvider, GeminiVoiceId, OpenAIVoiceId } from '@/lib/services/tts-service';
 
 interface Chapter {
   id: number;
@@ -63,8 +76,8 @@ interface GeneratedAudio {
   duration: number;
 }
 
-// Valid OpenAI TTS voices: alloy, ash, coral, echo, fable, nova, onyx, sage, shimmer
-type VoiceType = 'alloy' | 'ash' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer';
+// Combined voice type for both providers
+type VoiceType = OpenAIVoiceId | GeminiVoiceId;
 
 interface VoiceInfo {
   id: VoiceType;
@@ -76,6 +89,7 @@ interface VoiceInfo {
   style: string;
   icon: React.ElementType;
   gradient: string;
+  provider: TTSProvider;
 }
 
 // Animation variants
@@ -135,112 +149,74 @@ export function AudioGenerator({
   const voiceSampleRef = useRef<HTMLAudioElement | null>(null);
   
   // Voice settings
+  const [selectedProvider, setSelectedProvider] = useState<TTSProvider>('openai');
   const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
   const [selectedQuality, setSelectedQuality] = useState<'tts-1' | 'tts-1-hd'>('tts-1');
 
-  // Professional voice definitions with corporate naming - All 11 OpenAI voices
-  const voices: VoiceInfo[] = [
-    { 
-      id: 'nova', 
-      name: 'Victoria Sterling',
-      title: 'Executive Narrator',
-      description: 'Polished and professional with excellent pacing. Victoria brings authority and warmth to every narrative.',
-      expertise: ['Business', 'Leadership', 'Biography'],
-      gender: 'feminine',
-      style: 'Warm & Professional',
-      icon: Briefcase,
-      gradient: 'from-rose-500 to-pink-600',
-    },
-    { 
-      id: 'alloy', 
-      name: 'Morgan Blake',
-      title: 'Versatile Presenter',
-      description: 'Balanced and adaptable, delivering content with clarity and precision. Ideal for educational materials.',
-      expertise: ['Education', 'Training', 'Corporate'],
-      gender: 'neutral',
-      style: 'Clear & Articulate',
-      icon: GraduationCap,
-      gradient: 'from-violet-500 to-purple-600',
-    },
-    { 
-      id: 'ash', 
-      name: 'Alexander Grey',
-      title: 'Senior Narrator',
-      description: 'Deep and resonant voice with gravitas. Alexander commands attention for compelling narratives.',
-      expertise: ['Drama', 'Thriller', 'Documentary'],
-      gender: 'masculine',
-      style: 'Deep & Commanding',
-      icon: Shield,
-      gradient: 'from-stone-500 to-zinc-700',
-    },
-    { 
-      id: 'coral', 
-      name: 'Camille Rose',
-      title: 'Dynamic Host',
-      description: 'Warm and energetic with infectious enthusiasm. Camille brings life to adventure and lifestyle content.',
-      expertise: ['Adventure', 'Lifestyle', 'Memoir'],
-      gender: 'feminine',
-      style: 'Warm & Energetic',
-      icon: Star,
-      gradient: 'from-coral-500 to-red-500',
-    },
-    { 
-      id: 'echo', 
-      name: 'Sebastian Cross',
-      title: 'Distinguished Scholar',
-      description: 'Refined and contemplative with intellectual depth. Sebastian excels at scholarly and philosophical works.',
-      expertise: ['Philosophy', 'Academic', 'Documentary'],
-      gender: 'masculine',
-      style: 'Thoughtful & Measured',
-      icon: Book,
-      gradient: 'from-slate-500 to-gray-600',
-    },
-    { 
-      id: 'fable', 
-      name: 'Aurora Winters',
-      title: 'Creative Director',
-      description: 'Expressive and dynamic with exceptional range. Aurora transforms creative content into immersive experiences.',
-      expertise: ['Fantasy', 'Children\'s', 'Adventure'],
-      gender: 'neutral',
-      style: 'Dynamic & Expressive',
-      icon: Sparkles,
-      gradient: 'from-amber-500 to-orange-600',
-    },
-    { 
-      id: 'onyx', 
-      name: 'Marcus Ashford',
-      title: 'Senior Correspondent',
-      description: 'Commanding presence with authoritative delivery. The voice of choice for investigative and historical content.',
-      expertise: ['Journalism', 'Mystery', 'History'],
-      gender: 'masculine',
-      style: 'Authoritative & Bold',
-      icon: Shield,
-      gradient: 'from-emerald-500 to-teal-600',
-    },
-    { 
-      id: 'sage', 
-      name: 'Professor Elena Sage',
-      title: 'Knowledge Guide',
-      description: 'Patient and wise with a natural teaching quality. Perfect for educational and instructional content.',
-      expertise: ['Education', 'Science', 'How-To'],
-      gender: 'feminine',
-      style: 'Patient & Wise',
-      icon: GraduationCap,
-      gradient: 'from-indigo-500 to-purple-600',
-    },
-    { 
-      id: 'shimmer', 
-      name: 'Isabella Chen',
-      title: 'Wellness Director',
-      description: 'Gentle and soothing with a calming presence. Isabella specializes in mindfulness and wellness content.',
-      expertise: ['Wellness', 'Meditation', 'Self-Help'],
-      gender: 'feminine',
-      style: 'Calming & Intimate',
-      icon: Heart,
-      gradient: 'from-cyan-500 to-blue-600',
-    },
+  // Reset voice when provider changes
+  const handleProviderChange = (provider: TTSProvider) => {
+    setSelectedProvider(provider);
+    // Set default voice for the new provider
+    if (provider === 'gemini') {
+      setSelectedVoice('Kore');
+    } else {
+      setSelectedVoice('nova');
+    }
+  };
+
+  // OpenAI voice definitions
+  const openaiVoices: VoiceInfo[] = [
+    { id: 'nova', name: 'Victoria Sterling', title: 'Executive Narrator', description: 'Polished and professional with excellent pacing.', expertise: ['Business', 'Leadership', 'Biography'], gender: 'feminine', style: 'Warm & Professional', icon: Briefcase, gradient: 'from-rose-500 to-pink-600', provider: 'openai' },
+    { id: 'alloy', name: 'Morgan Blake', title: 'Versatile Presenter', description: 'Balanced and adaptable, delivering content with clarity.', expertise: ['Education', 'Training', 'Corporate'], gender: 'neutral', style: 'Clear & Articulate', icon: GraduationCap, gradient: 'from-violet-500 to-purple-600', provider: 'openai' },
+    { id: 'ash', name: 'Alexander Grey', title: 'Senior Narrator', description: 'Deep and resonant voice with gravitas.', expertise: ['Drama', 'Thriller', 'Documentary'], gender: 'masculine', style: 'Deep & Commanding', icon: Shield, gradient: 'from-stone-500 to-zinc-700', provider: 'openai' },
+    { id: 'coral', name: 'Camille Rose', title: 'Dynamic Host', description: 'Warm and energetic with infectious enthusiasm.', expertise: ['Adventure', 'Lifestyle', 'Memoir'], gender: 'feminine', style: 'Warm & Energetic', icon: Star, gradient: 'from-coral-500 to-red-500', provider: 'openai' },
+    { id: 'echo', name: 'Sebastian Cross', title: 'Distinguished Scholar', description: 'Refined and contemplative with intellectual depth.', expertise: ['Philosophy', 'Academic', 'Documentary'], gender: 'masculine', style: 'Thoughtful & Measured', icon: Book, gradient: 'from-slate-500 to-gray-600', provider: 'openai' },
+    { id: 'fable', name: 'Aurora Winters', title: 'Creative Director', description: 'Expressive and dynamic with exceptional range.', expertise: ['Fantasy', 'Children\'s', 'Adventure'], gender: 'neutral', style: 'Dynamic & Expressive', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', provider: 'openai' },
+    { id: 'onyx', name: 'Marcus Ashford', title: 'Senior Correspondent', description: 'Commanding presence with authoritative delivery.', expertise: ['Journalism', 'Mystery', 'History'], gender: 'masculine', style: 'Authoritative & Bold', icon: Shield, gradient: 'from-emerald-500 to-teal-600', provider: 'openai' },
+    { id: 'sage', name: 'Professor Elena Sage', title: 'Knowledge Guide', description: 'Patient and wise with natural teaching quality.', expertise: ['Education', 'Science', 'How-To'], gender: 'feminine', style: 'Patient & Wise', icon: GraduationCap, gradient: 'from-indigo-500 to-purple-600', provider: 'openai' },
+    { id: 'shimmer', name: 'Isabella Chen', title: 'Wellness Director', description: 'Gentle and soothing with calming presence.', expertise: ['Wellness', 'Meditation', 'Self-Help'], gender: 'feminine', style: 'Calming & Intimate', icon: Heart, gradient: 'from-cyan-500 to-blue-600', provider: 'openai' },
   ];
+
+  // Gemini voice definitions (30 voices)
+  const geminiVoices: VoiceInfo[] = [
+    // Primary voices
+    { id: 'Zephyr', name: 'Zephyr', title: 'Conversational Host', description: 'Gentle and friendly, perfect for approachable content.', expertise: ['Podcast', 'Casual', 'Interview'], gender: 'neutral', style: 'Friendly & Approachable', icon: Wind, gradient: 'from-sky-400 to-blue-500', provider: 'gemini' },
+    { id: 'Puck', name: 'Puck', title: 'Energetic Narrator', description: 'Upbeat and enthusiastic, makes learning engaging.', expertise: ['Education', 'Entertainment', 'Youth'], gender: 'neutral', style: 'Upbeat & Energetic', icon: Sparkles, gradient: 'from-green-400 to-emerald-500', provider: 'gemini' },
+    { id: 'Charon', name: 'Charon', title: 'Authoritative Voice', description: 'Deep and commanding for serious narratives.', expertise: ['Documentary', 'Drama', 'News'], gender: 'masculine', style: 'Deep & Authoritative', icon: Shield, gradient: 'from-slate-600 to-gray-800', provider: 'gemini' },
+    { id: 'Kore', name: 'Kore', title: 'Professional Narrator', description: 'Balanced and professional with clear delivery.', expertise: ['Business', 'Corporate', 'Technical'], gender: 'neutral', style: 'Balanced & Professional', icon: Briefcase, gradient: 'from-blue-500 to-indigo-600', provider: 'gemini' },
+    { id: 'Fenrir', name: 'Fenrir', title: 'Warm Storyteller', description: 'Warm and approachable for educational content.', expertise: ['Education', 'Audiobooks', 'Tutorials'], gender: 'masculine', style: 'Warm & Approachable', icon: Book, gradient: 'from-orange-500 to-red-600', provider: 'gemini' },
+    { id: 'Leda', name: 'Leda', title: 'Elegant Narrator', description: 'Sophisticated voice for literary works.', expertise: ['Literature', 'Poetry', 'Art'], gender: 'feminine', style: 'Elegant & Sophisticated', icon: Feather, gradient: 'from-purple-500 to-pink-500', provider: 'gemini' },
+    { id: 'Orus', name: 'Orus', title: 'Technical Expert', description: 'Clear and articulate for technical content.', expertise: ['Technical', 'Science', 'Documentation'], gender: 'masculine', style: 'Clear & Articulate', icon: Cpu, gradient: 'from-teal-500 to-cyan-600', provider: 'gemini' },
+    { id: 'Aoede', name: 'Aoede', title: 'Creative Voice', description: 'Expressive and dynamic for creative projects.', expertise: ['Creative', 'Art', 'Music'], gender: 'feminine', style: 'Dynamic & Expressive', icon: Music, gradient: 'from-fuchsia-500 to-purple-600', provider: 'gemini' },
+    // Extended collection
+    { id: 'Callirrhoe', name: 'Callirrhoe', title: 'Poetic Voice', description: 'Flowing grace for poetry and lyrical content.', expertise: ['Poetry', 'Lyrical', 'Romance'], gender: 'feminine', style: 'Graceful & Flowing', icon: Feather, gradient: 'from-rose-400 to-pink-500', provider: 'gemini' },
+    { id: 'Autonoe', name: 'Autonoe', title: 'Natural Conversationalist', description: 'Natural tone for interviews and discussions.', expertise: ['Interview', 'Discussion', 'Podcast'], gender: 'feminine', style: 'Natural & Conversational', icon: Users, gradient: 'from-amber-400 to-orange-500', provider: 'gemini' },
+    { id: 'Enceladus', name: 'Enceladus', title: 'Gentle Narrator', description: 'Breathy and gentle for intimate storytelling.', expertise: ['Meditation', 'ASMR', 'Wellness'], gender: 'neutral', style: 'Breathy & Gentle', icon: Cloud, gradient: 'from-blue-300 to-indigo-400', provider: 'gemini' },
+    { id: 'Iapetus', name: 'Iapetus', title: 'Wise Sage', description: 'Wisdom and depth for philosophical content.', expertise: ['Philosophy', 'Wisdom', 'Spirituality'], gender: 'masculine', style: 'Wise & Deep', icon: Moon, gradient: 'from-indigo-600 to-purple-700', provider: 'gemini' },
+    { id: 'Umbriel', name: 'Umbriel', title: 'Mysterious Narrator', description: 'Atmospheric voice for fantasy and thriller.', expertise: ['Fantasy', 'Thriller', 'Mystery'], gender: 'neutral', style: 'Mysterious & Atmospheric', icon: Moon, gradient: 'from-violet-600 to-purple-800', provider: 'gemini' },
+    { id: 'Algieba', name: 'Algieba', title: 'Bright Voice', description: 'Clear and bright for children\'s content.', expertise: ['Children', 'Education', 'Fun'], gender: 'neutral', style: 'Bright & Clear', icon: Sun, gradient: 'from-yellow-400 to-orange-500', provider: 'gemini' },
+    { id: 'Despina', name: 'Despina', title: 'Cheerful Host', description: 'Cheerful energy for lifestyle content.', expertise: ['Lifestyle', 'Travel', 'Food'], gender: 'feminine', style: 'Cheerful & Energetic', icon: Star, gradient: 'from-pink-400 to-rose-500', provider: 'gemini' },
+    { id: 'Erinome', name: 'Erinome', title: 'Dramatic Voice', description: 'Emotional depth for dramatic readings.', expertise: ['Drama', 'Theater', 'Fiction'], gender: 'feminine', style: 'Dramatic & Emotional', icon: Flame, gradient: 'from-red-500 to-orange-600', provider: 'gemini' },
+    // Stellar voices
+    { id: 'Algenib', name: 'Algenib', title: 'Science Communicator', description: 'Clear voice for scientific content.', expertise: ['Science', 'Research', 'Academic'], gender: 'masculine', style: 'Clear & Informative', icon: Compass, gradient: 'from-cyan-500 to-blue-600', provider: 'gemini' },
+    { id: 'Rasalgethi', name: 'Rasalgethi', title: 'Epic Narrator', description: 'Commanding presence for epic narratives.', expertise: ['Epic', 'History', 'Adventure'], gender: 'masculine', style: 'Commanding & Epic', icon: Mountain, gradient: 'from-amber-600 to-red-700', provider: 'gemini' },
+    { id: 'Laomedeia', name: 'Laomedeia', title: 'Wellness Guide', description: 'Soothing voice for wellness content.', expertise: ['Wellness', 'Self-Help', 'Health'], gender: 'feminine', style: 'Soothing & Calming', icon: Heart, gradient: 'from-teal-400 to-green-500', provider: 'gemini' },
+    { id: 'Achernar', name: 'Achernar', title: 'Business Voice', description: 'Crisp and professional for business.', expertise: ['Business', 'Finance', 'Corporate'], gender: 'masculine', style: 'Crisp & Professional', icon: Briefcase, gradient: 'from-blue-600 to-slate-700', provider: 'gemini' },
+    { id: 'Alnilam', name: 'Alnilam', title: 'Motivational Speaker', description: 'Strong conviction for motivational content.', expertise: ['Motivation', 'Inspiration', 'Leadership'], gender: 'masculine', style: 'Strong & Convincing', icon: Flame, gradient: 'from-orange-500 to-red-600', provider: 'gemini' },
+    { id: 'Schedar', name: 'Schedar', title: 'Family Narrator', description: 'Warm and nurturing for family content.', expertise: ['Family', 'Parenting', 'Children'], gender: 'feminine', style: 'Warm & Nurturing', icon: Heart, gradient: 'from-rose-400 to-pink-500', provider: 'gemini' },
+    { id: 'Gacrux', name: 'Gacrux', title: 'Technical Instructor', description: 'Precision for technical documentation.', expertise: ['Technical', 'Tutorial', 'How-To'], gender: 'masculine', style: 'Precise & Clear', icon: Cpu, gradient: 'from-slate-500 to-gray-600', provider: 'gemini' },
+    { id: 'Pulcherrima', name: 'Pulcherrima', title: 'Romance Narrator', description: 'Elegant voice for romantic fiction.', expertise: ['Romance', 'Literature', 'Drama'], gender: 'feminine', style: 'Elegant & Romantic', icon: Heart, gradient: 'from-pink-500 to-rose-600', provider: 'gemini' },
+    { id: 'Achird', name: 'Achird', title: 'Personal Storyteller', description: 'Friendly tone for memoirs and stories.', expertise: ['Memoir', 'Personal', 'Storytelling'], gender: 'neutral', style: 'Friendly & Relatable', icon: User, gradient: 'from-amber-500 to-yellow-600', provider: 'gemini' },
+    { id: 'Zubenelgenubi', name: 'Zubenelgenubi', title: 'Unique Voice', description: 'Distinctive character for creative projects.', expertise: ['Creative', 'Unique', 'Experimental'], gender: 'neutral', style: 'Distinctive & Unique', icon: Sparkles, gradient: 'from-violet-500 to-fuchsia-600', provider: 'gemini' },
+    { id: 'Vindemiatrix', name: 'Vindemiatrix', title: 'Cultural Narrator', description: 'Sophisticated voice for cultural content.', expertise: ['Culture', 'Art', 'History'], gender: 'feminine', style: 'Sophisticated & Cultured', icon: Globe, gradient: 'from-purple-500 to-indigo-600', provider: 'gemini' },
+    { id: 'Sadachbia', name: 'Sadachbia', title: 'Hopeful Voice', description: 'Optimistic tone for inspirational narratives.', expertise: ['Inspiration', 'Hope', 'Motivation'], gender: 'feminine', style: 'Hopeful & Optimistic', icon: Sun, gradient: 'from-yellow-400 to-amber-500', provider: 'gemini' },
+    { id: 'Sadaltager', name: 'Sadaltager', title: 'Mindful Narrator', description: 'Thoughtful presence for reflective content.', expertise: ['Mindfulness', 'Reflection', 'Meditation'], gender: 'masculine', style: 'Thoughtful & Reflective', icon: Leaf, gradient: 'from-green-500 to-teal-600', provider: 'gemini' },
+    { id: 'Sulafat', name: 'Sulafat', title: 'Versatile Voice', description: 'Adaptable narration for any genre.', expertise: ['Versatile', 'General', 'Adaptable'], gender: 'neutral', style: 'Versatile & Adaptable', icon: Waves, gradient: 'from-blue-500 to-cyan-600', provider: 'gemini' },
+  ];
+
+  // Get voices based on selected provider
+  const voices = selectedProvider === 'gemini' ? geminiVoices : openaiVoices;
 
   // Sync chapters data when prop changes
   useEffect(() => {
@@ -417,6 +393,7 @@ export function AudioGenerator({
       const requestBody = {
         userId,
         bookId: bookId.toString(),
+        provider: selectedProvider,
         voice: selectedVoice,
         speed: selectedSpeed,
         model: selectedQuality,
@@ -425,7 +402,7 @@ export function AudioGenerator({
 
       console.log('[AudioGenerator] Starting audio generation:', requestBody);
       console.log('[AudioGenerator] This may take several minutes...');
-      console.log('[AudioGenerator] Using voice:', selectedVoice);
+      console.log('[AudioGenerator] Using provider:', selectedProvider, 'voice:', selectedVoice);
 
       // Build a detailed progress message showing which chapters are being generated
       const sortedChapters = [...selectedChapters].sort((a, b) => a - b);
@@ -872,10 +849,55 @@ export function AudioGenerator({
             </motion.div>
           )}
         </div>
+
+        {/* Provider Toggle */}
+        <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Voice Engine:</span>
+          <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+            <motion.button
+              onClick={() => {
+                setSelectedProvider('openai');
+                setSelectedVoice('nova'); // Reset to default OpenAI voice
+              }}
+              className={`px-4 py-2 text-sm font-medium transition-all ${
+                selectedProvider === 'openai'
+                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              whileHover={{ scale: selectedProvider === 'openai' ? 1 : 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                OpenAI ({openaiVoices.length} voices)
+              </span>
+            </motion.button>
+            <motion.button
+              onClick={() => {
+                setSelectedProvider('gemini');
+                setSelectedVoice('Kore'); // Reset to default Gemini voice
+              }}
+              className={`px-4 py-2 text-sm font-medium transition-all ${
+                selectedProvider === 'gemini'
+                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+              whileHover={{ scale: selectedProvider === 'gemini' ? 1 : 1.02 }}
+              whileTap={{ scale: 0.98 }}
+            >
+              <span className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-400" />
+                Gemini ({geminiVoices.length} voices)
+              </span>
+            </motion.button>
+          </div>
+          <span className="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+            {selectedProvider === 'gemini' ? 'Powered by Google Gemini TTS Pro' : 'Powered by OpenAI TTS'}
+          </span>
+        </div>
         
-        <motion.div 
+        <div 
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          variants={staggerContainer}
         >
           {voices.map((voice) => {
             const isSelected = selectedVoice === voice.id;
@@ -883,42 +905,30 @@ export function AudioGenerator({
             const VoiceIcon = voice.icon;
             
             return (
-              <motion.div
+              <div
                 key={voice.id}
-                variants={slideUp}
-                whileHover={{ y: -4 }}
-                whileTap={{ scale: 0.98 }}
-                className={`relative group rounded-xl border-2 transition-all duration-300 cursor-pointer overflow-hidden ${
+                className={`relative group rounded-xl border-2 transition-all duration-200 cursor-pointer overflow-hidden ${
                   isSelected
                     ? 'border-yellow-400 bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 shadow-lg shadow-yellow-400/20'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600 hover:shadow-md'
+                    : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600 hover:shadow-md hover:-translate-y-1'
                 }`}
                 onClick={() => setSelectedVoice(voice.id)}
               >
                 {/* Selection Indicator */}
-                <AnimatePresence>
-                  {isSelected && (
-                    <motion.div 
-                      initial={{ scale: 0, rotate: -180 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      exit={{ scale: 0, rotate: 180 }}
-                      className="absolute top-3 right-3 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg"
-                    >
-                      <Check className="w-4 h-4 text-black" />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                {isSelected && (
+                  <div className="absolute top-3 right-3 w-7 h-7 bg-yellow-400 rounded-full flex items-center justify-center shadow-lg">
+                    <Check className="w-4 h-4 text-black" />
+                  </div>
+                )}
                 
                 <div className="p-5">
                   {/* Voice Header */}
                   <div className="flex items-start gap-3 mb-3">
-                    <motion.div 
+                    <div 
                       className={`w-12 h-12 rounded-xl flex items-center justify-center bg-gradient-to-br ${voice.gradient}`}
-                      whileHover={{ rotate: [0, -10, 10, 0] }}
-                      transition={{ duration: 0.5 }}
                     >
                       <VoiceIcon className="w-6 h-6 text-white" />
-                    </motion.div>
+                    </div>
                     <div className="flex-1">
                       <h4 className="font-bold text-gray-900 dark:text-white">{voice.name}</h4>
                       <p className="text-xs text-yellow-600 dark:text-yellow-400 font-medium">{voice.title}</p>
@@ -950,7 +960,7 @@ export function AudioGenerator({
                   </div>
                   
                   {/* Preview Button */}
-                  <motion.button
+                  <button
                     onClick={(e) => {
                       e.stopPropagation();
                       if (isPlaying) {
@@ -967,8 +977,6 @@ export function AudioGenerator({
                         ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400'
                         : 'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                     }`}
-                    whileHover={{ scale: loadingPreview === voice.id ? 1 : 1.02 }}
-                    whileTap={{ scale: loadingPreview === voice.id ? 1 : 0.98 }}
                   >
                     {loadingPreview === voice.id ? (
                       <>
@@ -986,12 +994,12 @@ export function AudioGenerator({
                         <span>Preview Voice</span>
                       </>
                     )}
-                  </motion.button>
+                  </button>
                 </div>
-              </motion.div>
+              </div>
             );
           })}
-        </motion.div>
+        </div>
       </motion.div>
 
       {/* Audio Settings */}
