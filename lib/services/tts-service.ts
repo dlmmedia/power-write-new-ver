@@ -44,7 +44,7 @@ export class TTSService {
   private readonly defaultGeminiVoice: GeminiVoiceId = 'Kore';
   private readonly defaultSpeed: number = 1.0;
   private readonly defaultModel: TTSConfig['model'] = 'tts-1'; // Cost-effective
-  private readonly defaultGeminiModel: TTSConfig['geminiModel'] = 'gemini-2.5-flash-preview-tts';
+  private readonly defaultGeminiModel: NonNullable<TTSConfig['geminiModel']> = 'gemini-2.5-flash-preview-tts';
   private openaiInitialized: boolean = false;
   private geminiInitialized: boolean = false;
 
@@ -247,7 +247,7 @@ export class TTSService {
       console.log(`[Gemini TTS] Generating audiobook (${cleanedText.length} characters)...`);
 
       const voice = (config.voice as GeminiVoiceId) || this.defaultGeminiVoice;
-      const geminiModel = config.geminiModel || this.defaultGeminiModel;
+      const geminiModel: string = config.geminiModel || this.defaultGeminiModel;
 
       // Split text into chunks (Gemini TTS can timeout on long text, use smaller chunks)
       const chunks = this.splitTextIntoChunks(cleanedText, 1500);
