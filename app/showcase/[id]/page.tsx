@@ -470,7 +470,9 @@ export default function ShowcaseBookDetailPage() {
                                   {chapter.title}
                                 </h4>
                                 {chapter.audioUrl && (
-                                  <Headphones className="w-4 h-4 text-green-500" title="Audio available" />
+                                  <span title="Audio available">
+                                    <Headphones className="w-4 h-4 text-green-500" />
+                                  </span>
                                 )}
                               </div>
                               <div className="flex items-center gap-4 mt-1">
