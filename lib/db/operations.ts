@@ -541,3 +541,55 @@ export async function getBookWithChaptersAndBibliography(bookId: number | string
     bibliography,
   };
 }
+
+// ============ SHOWCASE OPERATIONS ============
+
+export async function getPublicBooks(): Promise<GeneratedBook[]> {
+  return await db
+    .select()
+    .from(generatedBooks)
+    .where(eq(generatedBooks.isPublic, true))
+    .orderBy(desc(generatedBooks.updatedAt));
+}
+
+export async function toggleBookPublic(
+  bookId: number,
+  isPublic: boolean
+): Promise<GeneratedBook | null> {
+  const [book] = await db
+    .update(generatedBooks)
+    .set({ isPublic, updatedAt: new Date() })
+    .where(eq(generatedBooks.id, bookId))
+    .returning();
+  return book || null;
+}
+
+export async function getPublicBook(bookId: number): Promise<GeneratedBook | null> {
+  const [book] = await db
+    .select()
+    .from(generatedBooks)
+    .where(
+      and(
+        eq(generatedBooks.id, bookId),
+        eq(generatedBooks.isPublic, true)
+      )
+    )
+    .limit(1);
+  return book || null;
+}
+
+export async function getPublicBookWithChapters(bookId: number | string) {
+  const id = typeof bookId === 'string' ? parseInt(bookId, 10) : bookId;
+  const book = await getPublicBook(id);
+  if (!book) {
+    return null;
+  }
+  const chapters = await getBookChapters(id);
+  const bibliography = await getBookBibliography(id);
+  
+  return {
+    ...book,
+    chapters,
+    bibliography,
+  };
+}

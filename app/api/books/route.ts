@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
           coverUrl: book.coverUrl || undefined,
           createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
           isOwner: book.userId === clerkUserId,
+          isPublic: book.isPublic || false,
           metadata: {
             wordCount: metadata.wordCount || 0,
             chapters: metadata.chapters || 0,
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
           coverUrl: undefined,
           createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
           isOwner: book.userId === clerkUserId,
+          isPublic: book.isPublic || false,
           metadata: {
             wordCount: 0,
             chapters: 0,

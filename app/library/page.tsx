@@ -24,7 +24,8 @@ import {
   Crown,
   Sparkles,
   Lock,
-  Headphones
+  Headphones,
+  Globe
 } from 'lucide-react';
 
 interface BookListItem {
@@ -38,6 +39,7 @@ interface BookListItem {
   outline?: any;
   config?: any;
   isOwner?: boolean;
+  isPublic?: boolean;
   metadata: {
     wordCount: number;
     chapters: number;
@@ -333,6 +335,10 @@ export default function LibraryPage() {
             </div>
 
             <div className="flex items-center gap-3">
+              <Button variant="outline" onClick={() => router.push('/showcase')} className="flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                Showcase
+              </Button>
               <ThemeToggleCompact />
               {isProUser ? (
                 <Button variant="primary" onClick={() => router.push('/studio')} className="flex items-center gap-2">
@@ -659,13 +665,20 @@ export default function LibraryPage() {
                     </div>
                   )}
                   {/* Status badge overlay */}
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
                     <Badge 
                       variant={book.status === 'completed' ? 'success' : book.status === 'generating' ? 'warning' : 'default'}
                       size="sm"
                     >
                       {book.status === 'generating' ? 'In Progress' : book.status}
                     </Badge>
+                    {/* Showcase badge */}
+                    {book.isPublic && (
+                      <Badge variant="default" size="sm" className="bg-yellow-400 text-black flex items-center gap-1">
+                        <Globe className="w-3 h-3" />
+                        Public
+                      </Badge>
+                    )}
                   </div>
                 </div>
 

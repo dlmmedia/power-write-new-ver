@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookWithChaptersAndBibliography } from '@/lib/db/operations';
+import { getPublicBookWithChapters } from '@/lib/db/operations';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 
+export const runtime = 'nodejs';
+
+// GET /api/showcase/[id] - Fetch a single public book (no auth required)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -9,12 +12,12 @@ export async function GET(
   try {
     const { id: bookId } = await params;
 
-    // Get book with all chapters and bibliography from database
-    const bookWithChapters = await getBookWithChaptersAndBibliography(bookId);
+    // Get public book with all chapters and bibliography from database
+    const bookWithChapters = await getPublicBookWithChapters(bookId);
 
     if (!bookWithChapters) {
       return NextResponse.json(
-        { error: 'Book not found' },
+        { error: 'Book not found or not public' },
         { status: 404 }
       );
     }
@@ -95,16 +98,16 @@ export async function GET(
       genre: bookWithChapters.genre,
       subgenre: '',
       status: bookWithChapters.status,
-      coverUrl: bookWithChapters.coverUrl || undefined, // Include cover URL
-      backCoverUrl: metadata.backCoverUrl || undefined, // Include back cover URL from metadata
-      isPublic: bookWithChapters.isPublic || false, // Include public showcase status
+      coverUrl: bookWithChapters.coverUrl || undefined,
+      backCoverUrl: metadata.backCoverUrl || undefined,
       createdAt: bookWithChapters.createdAt?.toISOString() || new Date().toISOString(),
+      isPublic: bookWithChapters.isPublic,
       metadata: {
         wordCount: metadata.wordCount || 0,
         chapters: bookWithChapters.chapters.length,
         targetWordCount: metadata.targetWordCount || 0,
         description: bookWithChapters.summary || '',
-        backCoverUrl: metadata.backCoverUrl || undefined, // Also include in metadata for reference
+        backCoverUrl: metadata.backCoverUrl || undefined,
       },
       chapters: bookWithChapters.chapters.map(ch => ({
         id: ch.id,
@@ -125,74 +128,9 @@ export async function GET(
       book
     });
   } catch (error) {
-    console.error('Error fetching book detail:', error);
+    console.error('Error fetching public book detail:', error);
     return NextResponse.json(
       { error: 'Failed to fetch book details' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const bookId = parseInt(id, 10);
-    const updates = await request.json();
-
-    const { updateBook } = await import('@/lib/db/operations');
-    const updatedBook = await updateBook(bookId, updates);
-
-    if (!updatedBook) {
-      return NextResponse.json(
-        { error: 'Book not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      book: updatedBook
-    });
-  } catch (error) {
-    console.error('Error updating book:', error);
-    return NextResponse.json(
-      { error: 'Failed to update book' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const bookId = parseInt(id, 10);
-
-    const { deleteBook, getBook } = await import('@/lib/db/operations');
-    const book = await getBook(bookId);
-
-    if (!book) {
-      return NextResponse.json(
-        { error: 'Book not found' },
-        { status: 404 }
-      );
-    }
-
-    await deleteBook(bookId);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Book deleted successfully'
-    });
-  } catch (error) {
-    console.error('Error deleting book:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete book' },
       { status: 500 }
     );
   }

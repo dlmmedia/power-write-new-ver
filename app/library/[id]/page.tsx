@@ -41,7 +41,10 @@ import {
   GripVertical,
   Lock,
   Crown,
-  Sparkles
+  Sparkles,
+  Globe,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
 
@@ -72,6 +75,7 @@ interface BookDetail {
   createdAt: string;
   coverUrl?: string; // Add cover URL to interface
   backCoverUrl?: string; // Add back cover URL to interface
+  isPublic?: boolean; // Whether book is in public showcase
   metadata: {
     wordCount: number;
     chapters: number;
@@ -106,6 +110,7 @@ export default function BookDetailPage() {
   const [isArchiving, setIsArchiving] = useState(false);
   const [showAudiobookPlayer, setShowAudiobookPlayer] = useState(false);
   const [isReorderingChapters, setIsReorderingChapters] = useState(false);
+  const [isTogglingShowcase, setIsTogglingShowcase] = useState(false);
 
   useEffect(() => {
     if (bookId) {
@@ -362,6 +367,50 @@ export default function BookDetailPage() {
       alert('Failed to duplicate book. Please try again.');
     } finally {
       setIsDuplicating(false);
+    }
+  };
+
+  const handleToggleShowcase = async () => {
+    if (!book) return;
+
+    // Only allow completed books to be showcased
+    if (book.status !== 'completed' && !book.isPublic) {
+      alert('Only completed books can be added to the showcase.');
+      return;
+    }
+
+    const isCurrentlyPublic = book.isPublic;
+    const action = isCurrentlyPublic ? 'Remove from' : 'Add to';
+
+    const confirmed = confirm(
+      `${action} Showcase?\n\n` +
+      (isCurrentlyPublic 
+        ? 'This will make your book private and remove it from the public showcase.'
+        : 'This will make your book publicly visible in the showcase. Anyone can read and listen to it.') +
+      '\n\nContinue?'
+    );
+
+    if (!confirmed) return;
+
+    setIsTogglingShowcase(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}/showcase`, {
+        method: isCurrentlyPublic ? 'DELETE' : 'POST',
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`✓ Book ${isCurrentlyPublic ? 'removed from' : 'added to'} showcase successfully!`);
+        // Update local state
+        setBook(prev => prev ? { ...prev, isPublic: !isCurrentlyPublic } : null);
+      } else {
+        alert(`Failed to ${action.toLowerCase()} showcase: ` + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Showcase toggle error:', error);
+      alert(`Failed to ${action.toLowerCase()} showcase. Please try again.`);
+    } finally {
+      setIsTogglingShowcase(false);
     }
   };
 
@@ -1332,70 +1381,139 @@ export default function BookDetailPage() {
           )}
 
           {activeTab === 'settings' && (
-            <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-              <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Settings</h3>
-              
-              <div className="space-y-6">
-                <div>
-                  <h4 className="font-medium mb-4 text-gray-700 dark:text-gray-300">Danger Zone</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    These actions will affect your book. Please proceed with caution.
+            <div className="space-y-6">
+              {/* Public Showcase Section */}
+              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700 p-6">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-yellow-400 dark:bg-yellow-500 p-3 rounded-xl">
+                      <Globe className="w-6 h-6 text-black" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                        Public Showcase
+                        {book.isPublic && (
+                          <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded">
+                            LIVE
+                          </span>
+                        )}
+                      </h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        {book.isPublic 
+                          ? 'Your book is publicly visible in the showcase. Anyone can read and listen to it.'
+                          : 'Share your book with the world! Add it to the public showcase for everyone to read and enjoy.'}
+                      </p>
+                      {book.isPublic && (
+                        <a 
+                          href={`/showcase/${book.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm text-yellow-600 dark:text-yellow-400 hover:underline mt-2 inline-flex items-center gap-1"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View in Showcase →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    variant={book.isPublic ? 'outline' : 'primary'}
+                    onClick={handleToggleShowcase}
+                    disabled={isTogglingShowcase || (book.status !== 'completed' && !book.isPublic)}
+                    className="flex items-center gap-2"
+                  >
+                    {isTogglingShowcase ? (
+                      <>
+                        <span className="animate-spin">⏳</span>
+                        {book.isPublic ? 'Removing...' : 'Adding...'}
+                      </>
+                    ) : book.isPublic ? (
+                      <>
+                        <EyeOff className="w-4 h-4" />
+                        Remove from Showcase
+                      </>
+                    ) : (
+                      <>
+                        <Globe className="w-4 h-4" />
+                        Add to Showcase
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {book.status !== 'completed' && !book.isPublic && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-3 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Only completed books can be added to the showcase.
                   </p>
-                  <div className="space-y-3">
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start flex items-center gap-2"
-                      onClick={handleDuplicateBook}
-                      disabled={isDuplicating}
-                    >
-                      {isDuplicating ? (
-                        <>
-                          <span className="animate-spin mr-2">⏳</span>
-                          Duplicating...
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4" />
-                          Duplicate Book
-                        </>
-                      )}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start flex items-center gap-2"
-                      onClick={handleArchiveBook}
-                      disabled={isArchiving}
-                    >
-                      {isArchiving ? (
-                        <>
-                          <span className="animate-spin mr-2">⏳</span>
-                          {book?.status === 'archived' ? 'Unarchiving...' : 'Archiving...'}
-                        </>
-                      ) : (
-                        <>
-                          <Archive className="w-4 h-4" />
-                          {book?.status === 'archived' ? 'Unarchive Book' : 'Archive Book'}
-                        </>
-                      )}
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      className="w-full justify-start text-red-600 dark:text-red-400 border-red-300 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                      onClick={handleDeleteBook}
-                      disabled={isDeleting}
-                    >
-                      {isDeleting ? (
-                        <>
-                          <span className="animate-spin mr-2">⏳</span>
-                          Deleting...
-                        </>
-                      ) : (
-                        <>
-                          <Trash2 className="w-4 h-4" />
-                          Delete Book
-                        </>
-                      )}
-                    </Button>
+                )}
+              </div>
+
+              {/* Book Settings */}
+              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
+                <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Settings</h3>
+                
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="font-medium mb-4 text-gray-700 dark:text-gray-300">Danger Zone</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      These actions will affect your book. Please proceed with caution.
+                    </p>
+                    <div className="space-y-3">
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start flex items-center gap-2"
+                        onClick={handleDuplicateBook}
+                        disabled={isDuplicating}
+                      >
+                        {isDuplicating ? (
+                          <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            Duplicating...
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4" />
+                            Duplicate Book
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start flex items-center gap-2"
+                        onClick={handleArchiveBook}
+                        disabled={isArchiving}
+                      >
+                        {isArchiving ? (
+                          <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            {book?.status === 'archived' ? 'Unarchiving...' : 'Archiving...'}
+                          </>
+                        ) : (
+                          <>
+                            <Archive className="w-4 h-4" />
+                            {book?.status === 'archived' ? 'Unarchive Book' : 'Archive Book'}
+                          </>
+                        )}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="w-full justify-start text-red-600 dark:text-red-400 border-red-300 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                        onClick={handleDeleteBook}
+                        disabled={isDeleting}
+                      >
+                        {isDeleting ? (
+                          <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            Deleting...
+                          </>
+                        ) : (
+                          <>
+                            <Trash2 className="w-4 h-4" />
+                            Delete Book
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
