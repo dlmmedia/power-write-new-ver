@@ -253,18 +253,23 @@ export class TTSService {
       const chunks = this.splitTextIntoChunks(cleanedText, 1500);
       console.log(`[Gemini TTS] Split into ${chunks.length} chunks`);
 
-      const audioBuffers: Buffer[] = [];
-      let totalSize = 0;
+      // Collect raw PCM buffers (not WAV) to concatenate properly
+      const pcmBuffers: Buffer[] = [];
+      let totalPcmSize = 0;
 
       for (let i = 0; i < chunks.length; i++) {
         console.log(`[Gemini TTS] Generating audio chunk ${i + 1}/${chunks.length}...`);
         
-        const buffer = await this.generateGeminiAudioChunk(chunks[i], voice, geminiModel, apiKey);
-        audioBuffers.push(buffer);
-        totalSize += buffer.length;
+        // Get raw PCM data (not WAV) for proper concatenation
+        const pcmBuffer = await this.generateGeminiAudioChunkRaw(chunks[i], voice, geminiModel, apiKey);
+        pcmBuffers.push(pcmBuffer);
+        totalPcmSize += pcmBuffer.length;
       }
 
-      const combinedBuffer = Buffer.concat(audioBuffers);
+      // Combine all PCM data and create a single WAV file
+      const combinedPcm = Buffer.concat(pcmBuffers);
+      const combinedBuffer = this.pcmToWav(combinedPcm, 24000, 1, 16);
+      
       const timestamp = Date.now();
       const filename = bookTitle 
         ? `audiobooks/${this.sanitizeFilename(bookTitle)}-gemini-full-${timestamp}.wav`
@@ -289,7 +294,7 @@ export class TTSService {
       return {
         audioUrl: blob.url,
         duration: estimatedDuration,
-        size: totalSize,
+        size: combinedBuffer.length,
       };
     } catch (error) {
       console.error('[Gemini TTS] Error generating audiobook:', error);
@@ -298,9 +303,10 @@ export class TTSService {
   }
 
   /**
-   * Generate a single audio chunk using Gemini TTS API
+   * Generate a single audio chunk using Gemini TTS API (returns raw PCM data)
+   * Use this when concatenating multiple chunks
    */
-  private async generateGeminiAudioChunk(
+  private async generateGeminiAudioChunkRaw(
     text: string,
     voice: GeminiVoiceId,
     model: string,
@@ -347,19 +353,16 @@ export class TTSService {
         throw new Error(`Gemini TTS API error: ${response.status} ${errorText}`);
       }
 
-    const data = await response.json();
-    
-    // Extract audio data from response
-    const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!audioData) {
-      throw new Error('No audio data in Gemini response');
-    }
+      const data = await response.json();
+      
+      // Extract audio data from response
+      const audioData = data.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (!audioData) {
+        throw new Error('No audio data in Gemini response');
+      }
 
-    // Decode base64 audio data
-    const pcmBuffer = Buffer.from(audioData, 'base64');
-    
-    // Convert PCM to WAV (Gemini returns PCM 16bit 24kHz mono)
-    return this.pcmToWav(pcmBuffer, 24000, 1, 16);
+      // Return raw PCM data (don't convert to WAV yet - caller will combine and convert)
+      return Buffer.from(audioData, 'base64');
     } catch (error) {
       clearTimeout(timeoutId);
       console.error('[Gemini TTS] Chunk generation error:', error);
@@ -368,6 +371,21 @@ export class TTSService {
       }
       throw error;
     }
+  }
+
+  /**
+   * Generate a single audio chunk using Gemini TTS API (returns WAV)
+   * Use this for single-chunk operations (like voice preview)
+   */
+  private async generateGeminiAudioChunk(
+    text: string,
+    voice: GeminiVoiceId,
+    model: string,
+    apiKey: string
+  ): Promise<Buffer> {
+    const pcmBuffer = await this.generateGeminiAudioChunkRaw(text, voice, model, apiKey);
+    // Convert PCM to WAV (Gemini returns PCM 16bit 24kHz mono)
+    return this.pcmToWav(pcmBuffer, 24000, 1, 16);
   }
 
   /**
@@ -525,18 +543,24 @@ export class TTSService {
 
       // Use smaller chunks for Gemini to avoid timeouts
       const chunks = this.splitTextIntoChunks(cleanedText, 1500);
-      const audioBuffers: Buffer[] = [];
-      let totalSize = 0;
+      
+      // Collect raw PCM buffers (not WAV) to concatenate properly
+      const pcmBuffers: Buffer[] = [];
+      let totalPcmSize = 0;
 
       for (let i = 0; i < chunks.length; i++) {
         const chunk = chunks[i];
         console.log(`[Gemini TTS] Processing chunk ${i + 1}/${chunks.length} (${chunk.length} chars)`);
-        const buffer = await this.generateGeminiAudioChunk(chunk, voice, geminiModel, apiKey);
-        audioBuffers.push(buffer);
-        totalSize += buffer.length;
+        // Get raw PCM data (not WAV) for proper concatenation
+        const pcmBuffer = await this.generateGeminiAudioChunkRaw(chunk, voice, geminiModel, apiKey);
+        pcmBuffers.push(pcmBuffer);
+        totalPcmSize += pcmBuffer.length;
       }
 
-      const combinedBuffer = Buffer.concat(audioBuffers);
+      // Combine all PCM data and create a single WAV file
+      const combinedPcm = Buffer.concat(pcmBuffers);
+      const combinedBuffer = this.pcmToWav(combinedPcm, 24000, 1, 16);
+      
       const timestamp = Date.now();
       const filename = `audiobooks/${this.sanitizeFilename(bookTitle)}/chapter-${chapterNumber}-gemini-${timestamp}.wav`;
       
@@ -559,7 +583,7 @@ export class TTSService {
       return {
         audioUrl: blob.url,
         duration: estimatedDuration,
-        size: totalSize,
+        size: combinedBuffer.length,
       };
     } catch (error) {
       console.error(`[Gemini TTS] Error generating chapter ${chapterNumber} audio:`, error);

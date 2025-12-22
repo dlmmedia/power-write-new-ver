@@ -421,11 +421,22 @@ export function AudioGenerator({
           : 'Generating full audiobook...'
       );
 
-      const response = await fetch('/api/generate/audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody),
-      });
+      // Create AbortController with 12-minute timeout for long audio generation
+      // Must be longer than backend maxDuration (10 min) to avoid premature abort
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 720000); // 12 minutes
+
+      let response: Response;
+      try {
+        response = await fetch('/api/generate/audio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       setGenerationProgress('Processing response...');
 
@@ -477,7 +488,13 @@ export function AudioGenerator({
       
       let errorMessage = 'Failed to generate audio';
       if (error instanceof Error) {
-        errorMessage = error.message;
+        if (error.name === 'AbortError') {
+          errorMessage = 'Request timed out after 12 minutes. Try generating fewer chapters at once, or use shorter chapters.';
+        } else if (error.message === 'Failed to fetch') {
+          errorMessage = 'Network error or server crashed. Check your terminal for error details, and ensure GEMINI_API_KEY is correctly set if using Gemini voices.';
+        } else {
+          errorMessage = error.message;
+        }
       }
       
       setGenerationProgress('');
