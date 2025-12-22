@@ -407,7 +407,9 @@ export default function ShowcaseBookDetailPage() {
                             <span className="text-yellow-600 dark:text-yellow-400 font-bold text-lg">Ch. {chapter.number}</span>
                             <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
                             {chapter.audioUrl && (
-                              <Headphones className="w-4 h-4 text-green-500" title="Audio available" />
+                              <span title="Audio available">
+                                <Headphones className="w-4 h-4 text-green-500" />
+                              </span>
                             )}
                           </div>
                         </div>
