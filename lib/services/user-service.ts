@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { db, withRetry, DEFAULT_RETRY_CONFIG, EXTENDED_RETRY_CONFIG } from '@/lib/db';
 import { users, generatedBooks } from '@/lib/db/schema';
 import { eq, desc } from 'drizzle-orm';
 
@@ -24,34 +24,38 @@ const TIER_LIMITS = {
  * Get user's tier from the database
  */
 export async function getUserTier(userId: string): Promise<UserTier> {
-  const [user] = await db
-    .select({ plan: users.plan })
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  return withRetry(async () => {
+    const [user] = await db
+      .select({ plan: users.plan })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-  if (!user) {
-    return 'free'; // Default to free for unknown users
-  }
+    if (!user) {
+      return 'free'; // Default to free for unknown users
+    }
 
-  // Map database plan values to tier
-  if (user.plan === 'pro' || user.plan === 'professional' || user.plan === 'enterprise') {
-    return 'pro';
-  }
+    // Map database plan values to tier
+    if (user.plan === 'pro' || user.plan === 'professional' || user.plan === 'enterprise') {
+      return 'pro';
+    }
 
-  return 'free';
+    return 'free';
+  }, DEFAULT_RETRY_CONFIG, 'getUserTier');
 }
 
 /**
  * Get the count of books a user has generated
  */
 export async function getBookCount(userId: string): Promise<number> {
-  const books = await db
-    .select({ id: generatedBooks.id })
-    .from(generatedBooks)
-    .where(eq(generatedBooks.userId, userId));
+  return withRetry(async () => {
+    const books = await db
+      .select({ id: generatedBooks.id })
+      .from(generatedBooks)
+      .where(eq(generatedBooks.userId, userId));
 
-  return books.length;
+    return books.length;
+  }, DEFAULT_RETRY_CONFIG, 'getBookCount');
 }
 
 /**
@@ -139,13 +143,15 @@ export async function upgradeToProWithCode(
   }
 
   try {
-    await db
-      .update(users)
-      .set({
-        plan: 'pro',
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, userId));
+    await withRetry(async () => {
+      await db
+        .update(users)
+        .set({
+          plan: 'pro',
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, userId));
+    }, EXTENDED_RETRY_CONFIG, 'upgradeToProWithCode');
 
     return {
       success: true,
@@ -170,29 +176,31 @@ export async function getUserInfo(userId: string): Promise<{
   booksGenerated: number;
   maxBooks: number;
 } | null> {
-  const [user] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, userId))
-    .limit(1);
+  return withRetry(async () => {
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
 
-  if (!user) {
-    return null;
-  }
+    if (!user) {
+      return null;
+    }
 
-  const tier = user.plan === 'pro' || user.plan === 'professional' || user.plan === 'enterprise' 
-    ? 'pro' 
-    : 'free';
-  
-  const booksGenerated = await getBookCount(userId);
+    const tier = user.plan === 'pro' || user.plan === 'professional' || user.plan === 'enterprise' 
+      ? 'pro' 
+      : 'free';
+    
+    const booksGenerated = await getBookCount(userId);
 
-  return {
-    id: user.id,
-    email: user.email,
-    tier,
-    booksGenerated,
-    maxBooks: TIER_LIMITS[tier].maxBooks,
-  };
+    return {
+      id: user.id,
+      email: user.email,
+      tier,
+      booksGenerated,
+      maxBooks: TIER_LIMITS[tier].maxBooks,
+    };
+  }, DEFAULT_RETRY_CONFIG, 'getUserInfo');
 }
 
 /**
@@ -210,67 +218,72 @@ export async function syncUserToDatabase(clerkUser: {
   tier: UserTier;
   isNew: boolean;
 }> {
-  const email = clerkUser.emailAddresses[0]?.emailAddress || `${clerkUser.id}@clerk.user`;
+  return withRetry(async () => {
+    const email = clerkUser.emailAddresses[0]?.emailAddress || `${clerkUser.id}@clerk.user`;
 
-  // Check if user exists
-  const [existingUser] = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, clerkUser.id))
-    .limit(1);
+    // Check if user exists
+    const [existingUser] = await db
+      .select()
+      .from(users)
+      .where(eq(users.id, clerkUser.id))
+      .limit(1);
 
-  if (existingUser) {
-    // Update existing user
-    await db
-      .update(users)
-      .set({
-        email,
-        firstName: clerkUser.firstName || existingUser.firstName,
-        lastName: clerkUser.lastName || existingUser.lastName,
-        profileImageUrl: clerkUser.imageUrl || existingUser.profileImageUrl,
-        updatedAt: new Date(),
-      })
-      .where(eq(users.id, clerkUser.id));
+    if (existingUser) {
+      // Update existing user
+      await db
+        .update(users)
+        .set({
+          email,
+          firstName: clerkUser.firstName || existingUser.firstName,
+          lastName: clerkUser.lastName || existingUser.lastName,
+          profileImageUrl: clerkUser.imageUrl || existingUser.profileImageUrl,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.id, clerkUser.id));
 
-    const tier = existingUser.plan === 'pro' || existingUser.plan === 'professional' || existingUser.plan === 'enterprise'
-      ? 'pro'
-      : 'free';
+      const tier = existingUser.plan === 'pro' || existingUser.plan === 'professional' || existingUser.plan === 'enterprise'
+        ? 'pro'
+        : 'free';
+
+      return {
+        id: clerkUser.id,
+        tier,
+        isNew: false,
+      };
+    }
+
+    // Create new user with free tier
+    await db.insert(users).values({
+      id: clerkUser.id,
+      email,
+      firstName: clerkUser.firstName || null,
+      lastName: clerkUser.lastName || null,
+      profileImageUrl: clerkUser.imageUrl || null,
+      plan: 'free',
+      creditsUsed: 0,
+      creditsLimit: 1, // Free tier limit
+    });
 
     return {
       id: clerkUser.id,
-      tier,
-      isNew: false,
+      tier: 'free',
+      isNew: true,
     };
-  }
-
-  // Create new user with free tier
-  await db.insert(users).values({
-    id: clerkUser.id,
-    email,
-    firstName: clerkUser.firstName || null,
-    lastName: clerkUser.lastName || null,
-    profileImageUrl: clerkUser.imageUrl || null,
-    plan: 'free',
-    creditsUsed: 0,
-    creditsLimit: 1, // Free tier limit
-  });
-
-  return {
-    id: clerkUser.id,
-    tier: 'free',
-    isNew: true,
-  };
+  }, EXTENDED_RETRY_CONFIG, 'syncUserToDatabase');
 }
 
 /**
  * Get all books (for pro tier users)
  */
 export async function getAllBooks() {
-  return await db
-    .select()
-    .from(generatedBooks)
-    .orderBy(desc(generatedBooks.createdAt));
+  return withRetry(async () => {
+    return await db
+      .select()
+      .from(generatedBooks)
+      .orderBy(desc(generatedBooks.createdAt));
+  }, DEFAULT_RETRY_CONFIG, 'getAllBooks');
 }
+
 
 
 

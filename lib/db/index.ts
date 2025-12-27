@@ -1,25 +1,39 @@
 import { drizzle } from 'drizzle-orm/neon-http';
-import { neon } from '@neondatabase/serverless';
+import { neon, neonConfig } from '@neondatabase/serverless';
 import * as schema from './schema';
-import ws from 'ws';
+import {
+  withRetry,
+  withRobustConnection,
+  checkDatabaseHealth,
+  DEFAULT_RETRY_CONFIG,
+  QUICK_RETRY_CONFIG,
+  EXTENDED_RETRY_CONFIG,
+  type RetryConfig,
+  type HealthCheckResult,
+} from './connection';
 
-// Configure WebSocket for local development (not required for HTTP client but safe)
-if (process.env.NODE_ENV !== 'production') {
-  // no-op for neon-http
+// Configure Neon for better reliability
+neonConfig.fetchConnectionCache = true; // Enable connection caching
+neonConfig.poolQueryViaFetch = true; // Use fetch for pooled queries (more reliable)
+
+// Increase fetch timeout for Railway deployments
+if (typeof globalThis !== 'undefined') {
+  // Set a longer timeout for fetch requests (30 seconds)
+  neonConfig.fetchEndpoint = (host) => {
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    return `${protocol}://${host}/sql`;
+  };
 }
 
 const connectionString = process.env.DATABASE_URL_UNPOOLED 
   || process.env.POSTGRES_URL_NON_POOLING 
   || process.env.DATABASE_URL;
 
-console.log('=== DB INIT DEBUG ===');
-console.log('__dirname:', __dirname);
-console.log('process.cwd():', process.cwd());
-console.log('NODE_ENV:', process.env.NODE_ENV);
-console.log('DATABASE_URL source:', process.env.DATABASE_URL_UNPOOLED ? 'DATABASE_URL_UNPOOLED' : (process.env.POSTGRES_URL_NON_POOLING ? 'POSTGRES_URL_NON_POOLING' : 'DATABASE_URL'));
-console.log('DATABASE_URL (first 50 chars):', connectionString?.substring(0, 50));
-console.log('DATABASE_URL (full length):', connectionString?.length);
-console.log('===================');
+// Only log in development
+if (process.env.NODE_ENV === 'development') {
+  console.log('[DB] Initializing database connection...');
+  console.log('[DB] Connection source:', process.env.DATABASE_URL_UNPOOLED ? 'DATABASE_URL_UNPOOLED' : (process.env.POSTGRES_URL_NON_POOLING ? 'POSTGRES_URL_NON_POOLING' : 'DATABASE_URL'));
+}
 
 if (!connectionString) {
   throw new Error('DATABASE_URL environment variable is not set');
@@ -29,5 +43,24 @@ if (connectionString.includes('your_neon_database_url_here') || connectionString
   throw new Error(`DATABASE_URL is invalid: "${connectionString}". Check your .env.local file at ${process.cwd()}/.env.local`);
 }
 
-const sql = neon(connectionString);
+// Create the Neon SQL function with retry-friendly configuration
+const sql = neon(connectionString, {
+  fetchOptions: {
+    // These options help with Railway's network characteristics
+    cache: 'no-store', // Don't cache responses
+  },
+});
+
+// Create the Drizzle database instance
 export const db = drizzle(sql, { schema });
+
+// Re-export connection utilities for use in operations
+export {
+  withRetry,
+  withRobustConnection,
+  checkDatabaseHealth,
+  DEFAULT_RETRY_CONFIG,
+  QUICK_RETRY_CONFIG,
+  EXTENDED_RETRY_CONFIG,
+};
+export type { RetryConfig, HealthCheckResult };
