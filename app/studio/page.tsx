@@ -254,7 +254,7 @@ export default function StudioPage() {
             message: 'Book generated successfully!',
           });
 
-          // Show success message and redirect after a short delay
+          // Show success message and redirect to the new book
           setTimeout(() => {
             alert(
               `Book generated successfully!\n\n` +
@@ -263,7 +263,7 @@ export default function StudioPage() {
               `Words: ${data.book.wordCount.toLocaleString()}\n\n` +
               `Book ID: ${data.book.id}`
             );
-            router.push(`/library`);
+            router.push(`/library/${data.book.id}`);
           }, 500);
           
           break;
@@ -480,7 +480,7 @@ export default function StudioPage() {
                     `Words: ${data.totalWords?.toLocaleString()}\n\n` +
                     `Book ID: ${data.bookId}`
                   );
-                  router.push('/library');
+                  router.push(`/library/${data.bookId}`);
                 }, 500);
               } else if (data.error) {
                 throw new Error(data.error);
@@ -1422,7 +1422,7 @@ export default function StudioPage() {
             {generationProgress.phase === 'completed' && (
               <div className="text-center">
                 <p className="text-green-600 dark:text-green-400 font-medium">
-                  Redirecting to library...
+                  Opening your book...
                 </p>
               </div>
             )}
