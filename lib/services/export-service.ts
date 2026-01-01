@@ -6,6 +6,16 @@ import { generateHTMLStyles, getSceneBreakSymbol, formatChapterNumber, getChapte
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 import { isNovel } from '@/lib/utils/book-type';
 
+interface ChapterImage {
+  id: number;
+  imageUrl: string;
+  imageType: string;
+  position: number;
+  placement: string;
+  caption?: string;
+  altText?: string;
+}
+
 interface BookExport {
   title: string;
   author: string;
@@ -17,6 +27,7 @@ interface BookExport {
     number: number;
     title: string;
     content: string;
+    images?: ChapterImage[]; // Chapter images
   }>;
   bibliography?: {
     config: BibliographyConfig;
@@ -423,6 +434,86 @@ export class ExportService {
         }
         
         /* ============================================= */
+        /* CHAPTER IMAGES */
+        /* ============================================= */
+        .chapter-image {
+            margin: 2em auto;
+            text-align: center;
+            page-break-inside: avoid;
+        }
+        
+        .chapter-image img {
+            max-width: 100%;
+            max-height: 60vh;
+            height: auto;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+        }
+        
+        .chapter-image.placement-center {
+            text-align: center;
+        }
+        
+        .chapter-image.placement-full-width img {
+            width: 100%;
+            max-width: none;
+        }
+        
+        .chapter-image.placement-float-left {
+            float: left;
+            margin: 0 2em 1em 0;
+            max-width: 40%;
+        }
+        
+        .chapter-image.placement-float-right {
+            float: right;
+            margin: 0 0 1em 2em;
+            max-width: 40%;
+        }
+        
+        .chapter-image.placement-inline {
+            display: inline-block;
+            margin: 0.5em 1em;
+            max-width: 30%;
+            vertical-align: middle;
+        }
+        
+        .chapter-image-caption {
+            margin-top: 0.75em;
+            font-size: 0.9em;
+            font-style: italic;
+            color: var(--muted-color);
+            text-align: center;
+        }
+        
+        .chapter-image-figure-num {
+            font-weight: bold;
+            font-style: normal;
+            margin-right: 0.5em;
+        }
+        
+        /* Clear floats after images */
+        .chapter-content::after {
+            content: "";
+            display: table;
+            clear: both;
+        }
+        
+        @media print {
+            .chapter-image {
+                page-break-inside: avoid;
+            }
+            
+            .chapter-image.placement-float-left,
+            .chapter-image.placement-float-right {
+                float: none;
+                margin: 2em auto;
+                max-width: 80%;
+                text-align: center;
+            }
+        }
+        
+        /* ============================================= */
         /* BIBLIOGRAPHY */
         /* ============================================= */
         .bibliography-page {
@@ -691,8 +782,33 @@ export class ExportService {
         </div>
         <div class="chapter-content chapter-start">`;
       
+      // Calculate positions for images
+      const chapterImages = chapter.images || [];
+      const sortedImages = [...chapterImages].sort((a, b) => a.position - b.position);
+      let figureCounter = 0;
+      let charCount = 0;
+      let nextImageIndex = 0;
+      
       paragraphs.forEach((para, index) => {
         const trimmed = para.trim();
+        
+        // Check if any images should be inserted before this paragraph
+        while (nextImageIndex < sortedImages.length && sortedImages[nextImageIndex].position <= charCount) {
+          const img = sortedImages[nextImageIndex];
+          figureCounter++;
+          const placementClass = `placement-${img.placement || 'center'}`;
+          html += `
+            <figure class="chapter-image ${placementClass}">
+                <img src="${img.imageUrl}" alt="${img.altText || img.caption || 'Chapter illustration'}" />
+                ${img.caption ? `
+                <figcaption class="chapter-image-caption">
+                    <span class="chapter-image-figure-num">Figure ${chapter.number}.${figureCounter}:</span>
+                    ${img.caption}
+                </figcaption>` : ''}
+            </figure>`;
+          nextImageIndex++;
+        }
+        
         // Check for scene breaks
         if (trimmed === '***' || trimmed === '* * *' || trimmed === '---' || trimmed === '- - -') {
           html += `
@@ -701,7 +817,26 @@ export class ExportService {
           html += `
             <p>${trimmed}</p>`;
         }
+        
+        charCount += para.length + 2; // +2 for paragraph breaks
       });
+      
+      // Add any remaining images at the end
+      while (nextImageIndex < sortedImages.length) {
+        const img = sortedImages[nextImageIndex];
+        figureCounter++;
+        const placementClass = `placement-${img.placement || 'center'}`;
+        html += `
+            <figure class="chapter-image ${placementClass}">
+                <img src="${img.imageUrl}" alt="${img.altText || img.caption || 'Chapter illustration'}" />
+                ${img.caption ? `
+                <figcaption class="chapter-image-caption">
+                    <span class="chapter-image-figure-num">Figure ${chapter.number}.${figureCounter}:</span>
+                    ${img.caption}
+                </figcaption>` : ''}
+            </figure>`;
+        nextImageIndex++;
+      }
       
       html += `
         </div>

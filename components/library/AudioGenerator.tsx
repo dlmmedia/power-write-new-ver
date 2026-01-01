@@ -264,7 +264,7 @@ export function AudioGenerator({
           } catch {
             // If we can't parse the error response, use the default message
           }
-          console.error('[Voice Preview]', errorMessage);
+          console.warn('[Voice Preview]', errorMessage);
           setLoadingPreview(null);
           return;
         }
@@ -274,91 +274,190 @@ export function AudioGenerator({
         if (data.success && data.audioUrl) {
           audioUrl = data.audioUrl;
           
-          // Pre-validate the audio URL with a HEAD request
-          try {
-            const headResponse = await fetch(audioUrl, { method: 'HEAD' });
-            if (!headResponse.ok) {
-              console.error('Audio URL validation failed:', headResponse.status, audioUrl);
-              // Don't cache invalid URLs
-              setLoadingPreview(null);
-              return;
+          // Skip HEAD validation for newly generated previews - the server already verified it
+          // Only validate for cached URLs that might have expired
+          if (data.cached) {
+            try {
+              const headResponse = await fetch(audioUrl, { method: 'HEAD', cache: 'no-store' });
+              if (!headResponse.ok && headResponse.status === 404) {
+                console.warn(`[Voice Preview] Cached URL invalid for ${voiceId}, regenerating...`);
+                // Clear the cached URL and retry the API call
+                setVoicePreviewUrls(prev => {
+                  const updated = { ...prev };
+                  delete updated[voiceId];
+                  return updated;
+                });
+                // Retry the API call - it should regenerate since the blob doesn't exist
+                const retryResponse = await fetch(`/api/generate/voice-preview?voice=${voiceId}&provider=${selectedProvider}&_retry=${Date.now()}`);
+                if (retryResponse.ok) {
+                  const retryData = await retryResponse.json();
+                  if (retryData.success && retryData.audioUrl) {
+                    audioUrl = retryData.audioUrl;
+                    setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
+                    setLoadingPreview(null);
+                    // Continue to play the audio below
+                  } else {
+                    console.warn(`[Voice Preview] Failed to regenerate preview for ${voiceId}`);
+                    setLoadingPreview(null);
+                    return;
+                  }
+                } else {
+                  console.warn(`[Voice Preview] Failed to regenerate preview for ${voiceId}: ${retryResponse.status}`);
+                  setLoadingPreview(null);
+                  return;
+                }
+              } else {
+                // URL is valid (or has non-404 error that might be CORS), cache it
+                setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
+              }
+            } catch (headError) {
+              // CORS or network error - continue anyway, the audio element will handle it
+              console.warn('[Voice Preview] Could not validate audio URL (CORS may block HEAD):', headError);
+              // Still cache it since it might work when actually loading
+              setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
             }
-          } catch (headError) {
-            console.warn('Could not validate audio URL (CORS may block HEAD):', headError);
-            // Continue anyway - the audio element will handle the actual error
+          } else {
+            // Newly generated URL - server already verified it, just cache it
+            setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
           }
-          
-          setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
         } else {
           const errorMsg = data.error || 'Failed to get voice preview';
-          console.error('[Voice Preview]', errorMsg, data.details ? `- ${data.details}` : '');
+          console.warn('[Voice Preview]', errorMsg, data.details ? `- ${data.details}` : '');
           setLoadingPreview(null);
           return;
         }
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-        console.error('[Voice Preview] Error fetching voice preview:', errorMsg, error);
+        console.warn('[Voice Preview] Error fetching voice preview:', errorMsg);
         setLoadingPreview(null);
         return;
       }
       setLoadingPreview(null);
     }
 
-    // Play the audio
+    // Play the audio with retry logic
     setPlayingVoiceSample(voiceId);
     
-    try {
-      const audio = new Audio(audioUrl);
-      voiceSampleRef.current = audio;
+    const playWithRetry = async (url: string, retryCount = 0): Promise<boolean> => {
+      const maxRetries = 2;
       
-      audio.onended = () => {
-        setPlayingVoiceSample(null);
-      };
-      
-      audio.onerror = (e) => {
-        const mediaError = audio.error;
-        let errorMessage = 'Unknown audio error';
+      return new Promise((resolve) => {
+        const audio = new Audio(url);
+        voiceSampleRef.current = audio;
         
-        if (mediaError) {
-          switch (mediaError.code) {
-            case MediaError.MEDIA_ERR_ABORTED:
-              errorMessage = 'Audio playback was aborted';
-              break;
-            case MediaError.MEDIA_ERR_NETWORK:
-              errorMessage = 'Network error while loading audio';
-              break;
-            case MediaError.MEDIA_ERR_DECODE:
-              errorMessage = 'Audio decoding error - file may be corrupted';
-              break;
-            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
-              errorMessage = 'Audio format not supported or URL invalid';
-              break;
-            default:
-              errorMessage = mediaError.message || 'Unknown media error';
+        audio.onended = () => {
+          setPlayingVoiceSample(null);
+          resolve(true);
+        };
+        
+        audio.oncanplaythrough = () => {
+          // Audio is ready to play
+          audio.play().catch((playError) => {
+            console.warn('[Voice Preview] Play promise rejected:', playError);
+            if (retryCount < maxRetries) {
+              console.log(`[Voice Preview] Retrying playback... (attempt ${retryCount + 2})`);
+              setTimeout(() => {
+                playWithRetry(url, retryCount + 1).then(resolve);
+              }, 500);
+            } else {
+              setPlayingVoiceSample(null);
+              resolve(false);
+            }
+          });
+        };
+        
+        audio.onerror = () => {
+          const mediaError = audio.error;
+          let errorMessage = 'Unknown audio error';
+          let shouldLog = true;
+          let shouldRetry = false;
+          
+          if (mediaError) {
+            switch (mediaError.code) {
+              case MediaError.MEDIA_ERR_ABORTED:
+                errorMessage = 'Audio playback was aborted';
+                shouldLog = false;
+                break;
+              case MediaError.MEDIA_ERR_NETWORK:
+                errorMessage = 'Network error while loading audio';
+                shouldRetry = true;
+                break;
+              case MediaError.MEDIA_ERR_DECODE:
+                errorMessage = 'Audio decoding error - file may be corrupted';
+                break;
+              case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                errorMessage = 'Audio format not supported or URL invalid';
+                break;
+              default:
+                errorMessage = mediaError.message || 'Unknown media error';
+            }
           }
-        }
+          
+          if (shouldLog) {
+            console.warn('[Voice Preview] Audio playback error:', errorMessage, {
+              voiceId,
+              audioUrl: url,
+              errorCode: mediaError?.code,
+              retryCount,
+            });
+          }
+          
+          // Retry on network errors
+          if (shouldRetry && retryCount < maxRetries) {
+            console.log(`[Voice Preview] Retrying after network error... (attempt ${retryCount + 2})`);
+            setTimeout(() => {
+              playWithRetry(url, retryCount + 1).then(resolve);
+            }, 1000);
+          } else {
+            // Clear the cached URL if there was a non-recoverable error
+            setVoicePreviewUrls(prev => {
+              const updated = { ...prev };
+              delete updated[voiceId];
+              return updated;
+            });
+            setPlayingVoiceSample(null);
+            resolve(false);
+          }
+        };
         
-        console.error('Error playing audio:', errorMessage, {
-          voiceId,
-          audioUrl,
-          errorCode: mediaError?.code,
-          errorMessage: mediaError?.message,
-        });
+        // Set a timeout for loading
+        const loadTimeout = setTimeout(() => {
+          if (audio.readyState < 3) { // Not enough data
+            console.warn('[Voice Preview] Audio loading timeout');
+            audio.src = ''; // Cancel load
+            if (retryCount < maxRetries) {
+              playWithRetry(url, retryCount + 1).then(resolve);
+            } else {
+              setPlayingVoiceSample(null);
+              resolve(false);
+            }
+          }
+        }, 30000); // 30 second timeout
         
-        // Clear the cached URL if there was an error so it can be regenerated
-        setVoicePreviewUrls(prev => {
-          const updated = { ...prev };
-          delete updated[voiceId];
-          return updated;
-        });
+        audio.oncanplaythrough = () => {
+          clearTimeout(loadTimeout);
+          audio.play().catch((playError) => {
+            console.warn('[Voice Preview] Play promise rejected:', playError);
+            if (retryCount < maxRetries) {
+              setTimeout(() => {
+                playWithRetry(url, retryCount + 1).then(resolve);
+              }, 500);
+            } else {
+              setPlayingVoiceSample(null);
+              resolve(false);
+            }
+          });
+        };
         
-        setPlayingVoiceSample(null);
-      };
-      
-      await audio.play();
+        // Start loading
+        audio.load();
+      });
+    };
+    
+    try {
+      await playWithRetry(audioUrl);
     } catch (error) {
-      console.error('Error playing voice sample:', error);
-      // Clear the cached URL on error
+      console.warn('[Voice Preview] Error playing voice sample:', error instanceof Error ? error.message : 'Unknown error');
       setVoicePreviewUrls(prev => {
         const updated = { ...prev };
         delete updated[voiceId];

@@ -1,4 +1,5 @@
 import { ReferenceAnalysis } from './book';
+import { BookImageConfig, DEFAULT_IMAGE_CONFIG } from './book-images';
 
 // Main Book Configuration Interface
 export interface BookConfiguration {
@@ -143,7 +144,10 @@ export interface BookConfiguration {
     diagrams?: boolean;
   };
 
-  // N. AI Model Settings
+  // N. Book Images Configuration
+  bookImages?: BookImageConfig;
+
+  // O. AI Model Settings
   aiSettings: {
     provider: 'openai' | 'openrouter';
     model: string; // Model for outline generation
@@ -158,7 +162,7 @@ export interface BookConfiguration {
     useParallelGeneration?: boolean;
   };
 
-  // O. Advanced Options
+  // P. Advanced Options
   advanced?: {
     contentFiltering: boolean;
     factChecking?: boolean;
@@ -249,6 +253,7 @@ export const defaultBookConfiguration: BookConfiguration = {
     coverStyle: 'photographic',
     chapterIllustrations: false,
   },
+  bookImages: DEFAULT_IMAGE_CONFIG,
   aiSettings: {
     provider: 'openrouter',
     model: 'openai/gpt-4o-mini', // Fast model for outlines

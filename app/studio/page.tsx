@@ -14,6 +14,7 @@ import { WritingStyle } from '@/components/studio/config/WritingStyle';
 import { StylePreferences } from '@/components/studio/config/StylePreferences';
 import { CharactersWorld } from '@/components/studio/config/CharactersWorld';
 import { BibliographySettings } from '@/components/studio/config/BibliographySettings';
+import { ImageSettings } from '@/components/studio/config/ImageSettings';
 import { AdvancedSettings } from '@/components/studio/config/AdvancedSettings';
 import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
@@ -58,6 +59,7 @@ type ConfigTab =
   | 'content' 
   | 'style' 
   | 'characters' 
+  | 'images'
   | 'bibliography'
   | 'advanced';
 
@@ -111,6 +113,7 @@ export default function StudioPage() {
     { id: 'content' as ConfigTab, label: 'Content', icon: '📖' },
     { id: 'style' as ConfigTab, label: 'Style', icon: '✍️' },
     { id: 'characters' as ConfigTab, label: 'Characters', icon: '🌍' },
+    { id: 'images' as ConfigTab, label: 'Book Images', icon: '🖼️' },
     { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: '📚' },
     { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
   ];
@@ -1054,6 +1057,7 @@ export default function StudioPage() {
                   {activeTab === 'content' && <ContentSettings />}
                   {activeTab === 'style' && <StylePreferences />}
                   {activeTab === 'characters' && <CharactersWorld />}
+                  {activeTab === 'images' && <ImageSettings />}
                   {activeTab === 'bibliography' && <BibliographySettings />}
                   {activeTab === 'advanced' && <AdvancedSettings />}
                 </>

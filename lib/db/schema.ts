@@ -227,6 +227,7 @@ export const generatedBooksRelations = relations(generatedBooks, ({ one, many })
     references: [bibliographyConfigs.bookId],
   }),
   coverGallery: many(coverGallery),
+  chapterImages: many(chapterImages),
 }));
 
 export const bookChaptersRelations = relations(bookChapters, ({ one, many }) => ({
@@ -235,6 +236,7 @@ export const bookChaptersRelations = relations(bookChapters, ({ one, many }) => 
     references: [generatedBooks.id],
   }),
   citations: many(citations),
+  images: many(chapterImages),
 }));
 
 export const bookSearchesRelations = relations(bookSearches, ({ one }) => ({
@@ -285,6 +287,35 @@ export const coverGalleryRelations = relations(coverGallery, ({ one }) => ({
   book: one(generatedBooks, {
     fields: [coverGallery.bookId],
     references: [generatedBooks.id],
+  }),
+}));
+
+// Chapter images table - stores all images within book chapters
+export const chapterImages = pgTable("chapter_images", {
+  id: serial("id").primaryKey(),
+  bookId: integer("book_id").notNull().references(() => generatedBooks.id, { onDelete: "cascade" }),
+  chapterId: integer("chapter_id").references(() => bookChapters.id, { onDelete: "cascade" }),
+  imageUrl: text("image_url").notNull(),
+  thumbnailUrl: text("thumbnail_url"),
+  imageType: varchar("image_type").notNull(), // illustration, diagram, infographic, chart, photo, scene, concept
+  position: integer("position").default(0), // Character position in chapter content
+  placement: varchar("placement").default("center"), // inline, full-width, float-left, float-right, center, chapter-header, section-break
+  caption: text("caption"),
+  altText: text("alt_text"),
+  prompt: text("prompt"), // Generation prompt for reference/regeneration
+  metadata: jsonb("metadata"), // width, height, style, format, generationModel, etc.
+  source: varchar("source").default("generated"), // generated, uploaded
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const chapterImagesRelations = relations(chapterImages, ({ one }) => ({
+  book: one(generatedBooks, {
+    fields: [chapterImages.bookId],
+    references: [generatedBooks.id],
+  }),
+  chapter: one(bookChapters, {
+    fields: [chapterImages.chapterId],
+    references: [bookChapters.id],
   }),
 }));
 
@@ -358,3 +389,10 @@ export const insertCoverGallerySchema = createInsertSchema(coverGallery).omit({
 });
 export type InsertCoverGallery = z.infer<typeof insertCoverGallerySchema>;
 export type CoverGalleryItem = typeof coverGallery.$inferSelect;
+
+export const insertChapterImageSchema = createInsertSchema(chapterImages).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertChapterImage = z.infer<typeof insertChapterImageSchema>;
+export type ChapterImageDB = typeof chapterImages.$inferSelect;

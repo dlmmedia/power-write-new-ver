@@ -6,6 +6,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { AIChapterModal } from './AIChapterModal';
+import { ImageInsertModal } from './ImageInsertModal';
+import { ImageManager } from './ImageManager';
+import { ContentWithImages, ImagePreviewStrip } from './ContentWithImages';
+import { BookImageType, ImagePlacement } from '@/lib/types/book-images';
 
 interface Chapter {
   id: number;
@@ -61,6 +65,32 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   const [showChapterList, setShowChapterList] = useState(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('base');
   const [showAIChapterModal, setShowAIChapterModal] = useState(false);
+  const [showImageInsertModal, setShowImageInsertModal] = useState(false);
+  const [showImageManager, setShowImageManager] = useState(false);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+  const [chapterImages, setChapterImages] = useState<Array<{
+    id: number;
+    imageUrl: string;
+    thumbnailUrl?: string;
+    imageType: BookImageType;
+    position: number;
+    placement: ImagePlacement;
+    caption?: string;
+    altText?: string;
+    chapterId?: number;
+  }>>([]);
+  const [allBookImages, setAllBookImages] = useState<Array<{
+    id: number;
+    imageUrl: string;
+    thumbnailUrl?: string;
+    imageType: BookImageType;
+    position: number;
+    placement: ImagePlacement;
+    caption?: string;
+    altText?: string;
+    chapterId?: number;
+  }>>([]);
   
   // Find and Replace state
   const [findReplace, setFindReplace] = useState<FindReplaceState>({
@@ -605,6 +635,135 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     window.scrollTo(0, 0);
   };
 
+  // Fetch all book images on mount
+  useEffect(() => {
+    const fetchAllImages = async () => {
+      try {
+        const response = await fetch(`/api/books/${bookId}/images`);
+        const data = await response.json();
+        if (data.success && data.images) {
+          setAllBookImages(data.images);
+        }
+      } catch (error) {
+        console.error('Error fetching book images:', error);
+      }
+    };
+    
+    fetchAllImages();
+  }, [bookId]);
+
+  // Filter images for current chapter when chapter changes
+  useEffect(() => {
+    const currentChapterImages = allBookImages.filter(
+      (img) => img.chapterId === currentChapter.id
+    );
+    console.log('[BookEditor] Filtering images for chapter', currentChapter.id, ':', currentChapterImages.length, 'images');
+    setChapterImages(currentChapterImages);
+  }, [currentChapter.id, allBookImages]);
+
+  // Track cursor position
+  const handleTextareaClick = (e: React.MouseEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    setCursorPosition(textarea.selectionStart);
+  };
+
+  const handleTextareaKeyUp = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const textarea = e.currentTarget;
+    setCursorPosition(textarea.selectionStart);
+  };
+
+  // Handle image insertion
+  const handleImageInserted = async (image: {
+    imageUrl: string;
+    caption?: string;
+    altText?: string;
+    imageType: BookImageType;
+    placement: ImagePlacement;
+    position: number;
+    prompt?: string;
+  }) => {
+    console.log('[BookEditor] handleImageInserted called with:', image);
+    
+    try {
+      // Create the new image object for local state
+      const newImage = {
+        id: Date.now(), // Temporary ID until saved
+        imageUrl: image.imageUrl,
+        thumbnailUrl: image.imageUrl,
+        imageType: image.imageType,
+        position: image.position,
+        placement: image.placement,
+        caption: image.caption,
+        altText: image.altText,
+        chapterId: currentChapter.id,
+      };
+      
+      console.log('[BookEditor] Adding new image to state:', newImage);
+      
+      // Immediately add to state so the image shows up
+      setAllBookImages(prev => [...prev, newImage]);
+      setChapterImages(prev => [...prev, newImage]);
+      
+      // Switch to preview mode to show the image
+      setViewMode('preview');
+      
+      // Save image to database in background
+      const response = await fetch(`/api/books/${bookId}/images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chapterId: currentChapter.id,
+          imageUrl: image.imageUrl,
+          imageType: image.imageType,
+          position: image.position,
+          placement: image.placement,
+          caption: image.caption,
+          altText: image.altText,
+          prompt: image.prompt,
+          source: 'generated',
+        }),
+      });
+
+      const data = await response.json();
+      console.log('[BookEditor] Save image response:', data);
+      
+      if (data.success && data.image) {
+        // Update the temporary ID with the real database ID
+        setAllBookImages(prev => prev.map(img => 
+          img.id === newImage.id ? { ...data.image, chapterId: currentChapter.id } : img
+        ));
+        setChapterImages(prev => prev.map(img => 
+          img.id === newImage.id ? { ...data.image, chapterId: currentChapter.id } : img
+        ));
+        console.log('[BookEditor] Image saved successfully with ID:', data.image.id);
+      } else {
+        console.error('[BookEditor] Failed to save image:', data.error);
+        // Keep the local image even if save fails - user can try again
+      }
+    } catch (error) {
+      console.error('[BookEditor] Error saving image:', error);
+      // Keep the local image even if save fails
+    }
+  };
+
+  // Handle image deletion
+  const handleImageDelete = async (imageId: number) => {
+    try {
+      const response = await fetch(`/api/books/${bookId}/images/${imageId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // Remove from all book images
+        setAllBookImages(allBookImages.filter(img => img.id !== imageId));
+        // Remove from current chapter images
+        setChapterImages(chapterImages.filter(img => img.id !== imageId));
+      }
+    } catch (error) {
+      console.error('Error deleting image:', error);
+    }
+  };
+
   const fontSizeClasses = {
     sm: 'text-sm',
     base: 'text-base',
@@ -835,6 +994,54 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           </Button>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
           
+          {/* Image Tools */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const textarea = textareaRef.current;
+              if (textarea) setCursorPosition(textarea.selectionStart);
+              setShowImageInsertModal(true);
+            }}
+            title="Insert image at cursor position"
+          >
+            🖼️ Add Image
+          </Button>
+          <Button
+            variant={showImageManager ? 'primary' : 'outline'}
+            size="sm"
+            onClick={() => setShowImageManager(!showImageManager)}
+            title="Manage chapter images"
+          >
+            📷 Images {chapterImages.length > 0 && `(${chapterImages.length})`}
+          </Button>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
+          
+          {/* View Mode Toggle */}
+          <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+            <button
+              onClick={() => setViewMode('edit')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'edit'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              ✏️ Edit
+            </button>
+            <button
+              onClick={() => setViewMode('preview')}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                viewMode === 'preview'
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+              }`}
+            >
+              👁️ Preview {chapterImages.length > 0 && `(${chapterImages.length} 🖼️)`}
+            </button>
+          </div>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
+          
           {/* Find and Replace Toggle */}
           <Button
             variant={findReplace.isOpen ? 'primary' : 'outline'}
@@ -964,18 +1171,84 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
           {/* Chapter Content */}
           <div className="mb-6">
-            <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-400">
-              Content
-            </label>
-            <textarea
-              ref={textareaRef}
-              id="chapter-content"
-              value={currentChapter.content}
-              onChange={(e) => updateChapterContent(e.target.value)}
-              className={`w-full min-h-[600px] bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
-              placeholder="Start writing your chapter..."
-              style={{ fontFamily: 'Georgia, serif' }}
-            />
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
+                Content
+              </label>
+              {chapterImages.length > 0 && viewMode === 'edit' && (
+                <button
+                  onClick={() => setViewMode('preview')}
+                  className="text-xs text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 flex items-center gap-1"
+                >
+                  <span>🖼️</span>
+                  <span>{chapterImages.length} image{chapterImages.length !== 1 ? 's' : ''} - Click to preview</span>
+                </button>
+              )}
+            </div>
+
+            {/* Image Preview Strip - always shows in edit mode */}
+            {viewMode === 'edit' && (
+              <div className="mb-3">
+                <ImagePreviewStrip
+                  images={chapterImages}
+                  onImageClick={(image) => {
+                    console.log('[BookEditor] Image clicked in strip, switching to preview');
+                    setViewMode('preview');
+                  }}
+                  onAddImage={() => {
+                    const textarea = textareaRef.current;
+                    if (textarea) setCursorPosition(textarea.selectionStart);
+                    setShowImageInsertModal(true);
+                  }}
+                />
+              </div>
+            )}
+
+            {viewMode === 'edit' ? (
+              /* Edit Mode - Textarea */
+              <textarea
+                ref={textareaRef}
+                id="chapter-content"
+                value={currentChapter.content}
+                onChange={(e) => updateChapterContent(e.target.value)}
+                onClick={handleTextareaClick}
+                onKeyUp={handleTextareaKeyUp}
+                className={`w-full min-h-[600px] bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
+                placeholder="Start writing your chapter..."
+                style={{ fontFamily: 'Georgia, serif' }}
+              />
+            ) : (
+              /* Preview Mode - Content with Images */
+              <div className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 min-h-[600px] overflow-auto">
+                {/* Always show ContentWithImages in preview mode, even with 0 images */}
+                <ContentWithImages
+                  content={currentChapter.content}
+                  images={chapterImages}
+                  fontSize={fontSize}
+                  onImageClick={(image) => {
+                    console.log('Image clicked:', image);
+                  }}
+                  onImageDelete={handleImageDelete}
+                  isEditing={true}
+                />
+                
+                {/* Preview mode info bar */}
+                <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {chapterImages.length > 0 
+                      ? `📖 Preview mode - ${chapterImages.length} image${chapterImages.length !== 1 ? 's' : ''} shown at their positions`
+                      : '📖 Preview mode - No images in this chapter yet'
+                    }
+                  </p>
+                  <button
+                    onClick={() => setViewMode('edit')}
+                    className="text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 font-medium"
+                  >
+                    ✏️ Switch to Edit
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Navigation Buttons */}
@@ -1073,6 +1346,38 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           modelId={modelId}
         />
       )}
+
+      {/* Image Insert Modal */}
+      {showImageInsertModal && (
+        <ImageInsertModal
+          bookId={bookId}
+          chapterId={currentChapter.id}
+          bookTitle={bookTitle}
+          bookGenre={genre}
+          chapterTitle={currentChapter.title}
+          chapterContent={currentChapter.content}
+          cursorPosition={cursorPosition}
+          onClose={() => setShowImageInsertModal(false)}
+          onImageGenerated={handleImageInserted}
+        />
+      )}
+
+      {/* Image Manager Sidebar */}
+      <ImageManager
+        bookId={bookId}
+        chapterId={currentChapter.id}
+        isOpen={showImageManager}
+        onClose={() => setShowImageManager(false)}
+        onInsertImage={(position) => {
+          setCursorPosition(position || cursorPosition);
+          setShowImageInsertModal(true);
+        }}
+        onImageClick={(image) => {
+          // Switch to preview to see the image in context
+          setViewMode('preview');
+        }}
+        onImageDelete={handleImageDelete}
+      />
     </div>
   );
 };

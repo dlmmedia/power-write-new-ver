@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AIService, BibliographyGenerationConfig } from '@/lib/services/ai-service';
+import { BookImageService } from '@/lib/services/book-image-service';
 import { createBook, createMultipleChapters, ensureDemoUser, upsertBibliographyConfig, createBibliographyReference } from '@/lib/db/operations';
+import { db } from '@/lib/db';
+import { chapterImages, bookChapters } from '@/lib/db/schema';
+import { eq } from 'drizzle-orm';
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
+import { DEFAULT_IMAGE_CONFIG } from '@/lib/types/book-images';
 
 export const maxDuration = 900; // 15 minutes - Railway supports up to 15 min HTTP timeout
 
@@ -150,7 +155,91 @@ export async function POST(request: NextRequest) {
       isEdited: false,
     }));
 
-    await createMultipleChapters(chapterData);
+    const savedChapters = await createMultipleChapters(chapterData);
+
+    // Generate book images if enabled
+    const imageConfig = config.bookImages || DEFAULT_IMAGE_CONFIG;
+    if (imageConfig.enabled && imageConfig.imagesPerChapter > 0) {
+      console.log(`[Book Images] Generating images: ${imageConfig.imagesPerChapter} per chapter`);
+      
+      try {
+        const bookImageService = new BookImageService();
+        
+        // Get saved chapter IDs
+        const dbChapters = await db
+          .select({ id: bookChapters.id, chapterNumber: bookChapters.chapterNumber, title: bookChapters.title, content: bookChapters.content })
+          .from(bookChapters)
+          .where(eq(bookChapters.bookId, book.id))
+          .orderBy(bookChapters.chapterNumber);
+
+        // Generate images for each chapter
+        for (const chapter of dbChapters) {
+          console.log(`[Book Images] Analyzing chapter ${chapter.chapterNumber}: ${chapter.title}`);
+          
+          // Analyze chapter for image opportunities
+          const analysis = await bookImageService.analyzeChapterForImages(
+            chapter.id,
+            chapter.title,
+            chapter.content || '',
+            outline.genre,
+            imageConfig
+          );
+
+          if (analysis.suggestions.length > 0) {
+            console.log(`[Book Images] Found ${analysis.suggestions.length} image opportunities for chapter ${chapter.chapterNumber}`);
+            
+            // Generate images based on suggestions
+            for (const suggestion of analysis.suggestions) {
+              try {
+                const result = await bookImageService.generateImage({
+                  bookId: book.id,
+                  chapterId: chapter.id,
+                  bookTitle: outline.title,
+                  bookGenre: outline.genre,
+                  chapterTitle: chapter.title,
+                  chapterContent: suggestion.description,
+                  imageType: suggestion.imageType,
+                  style: imageConfig.preferredStyle,
+                  placement: imageConfig.placement,
+                  aspectRatio: imageConfig.aspectRatio,
+                });
+
+                if (result.success && result.imageUrl) {
+                  // Save image to database
+                  await db.insert(chapterImages).values({
+                    bookId: book.id,
+                    chapterId: chapter.id,
+                    imageUrl: result.imageUrl,
+                    thumbnailUrl: result.thumbnailUrl,
+                    imageType: suggestion.imageType,
+                    position: suggestion.position,
+                    placement: imageConfig.placement,
+                    caption: result.caption,
+                    altText: result.altText,
+                    prompt: result.prompt,
+                    metadata: result.metadata,
+                    source: 'generated',
+                  });
+                  
+                  console.log(`[Book Images] Generated image for chapter ${chapter.chapterNumber} at position ${suggestion.position}`);
+                }
+              } catch (imgError) {
+                console.error(`[Book Images] Failed to generate image for chapter ${chapter.chapterNumber}:`, imgError);
+                // Continue with next image
+              }
+              
+              // Small delay between image generations
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+        }
+        
+        console.log(`[Book Images] Image generation complete for book ${book.id}`);
+      } catch (imageError) {
+        console.error('[Book Images] Error generating book images:', imageError);
+        // Continue - book images are not critical
+      }
+    }
 
     // Create bibliography config and save references if enabled
     if (config.bibliography?.include) {

@@ -21,41 +21,41 @@ const OPENAI_VOICE_PREVIEWS: Record<string, string> = {
 
 // Gemini TTS voices with their preview texts (30 voices)
 const GEMINI_VOICE_PREVIEWS: Record<string, string> = {
-  // Primary voices with distinct personalities
-  Zephyr: "Hello, I'm Zephyr. My voice carries the gentle breeze of conversation, perfect for friendly and approachable content.",
-  Puck: "Hi there! I'm Puck, bringing energy and enthusiasm to every story. My upbeat tone makes learning fun and engaging!",
-  Charon: "Greetings. I'm Charon, offering a deep and authoritative presence for serious narratives and documentary content.",
-  Kore: "Hello, I'm Kore. I deliver balanced, professional narration with clarity and precision for any content type.",
-  Fenrir: "Welcome. I'm Fenrir, bringing warmth and approachability to your audiobooks and educational materials.",
-  Leda: "Hi, I'm Leda. My voice brings elegance and sophistication to literary works and refined storytelling.",
-  Orus: "Greetings, I'm Orus. I specialize in clear, articulate narration perfect for technical and educational content.",
-  Aoede: "Hello! I'm Aoede, your guide for creative and artistic content with expressive, dynamic delivery.",
+  // Primary voices with distinct personalities - written as audiobook excerpts
+  Zephyr: "The morning sun cast long shadows across the meadow as Sarah began her journey. With each step, the path revealed new wonders. The birds sang their welcome, and the breeze carried the scent of wildflowers.",
+  Puck: "And so, the brave little fox set off on his greatest adventure yet! Through forests dark and mountains tall, nothing could stop him now. The whole world was waiting to be explored!",
+  Charon: "In the year eighteen fifteen, the Congress of Vienna reshaped the map of Europe. The delegates gathered in the grand hall, their decisions destined to echo through history for generations to come.",
+  Kore: "This comprehensive guide will walk you through each step of the process. First, we'll examine the fundamental principles. Then, we'll explore practical applications and real-world examples.",
+  Fenrir: "Welcome to today's lesson on creative writing. We'll discover how to craft compelling characters that readers will remember long after they've finished your story.",
+  Leda: "She stood at the window, watching the rain trace patterns on the glass. The old mansion held secrets within its walls, secrets that whispered through the corridors at midnight.",
+  Orus: "Chapter three covers the essential techniques for data analysis. We will review statistical methods, visualization tools, and interpretation strategies used by professionals.",
+  Aoede: "The canvas awaited her brush. Colors swirled in her mind like a symphony of light. Today, she would paint not what she saw, but what her heart felt.",
   
   // Extended voice collection
-  Callirrhoe: "Hello, I'm Callirrhoe. My flowing voice brings grace and beauty to poetry and lyrical narratives.",
-  Autonoe: "Hi there, I'm Autonoe. I offer a natural, conversational tone perfect for interviews and discussions.",
-  Enceladus: "Greetings. I'm Enceladus, bringing a breathy, gentle quality ideal for intimate storytelling and meditation.",
-  Iapetus: "Welcome, I'm Iapetus. My voice carries wisdom and depth for philosophical and contemplative works.",
-  Umbriel: "Hello, I'm Umbriel. I deliver mysterious and atmospheric narration for fantasy and thriller content.",
-  Algieba: "Hi, I'm Algieba. My bright, clear voice is perfect for children's content and educational materials.",
-  Despina: "Hello! I'm Despina, bringing cheerful energy to lifestyle content and uplifting narratives.",
-  Erinome: "Greetings, I'm Erinome. I specialize in dramatic readings with emotional depth and range.",
+  Callirrhoe: "The river flows ever onward, carrying dreams to the distant sea. In its gentle current, we find the rhythm of life itself, eternal and ever-changing.",
+  Autonoe: "That's a fascinating question. Let me share some insights from my research. The data suggests patterns that many people find surprising at first glance.",
+  Enceladus: "Close your eyes and breathe deeply. Feel the tension leave your shoulders. With each breath, you become more relaxed, more at peace with yourself and the world around you.",
+  Iapetus: "What does it mean to live a good life? This question has occupied the minds of philosophers for millennia. Perhaps the answer lies not in a destination, but in the journey itself.",
+  Umbriel: "The door creaked open, revealing only darkness beyond. Something moved in the shadows. She reached for the flashlight, her heart pounding in the silence.",
+  Algieba: "Once upon a time, in a land of talking animals and magical trees, there lived a curious young rabbit named Clover. Clover loved to ask questions about everything!",
+  Despina: "Here are five simple ways to brighten your morning routine! Start with gratitude, move your body, and connect with someone you love. Small changes lead to big transformations.",
+  Erinome: "To be, or not to be, that is the question. Whether 'tis nobler in the mind to suffer the slings and arrows of outrageous fortune, or to take arms against a sea of troubles.",
   
   // Stellar-named voices
-  Algenib: "Hello, I'm Algenib. My voice shines with clarity for scientific and informational content.",
-  Rasalgethi: "Welcome. I'm Rasalgethi, offering a commanding presence for historical and epic narratives.",
-  Laomedeia: "Hi there, I'm Laomedeia. My soothing voice is ideal for wellness and self-help content.",
-  Achernar: "Hello, I'm Achernar. I bring a crisp, professional tone to business and corporate content.",
-  Alnilam: "Greetings, I'm Alnilam. My voice carries strength and conviction for motivational content.",
-  Schedar: "Hi, I'm Schedar. I deliver warm, nurturing narration perfect for family-friendly content.",
-  Gacrux: "Hello! I'm Gacrux, bringing clarity and precision to technical documentation and tutorials.",
-  Pulcherrima: "Welcome, I'm Pulcherrima. My elegant voice enhances romantic and literary fiction.",
-  Achird: "Hello, I'm Achird. I offer a friendly, relatable tone for memoir and personal stories.",
-  Zubenelgenubi: "Greetings, I'm Zubenelgenubi. My distinctive voice adds character to unique creative projects.",
-  Vindemiatrix: "Hi there, I'm Vindemiatrix. I bring sophistication to cultural and artistic content.",
-  Sadachbia: "Hello, I'm Sadachbia. My voice conveys hope and optimism for inspirational narratives.",
-  Sadaltager: "Welcome. I'm Sadaltager, offering a thoughtful presence for reflective and mindful content.",
-  Sulafat: "Hi, I'm Sulafat. I deliver versatile narration that adapts to any genre or style.",
+  Algenib: "The human brain contains approximately eighty-six billion neurons. Each neuron can form thousands of connections, creating a network of staggering complexity and capability.",
+  Rasalgethi: "The empire rose from humble beginnings. Through conquest and diplomacy, it expanded across three continents. This is the story of its triumph and ultimate fall.",
+  Laomedeia: "Remember that self-care is not selfish. Taking time to nurture your mind and body allows you to show up fully for the people and causes you care about most.",
+  Achernar: "Our quarterly report shows significant growth across all key metrics. Revenue increased by twelve percent, while customer satisfaction scores reached an all-time high.",
+  Alnilam: "You have the power to change your life. Every great achievement begins with a single step. Today is the day to take that step. Your future self will thank you.",
+  Schedar: "Gather round, children, and I'll tell you the tale of the moonbeam princess. She lived in a castle made of clouds and dreamed of visiting the world below.",
+  Gacrux: "Step one: initialize the development environment. Step two: configure the build settings. Step three: run the test suite to verify all components are functioning correctly.",
+  Pulcherrima: "Their eyes met across the crowded ballroom. In that moment, nothing else existed. The music faded, the dancers blurred, and only they remained, suspended in time.",
+  Achird: "I remember the summer of nineteen eighty-seven like it was yesterday. The smell of my grandmother's kitchen, the sound of laughter in the backyard, the feeling of endless possibility.",
+  Zubenelgenubi: "The artifact glowed with an otherworldly light. Dr. Chen examined the inscriptions, realizing with growing excitement that this discovery would rewrite everything we thought we knew.",
+  Vindemiatrix: "The symphony began with a single violin, its melody rising like morning mist. Soon, the full orchestra joined, creating a tapestry of sound that moved the audience to tears.",
+  Sadachbia: "Tomorrow holds infinite possibilities. Every sunrise brings a chance to begin again, to create, to love, to grow. Hope is not just a feeling—it's a choice we make every day.",
+  Sadaltager: "Take a moment to simply be present. Notice the rhythm of your breath, the sensations in your body. In this stillness, wisdom emerges naturally, like light through clouds.",
+  Sulafat: "The market opened strong, with tech stocks leading the rally. Analysts pointed to improved earnings forecasts and renewed consumer confidence as key drivers of the upward trend.",
 };
 
 // Combined previews for backwards compatibility
@@ -167,16 +167,63 @@ export async function GET(request: NextRequest) {
         const now = Date.now();
         
         if (now - uploadedAt < CACHE_TTL * 1000) {
-          console.log(`[Voice Preview] Returning cached preview for ${voice} (${isGemini ? 'Gemini' : 'OpenAI'})`);
-          return NextResponse.json({
-            success: true,
-            voice,
-            provider: isGemini ? 'gemini' : 'openai',
-            audioUrl: existingBlob.url,
-            cached: true,
-          });
+          // Validate that the blob URL actually exists before returning it
+          // Add cache-busting query to avoid CDN caching issues
+          const validateUrl = `${existingBlob.url}?_t=${Date.now()}`;
+          
+          let isValid = false;
+          let lastError: unknown = null;
+          
+          // Retry validation up to 2 times with a short delay
+          for (let attempt = 0; attempt < 2 && !isValid; attempt++) {
+            try {
+              const headResponse = await fetch(validateUrl, { 
+                method: 'HEAD',
+                cache: 'no-store',
+              });
+              if (headResponse.ok) {
+                isValid = true;
+              } else if (headResponse.status === 404 && attempt === 0) {
+                // Wait a bit before retrying - might be CDN propagation delay
+                await new Promise(resolve => setTimeout(resolve, 500));
+              } else {
+                lastError = new Error(`HTTP ${headResponse.status}`);
+              }
+            } catch (err) {
+              lastError = err;
+              if (attempt === 0) {
+                // Wait before retry on network error
+                await new Promise(resolve => setTimeout(resolve, 500));
+              }
+            }
+          }
+          
+          if (isValid) {
+            console.log(`[Voice Preview] Returning cached preview for ${voice} (${isGemini ? 'Gemini' : 'OpenAI'})`);
+            return NextResponse.json({
+              success: true,
+              voice,
+              provider: isGemini ? 'gemini' : 'openai',
+              audioUrl: existingBlob.url,
+              cached: true,
+            });
+          } else {
+            // Blob URL is invalid after retries, delete it and regenerate
+            console.warn(`[Voice Preview] Cached blob URL invalid after validation, deleting and regenerating...`);
+            try {
+              await del(existingBlob.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+            } catch (delError) {
+              console.warn('[Voice Preview] Failed to delete invalid blob:', delError);
+            }
+            // Continue to generate new preview below
+          }
         } else {
-          await del(existingBlob.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+          // Blob is expired, delete it
+          try {
+            await del(existingBlob.url, { token: process.env.BLOB_READ_WRITE_TOKEN });
+          } catch (delError) {
+            console.warn('[Voice Preview] Failed to delete expired blob:', delError);
+          }
         }
       }
     } catch (listError) {
@@ -297,14 +344,43 @@ export async function GET(request: NextRequest) {
       buffer = Buffer.from(arrayBuffer);
     }
 
-    // Upload to blob storage
+    // Upload to blob storage with consistent URL (no random suffix)
     const blob = await put(previewPath, buffer, {
       access: 'public',
       contentType,
       token: process.env.BLOB_READ_WRITE_TOKEN,
+      addRandomSuffix: false,
     });
 
     console.log(`[Voice Preview] Generated and cached preview for ${voice}: ${blob.url}`);
+
+    // Wait a brief moment for blob to propagate through CDN
+    // This helps ensure the URL is accessible when the client tries to play it
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Verify the blob is accessible before returning
+    let retries = 3;
+    let blobReady = false;
+    while (retries > 0 && !blobReady) {
+      try {
+        const checkResponse = await fetch(blob.url, { method: 'HEAD', cache: 'no-store' });
+        if (checkResponse.ok) {
+          blobReady = true;
+        } else {
+          console.log(`[Voice Preview] Blob not ready yet (${checkResponse.status}), retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 500));
+          retries--;
+        }
+      } catch (err) {
+        console.log(`[Voice Preview] Error checking blob availability, retrying...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        retries--;
+      }
+    }
+
+    if (!blobReady) {
+      console.warn(`[Voice Preview] Blob may not be immediately available, returning URL anyway: ${blob.url}`);
+    }
 
     return NextResponse.json({
       success: true,
@@ -460,6 +536,7 @@ export async function POST(request: NextRequest) {
           access: 'public',
           contentType,
           token: process.env.BLOB_READ_WRITE_TOKEN,
+          addRandomSuffix: false,
         });
 
         results.push({ voice: v, provider: isGemini ? 'gemini' : 'openai', audioUrl: blob.url });
