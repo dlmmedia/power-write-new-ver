@@ -165,17 +165,19 @@ export function AudioGenerator({
     }
   };
 
-  // OpenAI voice definitions
+  // OpenAI voice definitions (all 11 voices)
   const openaiVoices: VoiceInfo[] = [
     { id: 'nova', name: 'Victoria Sterling', title: 'Executive Narrator', description: 'Polished and professional with excellent pacing.', expertise: ['Business', 'Leadership', 'Biography'], gender: 'feminine', style: 'Warm & Professional', icon: Briefcase, gradient: 'from-rose-500 to-pink-600', provider: 'openai' },
     { id: 'alloy', name: 'Morgan Blake', title: 'Versatile Presenter', description: 'Balanced and adaptable, delivering content with clarity.', expertise: ['Education', 'Training', 'Corporate'], gender: 'neutral', style: 'Clear & Articulate', icon: GraduationCap, gradient: 'from-violet-500 to-purple-600', provider: 'openai' },
     { id: 'ash', name: 'Alexander Grey', title: 'Senior Narrator', description: 'Deep and resonant voice with gravitas.', expertise: ['Drama', 'Thriller', 'Documentary'], gender: 'masculine', style: 'Deep & Commanding', icon: Shield, gradient: 'from-stone-500 to-zinc-700', provider: 'openai' },
+    { id: 'ballad', name: 'Sophia Nightingale', title: 'Story Weaver', description: 'Melodic and emotive voice that brings stories to life.', expertise: ['Romance', 'Drama', 'Literary Fiction'], gender: 'feminine', style: 'Melodic & Emotive', icon: Heart, gradient: 'from-pink-400 to-rose-600', provider: 'openai' },
     { id: 'coral', name: 'Camille Rose', title: 'Dynamic Host', description: 'Warm and energetic with infectious enthusiasm.', expertise: ['Adventure', 'Lifestyle', 'Memoir'], gender: 'feminine', style: 'Warm & Energetic', icon: Star, gradient: 'from-coral-500 to-red-500', provider: 'openai' },
     { id: 'echo', name: 'Sebastian Cross', title: 'Distinguished Scholar', description: 'Refined and contemplative with intellectual depth.', expertise: ['Philosophy', 'Academic', 'Documentary'], gender: 'masculine', style: 'Thoughtful & Measured', icon: Book, gradient: 'from-slate-500 to-gray-600', provider: 'openai' },
     { id: 'fable', name: 'Aurora Winters', title: 'Creative Director', description: 'Expressive and dynamic with exceptional range.', expertise: ['Fantasy', 'Children\'s', 'Adventure'], gender: 'neutral', style: 'Dynamic & Expressive', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', provider: 'openai' },
     { id: 'onyx', name: 'Marcus Ashford', title: 'Senior Correspondent', description: 'Commanding presence with authoritative delivery.', expertise: ['Journalism', 'Mystery', 'History'], gender: 'masculine', style: 'Authoritative & Bold', icon: Shield, gradient: 'from-emerald-500 to-teal-600', provider: 'openai' },
     { id: 'sage', name: 'Professor Elena Sage', title: 'Knowledge Guide', description: 'Patient and wise with natural teaching quality.', expertise: ['Education', 'Science', 'How-To'], gender: 'feminine', style: 'Patient & Wise', icon: GraduationCap, gradient: 'from-indigo-500 to-purple-600', provider: 'openai' },
     { id: 'shimmer', name: 'Isabella Chen', title: 'Wellness Director', description: 'Gentle and soothing with calming presence.', expertise: ['Wellness', 'Meditation', 'Self-Help'], gender: 'feminine', style: 'Calming & Intimate', icon: Heart, gradient: 'from-cyan-500 to-blue-600', provider: 'openai' },
+    { id: 'verse', name: 'Julian Verse', title: 'Literary Artist', description: 'Poetic and artistic with lyrical quality.', expertise: ['Poetry', 'Literature', 'Arts'], gender: 'masculine', style: 'Poetic & Lyrical', icon: Feather, gradient: 'from-fuchsia-500 to-purple-600', provider: 'openai' },
   ];
 
   // Gemini voice definitions (30 voices)
@@ -247,10 +249,22 @@ export function AudioGenerator({
       // Fetch the preview URL from our API
       setLoadingPreview(voiceId);
       try {
-        const response = await fetch(`/api/generate/voice-preview?voice=${voiceId}`);
+        const response = await fetch(`/api/generate/voice-preview?voice=${voiceId}&provider=${selectedProvider}`);
         
         if (!response.ok) {
-          console.error('Failed to fetch voice preview:', response.status, response.statusText);
+          let errorMessage = `Failed to fetch voice preview: ${response.status} ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            if (errorData.error) {
+              errorMessage = errorData.error;
+              if (errorData.details) {
+                errorMessage += ` - ${errorData.details}`;
+              }
+            }
+          } catch {
+            // If we can't parse the error response, use the default message
+          }
+          console.error('[Voice Preview]', errorMessage);
           setLoadingPreview(null);
           return;
         }
@@ -276,12 +290,14 @@ export function AudioGenerator({
           
           setVoicePreviewUrls(prev => ({ ...prev, [voiceId]: audioUrl }));
         } else {
-          console.error('Failed to get voice preview:', data.error);
+          const errorMsg = data.error || 'Failed to get voice preview';
+          console.error('[Voice Preview]', errorMsg, data.details ? `- ${data.details}` : '');
           setLoadingPreview(null);
           return;
         }
       } catch (error) {
-        console.error('Error fetching voice preview:', error);
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        console.error('[Voice Preview] Error fetching voice preview:', errorMsg, error);
         setLoadingPreview(null);
         return;
       }
@@ -491,7 +507,7 @@ export function AudioGenerator({
         if (error.name === 'AbortError') {
           errorMessage = 'Request timed out after 12 minutes. Try generating fewer chapters at once, or use shorter chapters.';
         } else if (error.message === 'Failed to fetch') {
-          errorMessage = 'Network error or server crashed. Check your terminal for error details, and ensure GEMINI_API_KEY is correctly set if using Gemini voices.';
+          errorMessage = 'Network error or server crashed. Check your terminal for error details, and ensure GEMINI_API_KEY or GOOGLE_AI_API_KEY is correctly set if using Gemini voices.';
         } else {
           errorMessage = error.message;
         }

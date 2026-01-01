@@ -19,13 +19,14 @@ export async function POST(request: NextRequest) {
     });
 
     // Check environment variables based on provider
+    // Support both GEMINI_API_KEY and GOOGLE_AI_API_KEY for backwards compatibility
     if (provider === 'gemini') {
-      if (!process.env.GEMINI_API_KEY) {
-        console.error('[Audio API] GEMINI_API_KEY is not configured');
+      if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_AI_API_KEY) {
+        console.error('[Audio API] GEMINI_API_KEY or GOOGLE_AI_API_KEY is not configured');
         return NextResponse.json(
           { 
-            error: 'Gemini API key is not configured. Please set GEMINI_API_KEY in your environment variables.',
-            hint: 'Add GEMINI_API_KEY in your .env.local file or deployment environment variables.'
+            error: 'Gemini API key is not configured. Please set GEMINI_API_KEY or GOOGLE_AI_API_KEY in your environment variables.',
+            hint: 'Add GEMINI_API_KEY or GOOGLE_AI_API_KEY in your .env.local file or deployment environment variables.'
           },
           { status: 500 }
         );
@@ -202,7 +203,7 @@ export async function POST(request: NextRequest) {
     } else if (errorMessage.includes('OPENAI') || errorMessage.includes('OpenAI')) {
       hint = 'OpenAI API error. Verify OPENAI_API_KEY is correctly set and has TTS access.';
     } else if (errorMessage.includes('GEMINI') || errorMessage.includes('Gemini')) {
-      hint = 'Gemini API error. Verify GEMINI_API_KEY is correctly set.';
+      hint = 'Gemini API error. Verify GEMINI_API_KEY or GOOGLE_AI_API_KEY is correctly set.';
     } else if (errorMessage.includes('fetch')) {
       hint = 'Network error. Check your internet connection and API endpoints.';
     }

@@ -4,10 +4,11 @@ import type { GeminiVoiceId } from '@/lib/services/tts-service';
 
 export const maxDuration = 60; // 60 seconds for preview generation (Gemini may take longer)
 
-// OpenAI TTS voices with their preview texts
+// OpenAI TTS voices with their preview texts (all 11 voices)
 const OPENAI_VOICE_PREVIEWS: Record<string, string> = {
   alloy: "Hello, I'm Morgan Blake. I bring clarity and precision to every word, making complex topics accessible and engaging for all listeners.",
   ash: "Greetings, I'm Alexander Grey. My voice carries the weight of experience, perfect for compelling narratives and thought-provoking content.",
+  ballad: "Hello, I'm Sophia Nightingale. My melodic voice weaves through stories with emotion and grace, perfect for romance and literary fiction.",
   coral: "Hi there, I'm Camille Rose. My warmth and energy bring life to every story, from adventure tales to heartfelt memoirs.",
   echo: "Good day, I'm Sebastian Cross. I offer a contemplative presence, ideal for philosophical works and scholarly narratives.",
   fable: "Hello and welcome! I'm Aurora Winters, your guide to magical worlds and creative adventures. Let your imagination soar!",
@@ -15,6 +16,7 @@ const OPENAI_VOICE_PREVIEWS: Record<string, string> = {
   onyx: "I'm Marcus Ashford. My commanding voice brings authority to investigative content, mysteries, and historical narratives.",
   sage: "Greetings, I'm Professor Elena Sage. I specialize in educational content, bringing knowledge to life with clarity and patience.",
   shimmer: "Hello, I'm Isabella Chen. Let me guide you through moments of calm and reflection with gentle, soothing narration.",
+  verse: "Greetings, I'm Julian Verse. My poetic voice brings artistry and lyrical beauty to literature, poetry, and artistic works.",
 };
 
 // Gemini TTS voices with their preview texts (30 voices)
@@ -107,9 +109,12 @@ function pcmToWav(pcmBuffer: Buffer, sampleRate: number, channels: number, bitsP
 }
 
 export async function GET(request: NextRequest) {
+  let voice: string | null = null;
+  let isGemini = false;
+  
   try {
     const searchParams = request.nextUrl.searchParams;
-    const voice = searchParams.get('voice');
+    voice = searchParams.get('voice');
 
     if (!voice || !VOICE_PREVIEWS[voice]) {
       return NextResponse.json(
@@ -118,15 +123,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const isGemini = isGeminiVoice(voice);
+    isGemini = isGeminiVoice(voice);
     const fileExtension = isGemini ? 'wav' : 'mp3';
     const contentType = isGemini ? 'audio/wav' : 'audio/mpeg';
 
     // Check environment variables based on provider
+    // Support both GEMINI_API_KEY and GOOGLE_AI_API_KEY for backwards compatibility
     if (isGemini) {
-      if (!process.env.GEMINI_API_KEY) {
+      if (!process.env.GEMINI_API_KEY && !process.env.GOOGLE_AI_API_KEY) {
         return NextResponse.json(
-          { error: 'Gemini API key not configured' },
+          { error: 'Gemini API key not configured. Set GEMINI_API_KEY or GOOGLE_AI_API_KEY.' },
           { status: 500 }
         );
       }
@@ -186,7 +192,8 @@ export async function GET(request: NextRequest) {
     if (isGemini) {
       // Generate using Gemini TTS (Flash model for faster response)
       const geminiModel = 'gemini-2.5-flash-preview-tts';
-      const url = `${GEMINI_TTS_API_URL}/${geminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+      const geminiApiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+      const url = `${GEMINI_TTS_API_URL}/${geminiModel}:generateContent?key=${geminiApiKey}`;
       
       const requestBody = {
         contents: [{
@@ -215,8 +222,33 @@ export async function GET(request: NextRequest) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error(`[Voice Preview] Gemini API error: ${response.status} ${errorText}`);
+        
+        // Parse the error for more specific messaging
+        let errorMessage = `Gemini TTS API error: ${response.status}`;
+        let errorDetails = '';
+        
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error?.message) {
+            errorDetails = errorJson.error.message;
+            // Handle specific error cases
+            if (errorDetails.includes('leaked') || errorDetails.includes('API key was reported')) {
+              errorMessage = 'Gemini API key has been disabled';
+              errorDetails = 'Your API key was flagged as leaked by Google. Please generate a new key at https://aistudio.google.com/app/apikey and update GEMINI_API_KEY or GOOGLE_AI_API_KEY in your .env.local file.';
+            } else if (response.status === 403) {
+              errorMessage = 'Gemini API access denied';
+              errorDetails = 'Check that your API key is valid and has access to the Gemini TTS API.';
+            } else if (response.status === 429) {
+              errorMessage = 'Gemini API rate limit exceeded';
+              errorDetails = 'Please wait a moment and try again.';
+            }
+          }
+        } catch {
+          // Use default error message
+        }
+        
         return NextResponse.json(
-          { error: `Gemini TTS API error: ${response.status}` },
+          { error: errorMessage, details: errorDetails },
           { status: 500 }
         );
       }
@@ -283,8 +315,17 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Voice Preview] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorDetails = error instanceof Error ? error.stack : String(error);
+    console.error('[Voice Preview] Error details:', errorDetails);
+    
     return NextResponse.json(
-      { error: 'Failed to generate voice preview' },
+      { 
+        error: 'Failed to generate voice preview',
+        details: errorMessage,
+        voice: voice || 'unknown',
+        provider: voice ? (isGeminiVoice(voice) ? 'gemini' : 'openai') : 'unknown'
+      },
       { status: 500 }
     );
   }
@@ -323,7 +364,7 @@ export async function POST(request: NextRequest) {
       const isGemini = isGeminiVoice(v);
       
       // Check API key availability
-      if (isGemini && !process.env.GEMINI_API_KEY) {
+      if (isGemini && !process.env.GEMINI_API_KEY && !process.env.GOOGLE_AI_API_KEY) {
         results.push({ voice: v, provider: 'gemini', error: 'Gemini API key not configured' });
         continue;
       }
@@ -341,7 +382,8 @@ export async function POST(request: NextRequest) {
         if (isGemini) {
           // Generate using Gemini TTS (Flash model for faster response)
           const geminiModel = 'gemini-2.5-flash-preview-tts';
-          const url = `${GEMINI_TTS_API_URL}/${geminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`;
+          const geminiApiKeyPost = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
+          const url = `${GEMINI_TTS_API_URL}/${geminiModel}:generateContent?key=${geminiApiKeyPost}`;
           
           const requestBody = {
             contents: [{
@@ -366,7 +408,15 @@ export async function POST(request: NextRequest) {
           });
 
           if (!response.ok) {
-            results.push({ voice: v, provider: 'gemini', error: `Gemini API error: ${response.status}` });
+            let errorMsg = `Gemini API error: ${response.status}`;
+            try {
+              const errorText = await response.text();
+              const errorJson = JSON.parse(errorText);
+              if (errorJson.error?.message?.includes('leaked')) {
+                errorMsg = 'API key disabled - flagged as leaked. Generate a new key at https://aistudio.google.com/app/apikey';
+              }
+            } catch {}
+            results.push({ voice: v, provider: 'gemini', error: errorMsg });
             continue;
           }
 

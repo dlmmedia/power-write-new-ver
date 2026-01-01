@@ -44,7 +44,9 @@ import {
   Sparkles,
   Globe,
   Eye,
-  EyeOff
+  EyeOff,
+  Save,
+  X
 } from 'lucide-react';
 import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
 
@@ -111,6 +113,11 @@ export default function BookDetailPage() {
   const [showAudiobookPlayer, setShowAudiobookPlayer] = useState(false);
   const [isReorderingChapters, setIsReorderingChapters] = useState(false);
   const [isTogglingShowcase, setIsTogglingShowcase] = useState(false);
+  
+  // Title editing state
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [isSavingTitle, setIsSavingTitle] = useState(false);
 
   useEffect(() => {
     if (bookId) {
@@ -411,6 +418,40 @@ export default function BookDetailPage() {
       alert(`Failed to ${action.toLowerCase()} showcase. Please try again.`);
     } finally {
       setIsTogglingShowcase(false);
+    }
+  };
+
+  // Handle saving edited book title
+  const handleSaveTitle = async () => {
+    if (!book || !editedTitle.trim()) return;
+    
+    // Don't save if title hasn't changed
+    if (editedTitle.trim() === book.title) {
+      setIsEditingTitle(false);
+      return;
+    }
+
+    setIsSavingTitle(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: editedTitle.trim() }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Update local state with new title
+        setBook(prev => prev ? { ...prev, title: editedTitle.trim() } : null);
+        setIsEditingTitle(false);
+      } else {
+        alert('Failed to update title: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Title update error:', error);
+      alert('Failed to update title. Please try again.');
+    } finally {
+      setIsSavingTitle(false);
     }
   };
 
@@ -1446,6 +1487,106 @@ export default function BookDetailPage() {
                     Only completed books can be added to the showcase.
                   </p>
                 )}
+              </div>
+
+              {/* Book Information */}
+              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
+                <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Information</h3>
+                
+                <div className="space-y-4">
+                  {/* Title Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Book Title
+                    </label>
+                    {isEditingTitle ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editedTitle}
+                          onChange={(e) => setEditedTitle(e.target.value)}
+                          className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                          placeholder="Enter book title"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveTitle();
+                            if (e.key === 'Escape') {
+                              setIsEditingTitle(false);
+                              setEditedTitle(book.title);
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="primary"
+                          onClick={handleSaveTitle}
+                          disabled={isSavingTitle || !editedTitle.trim()}
+                          className="flex items-center gap-2"
+                        >
+                          {isSavingTitle ? (
+                            <>
+                              <span className="animate-spin">⏳</span>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingTitle(false);
+                            setEditedTitle(book.title);
+                          }}
+                          disabled={isSavingTitle}
+                          className="flex items-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
+                          {book.title}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setEditedTitle(book.title);
+                            setIsEditingTitle(true);
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          Edit Title
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Author (Read-only for now) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Author
+                    </label>
+                    <span className="block px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
+                      {book.author}
+                    </span>
+                  </div>
+
+                  {/* Genre (Read-only for now) */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Genre
+                    </label>
+                    <span className="block px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
+                      {book.genre}
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Book Settings */}

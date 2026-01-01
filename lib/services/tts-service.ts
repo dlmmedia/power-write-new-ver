@@ -81,11 +81,12 @@ export class TTSService {
   private ensureGeminiInitialized(): void {
     if (this.geminiInitialized) return;
     
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Support both GEMINI_API_KEY and GOOGLE_AI_API_KEY for backwards compatibility
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY;
     console.log(`[Gemini TTS] Checking API key: ${apiKey ? `found (${apiKey.substring(0, 10)}...)` : 'NOT FOUND'}`);
     
     if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is required for Gemini TTS');
+      throw new Error('GEMINI_API_KEY or GOOGLE_AI_API_KEY is required for Gemini TTS');
     }
     
     // Validate BLOB token is available (but don't throw - will check at upload time)
@@ -350,6 +351,20 @@ export class TTSService {
 
       if (!response.ok) {
         const errorText = await response.text();
+        // Parse for more specific error messages
+        try {
+          const errorJson = JSON.parse(errorText);
+          if (errorJson.error?.message?.includes('leaked') || errorJson.error?.message?.includes('API key was reported')) {
+            throw new Error('Gemini API key has been disabled by Google (flagged as leaked). Please generate a new API key at https://aistudio.google.com/app/apikey and update GEMINI_API_KEY or GOOGLE_AI_API_KEY in your environment.');
+          }
+          if (response.status === 403) {
+            throw new Error(`Gemini API access denied (403): ${errorJson.error?.message || 'Check that your API key is valid and has the correct permissions.'}`);
+          }
+        } catch (parseError) {
+          if (parseError instanceof Error && parseError.message.includes('Gemini API')) {
+            throw parseError;
+          }
+        }
         throw new Error(`Gemini TTS API error: ${response.status} ${errorText}`);
       }
 

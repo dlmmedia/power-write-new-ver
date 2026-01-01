@@ -256,6 +256,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
         body: JSON.stringify({
           userId: getDemoUserId(),
           bookId: bookId.toString(),
+          provider: 'openai', // BookReader uses OpenAI voices
           chapterNumbers: [currentChapter.number],
           voice: voice,
           speed: selectedSpeed,
