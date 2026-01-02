@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import {
@@ -43,7 +43,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
   onClose,
   onImageGenerated,
 }) => {
-  const [mode, setMode] = useState<'generate' | 'upload'>('generate');
+  const [mode, setMode] = useState<'generate' | 'upload' | 'file'>('generate');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,9 +54,16 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
   const [customPrompt, setCustomPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '4:3' | '1:1' | '3:2' | '2:3'>('16:9');
 
-  // Upload mode
+  // URL upload mode
   const [uploadUrl, setUploadUrl] = useState('');
   const [uploadCaption, setUploadCaption] = useState('');
+
+  // File upload mode
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Get recommended settings based on genre
   useEffect(() => {
@@ -162,6 +169,120 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
     onClose();
   };
 
+  // Handle file selection
+  const handleFileSelect = useCallback((file: File) => {
+    // Validate file type
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setError('Invalid file type. Please upload a JPEG, PNG, WebP, or GIF image.');
+      return;
+    }
+
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      setError('File too large. Maximum size is 10MB.');
+      return;
+    }
+
+    setSelectedFile(file);
+    setError(null);
+
+    // Create preview
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFilePreview(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  // Handle file input change
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  };
+
+  // Handle drag events
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelect(file);
+    }
+  }, [handleFileSelect]);
+
+  // Handle file upload to server
+  const handleFileUpload = async () => {
+    if (!selectedFile) {
+      setError('Please select a file to upload');
+      return;
+    }
+
+    setIsUploading(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('image', selectedFile);
+      formData.append('chapterId', chapterId.toString());
+      formData.append('imageType', imageType);
+      formData.append('position', cursorPosition.toString());
+      formData.append('placement', placement);
+      formData.append('caption', uploadCaption || '');
+      formData.append('altText', uploadCaption || selectedFile.name);
+
+      const response = await fetch(`/api/books/${bookId}/images/upload`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await response.json();
+      console.log('[ImageInsertModal] Upload response:', data);
+
+      if (!response.ok || !data.success) {
+        // Show detailed error message if available
+        const errorMessage = data.details 
+          ? `${data.error}: ${data.details}` 
+          : (data.error || 'Failed to upload image');
+        throw new Error(errorMessage);
+      }
+
+      console.log('[ImageInsertModal] File uploaded successfully:', data);
+
+      onImageGenerated({
+        imageUrl: data.imageUrl,
+        caption: uploadCaption || undefined,
+        altText: uploadCaption || selectedFile.name,
+        imageType,
+        placement,
+        position: cursorPosition,
+      });
+
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload image');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const imageTypes: BookImageType[] = [
     'illustration',
     'scene',
@@ -230,7 +351,17 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
               }`}
             >
-              ✨ Generate with AI
+              ✨ AI Generate
+            </button>
+            <button
+              onClick={() => setMode('file')}
+              className={`flex-1 px-4 py-3 rounded-lg font-medium transition-colors ${
+                mode === 'file'
+                  ? 'bg-yellow-400 text-black'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
+              }`}
+            >
+              📤 Upload File
             </button>
             <button
               onClick={() => setMode('upload')}
@@ -240,7 +371,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
               }`}
             >
-              📎 Use URL
+              🔗 Use URL
             </button>
           </div>
         </div>
@@ -343,6 +474,106 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                 </div>
               </div>
             </>
+          ) : mode === 'file' ? (
+            <>
+              {/* File Upload Drop Zone */}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                  isDragging
+                    ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20'
+                    : selectedFile
+                    ? 'border-green-400 bg-green-50 dark:bg-green-900/20'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-yellow-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                }`}
+              >
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={handleFileInputChange}
+                  className="hidden"
+                />
+                
+                {filePreview ? (
+                  <div className="space-y-4">
+                    <img
+                      src={filePreview}
+                      alt="Preview"
+                      className="max-h-48 mx-auto rounded-lg shadow-lg"
+                    />
+                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <p className="font-medium text-gray-900 dark:text-white">{selectedFile?.name}</p>
+                      <p>{selectedFile && (selectedFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedFile(null);
+                        setFilePreview(null);
+                      }}
+                      className="text-sm text-red-500 hover:text-red-700"
+                    >
+                      Remove and choose another
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="text-4xl">📤</div>
+                    <div>
+                      <p className="font-medium text-gray-900 dark:text-white">
+                        Drop an image here or click to browse
+                      </p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                        Supports JPEG, PNG, WebP, GIF (max 10MB)
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Caption for file upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Caption (Optional)
+                </label>
+                <Input
+                  type="text"
+                  value={uploadCaption}
+                  onChange={(e) => setUploadCaption(e.target.value)}
+                  placeholder="Enter image caption..."
+                />
+              </div>
+
+              {/* Image Type for file upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Image Type
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {imageTypes.map((type) => {
+                    const info = IMAGE_TYPE_INFO[type];
+                    return (
+                      <button
+                        key={type}
+                        onClick={() => setImageType(type)}
+                        className={`p-2 rounded-lg transition-colors text-left ${
+                          imageType === type
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        <div className="text-lg">{info.icon}</div>
+                        <div className="text-xs font-medium mt-1">{info.name}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
           ) : (
             <>
               {/* URL Input */}
@@ -436,7 +667,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
 
         {/* Footer */}
         <div className="sticky bottom-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 px-6 py-4 flex items-center justify-end gap-3">
-          <Button variant="outline" onClick={onClose} disabled={isGenerating}>
+          <Button variant="outline" onClick={onClose} disabled={isGenerating || isUploading}>
             Cancel
           </Button>
           {mode === 'generate' ? (
@@ -454,13 +685,28 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                 <>✨ Generate Image</>
               )}
             </Button>
+          ) : mode === 'file' ? (
+            <Button
+              variant="primary"
+              onClick={handleFileUpload}
+              disabled={!selectedFile || isUploading}
+            >
+              {isUploading ? (
+                <>
+                  <span className="animate-spin mr-2">⏳</span>
+                  Uploading...
+                </>
+              ) : (
+                <>📤 Upload Image</>
+              )}
+            </Button>
           ) : (
             <Button
               variant="primary"
               onClick={handleUpload}
               disabled={!uploadUrl}
             >
-              📎 Insert Image
+              🔗 Insert Image
             </Button>
           )}
         </div>

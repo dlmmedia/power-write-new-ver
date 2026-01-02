@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { BookImageType, ImagePlacement, IMAGE_TYPE_INFO } from '@/lib/types/book-images';
+import { BookImageType, ImagePlacement, ImageSize, IMAGE_TYPE_INFO, IMAGE_SIZE_INFO } from '@/lib/types/book-images';
 
 interface ChapterImage {
   id: number;
@@ -13,6 +13,11 @@ interface ChapterImage {
   caption?: string;
   altText?: string;
   chapterId?: number;
+  metadata?: {
+    size?: ImageSize;
+    paragraphIndex?: number;
+    [key: string]: unknown;
+  };
 }
 
 interface ContentWithImagesProps {
@@ -49,31 +54,40 @@ export const ContentWithImages: React.FC<ContentWithImagesProps> = ({
     return [...images].sort((a, b) => a.position - b.position);
   }, [images]);
 
+  // Get size classes based on image size setting
+  const getSizeClasses = (size?: ImageSize) => {
+    const s = size || 'medium';
+    return IMAGE_SIZE_INFO[s]?.cssClass || 'w-1/2 max-w-[400px]';
+  };
+
   // Get placement classes for different image placements
-  const getPlacementClasses = (placement: ImagePlacement) => {
+  const getPlacementClasses = (placement: ImagePlacement, size?: ImageSize) => {
+    const sizeClass = getSizeClasses(size);
+    
     switch (placement) {
       case 'full-width':
         return 'w-full my-6';
       case 'float-left':
-        return 'float-left mr-6 mb-4 w-1/3 max-w-xs';
+        return `float-left mr-6 mb-4 ${sizeClass}`;
       case 'float-right':
-        return 'float-right ml-6 mb-4 w-1/3 max-w-xs';
+        return `float-right ml-6 mb-4 ${sizeClass}`;
       case 'inline':
-        return 'inline-block mx-2 max-w-sm align-middle';
+        return `inline-block mx-2 ${sizeClass} align-middle`;
       case 'center':
       default:
-        return 'mx-auto my-6 max-w-2xl';
+        return `mx-auto my-6 ${sizeClass}`;
     }
   };
 
   // Render an image with proper styling
   const renderImage = (image: ChapterImage, index: number) => {
-    const placementClasses = getPlacementClasses(image.placement);
+    const placementClasses = getPlacementClasses(image.placement, image.metadata?.size);
+    const isFloating = image.placement === 'float-left' || image.placement === 'float-right';
     
     return (
       <div
         key={`img-${image.id}-${index}`}
-        className={`relative group ${placementClasses} clear-both`}
+        className={`relative group ${placementClasses} ${!isFloating ? 'clear-both' : ''}`}
         onClick={() => onImageClick?.(image)}
       >
         <div className="relative overflow-hidden rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
@@ -125,10 +139,49 @@ export const ContentWithImages: React.FC<ContentWithImagesProps> = ({
     );
   };
 
-  // Split content into segments based on image positions
+  // Parse content into paragraphs
+  const paragraphs = useMemo(() => {
+    if (!content) return [];
+    return content
+      .split(/\n\n+/)
+      .map(p => p.trim())
+      .filter(p => p.length > 0);
+  }, [content]);
+
+  // Map images to paragraph indices
+  const getImageParagraphIndex = (image: ChapterImage): number => {
+    // Use stored paragraph index if available
+    if (image.metadata?.paragraphIndex !== undefined) {
+      return image.metadata.paragraphIndex;
+    }
+    // Otherwise calculate from position
+    let charCount = 0;
+    for (let i = 0; i < paragraphs.length; i++) {
+      charCount += paragraphs[i].length + 2; // +2 for newlines
+      if (charCount >= image.position) return i;
+    }
+    return paragraphs.length - 1;
+  };
+
+  // Group images by the paragraph they should appear after
+  const imagesByParagraph = useMemo(() => {
+    const map = new Map<number, ChapterImage[]>();
+    
+    sortedImages.forEach(image => {
+      const paragraphIndex = getImageParagraphIndex(image);
+      if (!map.has(paragraphIndex)) {
+        map.set(paragraphIndex, []);
+      }
+      map.get(paragraphIndex)!.push(image);
+    });
+    
+    return map;
+  }, [sortedImages, paragraphs]);
+
+  // Render content with images placed after their assigned paragraphs
   const renderContentWithImages = () => {
-    if (sortedImages.length === 0) {
-      // No images, just render content as paragraphs
+    if (paragraphs.length === 0) {
+      // No paragraphs, just render content as-is
       return (
         <div className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif whitespace-pre-wrap`}>
           {content}
@@ -137,47 +190,36 @@ export const ContentWithImages: React.FC<ContentWithImagesProps> = ({
     }
 
     const segments: React.ReactNode[] = [];
-    let lastPosition = 0;
-
-    sortedImages.forEach((image, index) => {
-      // Skip images with invalid positions
-      const position = Math.min(image.position, content.length);
-      
-      // Add text segment before this image
-      if (position > lastPosition) {
-        const textSegment = content.substring(lastPosition, position);
-        if (textSegment.trim()) {
-          segments.push(
-            <div 
-              key={`text-${index}`} 
-              className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif whitespace-pre-wrap`}
-            >
-              {textSegment}
-            </div>
-          );
-        }
-      }
-      
-      // Add the image
-      segments.push(renderImage(image, index));
-      
-      lastPosition = position;
-    });
-
-    // Add remaining text after last image
-    if (lastPosition < content.length) {
-      const remainingText = content.substring(lastPosition);
-      if (remainingText.trim()) {
-        segments.push(
-          <div 
-            key="text-final" 
-            className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif whitespace-pre-wrap`}
-          >
-            {remainingText}
-          </div>
-        );
-      }
+    
+    // Check for images at the start (paragraph index -1)
+    const startImages = imagesByParagraph.get(-1);
+    if (startImages) {
+      startImages.forEach((image, imgIndex) => {
+        segments.push(renderImage(image, imgIndex));
+      });
     }
+
+    paragraphs.forEach((paragraph, paragraphIndex) => {
+      // Add the paragraph
+      segments.push(
+        <p 
+          key={`para-${paragraphIndex}`} 
+          className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif mb-4`}
+        >
+          {paragraph}
+        </p>
+      );
+      
+      // Add any images that should appear after this paragraph
+      const imagesAfterThisParagraph = imagesByParagraph.get(paragraphIndex);
+      if (imagesAfterThisParagraph) {
+        imagesAfterThisParagraph.forEach((image, imgIndex) => {
+          segments.push(renderImage(image, paragraphIndex * 100 + imgIndex));
+        });
+        // Clear floats after images
+        segments.push(<div key={`clear-${paragraphIndex}`} className="clear-both" />);
+      }
+    });
 
     return segments;
   };

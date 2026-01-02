@@ -72,6 +72,7 @@ export async function PUT(
       placement,
       caption,
       altText,
+      metadata,
     } = body;
 
     const updateData: Record<string, unknown> = {};
@@ -80,6 +81,7 @@ export async function PUT(
     if (placement !== undefined) updateData.placement = placement;
     if (caption !== undefined) updateData.caption = caption;
     if (altText !== undefined) updateData.altText = altText;
+    if (metadata !== undefined) updateData.metadata = metadata;
 
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json(

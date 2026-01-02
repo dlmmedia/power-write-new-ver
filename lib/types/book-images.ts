@@ -134,6 +134,45 @@ export type ImagePlacement =
   | 'section-break';  // Between sections
 
 /**
+ * Image size options for display
+ */
+export type ImageSize = 
+  | 'small'           // 25% width, max 200px
+  | 'medium'          // 50% width, max 400px  
+  | 'large'           // 75% width, max 600px
+  | 'full';           // Full width of content area
+
+/**
+ * Image size display information
+ */
+export const IMAGE_SIZE_INFO: Record<ImageSize, {
+  name: string;
+  description: string;
+  cssClass: string;
+}> = {
+  small: {
+    name: 'Small',
+    description: '25% width',
+    cssClass: 'w-1/4 max-w-[200px]',
+  },
+  medium: {
+    name: 'Medium', 
+    description: '50% width',
+    cssClass: 'w-1/2 max-w-[400px]',
+  },
+  large: {
+    name: 'Large',
+    description: '75% width', 
+    cssClass: 'w-3/4 max-w-[600px]',
+  },
+  full: {
+    name: 'Full Width',
+    description: '100% width',
+    cssClass: 'w-full',
+  },
+};
+
+/**
  * Auto-placement strategies for book generation
  */
 export type AutoPlacementStrategy = 

@@ -6,9 +6,28 @@ import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { AudioPlayer } from './AudioPlayer';
 import { BibliographySection } from './BibliographySection';
+import { ContentWithImages } from './ContentWithImages';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
+import { BookImageType, ImagePlacement } from '@/lib/types/book-images';
 import { sanitizeForReading } from '@/lib/utils/text-sanitizer';
+
+interface ChapterImage {
+  id: number;
+  imageUrl: string;
+  thumbnailUrl?: string;
+  imageType: BookImageType;
+  position: number;
+  placement: ImagePlacement;
+  caption?: string;
+  altText?: string;
+  chapterId?: number;
+  metadata?: {
+    size?: 'small' | 'medium' | 'large' | 'full';
+    paragraphIndex?: number;
+    [key: string]: unknown;
+  };
+}
 
 interface Chapter {
   id: number;
@@ -71,11 +90,44 @@ export const BookReader: React.FC<BookReaderProps> = ({
   const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
   const [showBibliography, setShowBibliography] = useState(false);
+  
+  // Chapter images state
+  const [allBookImages, setAllBookImages] = useState<ChapterImage[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
 
   // Check if bibliography should be available (after last chapter or explicit view)
   const hasBibliography = bibliography?.config?.enabled && bibliography?.references?.length > 0;
 
   const currentChapter = chaptersData[currentChapterIndex];
+  
+  // Filter images for current chapter
+  const currentChapterImages = useMemo(() => {
+    if (!currentChapter) return [];
+    return allBookImages.filter(img => img.chapterId === currentChapter.id);
+  }, [allBookImages, currentChapter]);
+
+  // Fetch all book images on mount
+  useEffect(() => {
+    const fetchImages = async () => {
+      if (!bookId) return;
+      
+      setIsLoadingImages(true);
+      try {
+        const response = await fetch(`/api/books/${bookId}/images`);
+        const data = await response.json();
+        
+        if (data.success && data.images) {
+          setAllBookImages(data.images);
+        }
+      } catch (error) {
+        console.error('[BookReader] Error fetching images:', error);
+      } finally {
+        setIsLoadingImages(false);
+      }
+    };
+
+    fetchImages();
+  }, [bookId]);
 
   // Professional voice definitions - All 11 OpenAI voices
   const voices: VoiceInfo[] = [
@@ -792,19 +844,36 @@ export const BookReader: React.FC<BookReaderProps> = ({
                 </div>
               </div>
 
-              {/* Chapter Content - Sanitized for clean reading */}
+              {/* Chapter Content - With Images */}
               <div 
                 className={`prose prose-gray dark:prose-invert max-w-none ${fontSizeClasses[fontSize]} ${lineHeightClasses[fontSize]}`}
                 style={{
                   fontFamily: 'Georgia, serif',
                 }}
               >
-                {sanitizeForReading(currentChapter.content).split('\n\n').map((paragraph, index) => (
-                  <p key={index} className="mb-4 text-gray-800 dark:text-gray-200 text-justify">
-                    {paragraph}
-                  </p>
-                ))}
+                {currentChapterImages.length > 0 ? (
+                  <ContentWithImages
+                    content={sanitizeForReading(currentChapter.content)}
+                    images={currentChapterImages}
+                    fontSize={fontSize}
+                    isEditing={false}
+                  />
+                ) : (
+                  // Fallback to simple paragraph rendering when no images
+                  sanitizeForReading(currentChapter.content).split('\n\n').map((paragraph, index) => (
+                    <p key={index} className="mb-4 text-gray-800 dark:text-gray-200 text-justify">
+                      {paragraph}
+                    </p>
+                  ))
+                )}
               </div>
+              
+              {/* Images indicator */}
+              {currentChapterImages.length > 0 && (
+                <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
+                  🖼️ {currentChapterImages.length} image{currentChapterImages.length !== 1 ? 's' : ''} in this chapter
+                </div>
+              )}
 
               {/* Chapter Navigation */}
               <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800 flex items-center justify-between">

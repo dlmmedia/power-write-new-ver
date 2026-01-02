@@ -79,6 +79,11 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     caption?: string;
     altText?: string;
     chapterId?: number;
+    metadata?: {
+      size?: 'small' | 'medium' | 'large' | 'full';
+      paragraphIndex?: number;
+      [key: string]: unknown;
+    };
   }>>([]);
   const [allBookImages, setAllBookImages] = useState<Array<{
     id: number;
@@ -90,6 +95,11 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     caption?: string;
     altText?: string;
     chapterId?: number;
+    metadata?: {
+      size?: 'small' | 'medium' | 'large' | 'full';
+      paragraphIndex?: number;
+      [key: string]: unknown;
+    };
   }>>([]);
   
   // Find and Replace state
@@ -764,6 +774,86 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     }
   };
 
+  // State for paste upload
+  const [isPastingImage, setIsPastingImage] = useState(false);
+
+  // Handle clipboard paste for images
+  const handlePaste = useCallback(async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    // Look for image data in clipboard
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        e.preventDefault(); // Prevent default paste behavior for images
+        
+        const file = item.getAsFile();
+        if (!file) continue;
+
+        // Validate file size (max 10MB)
+        if (file.size > 10 * 1024 * 1024) {
+          alert('Image too large. Maximum size is 10MB.');
+          return;
+        }
+
+        setIsPastingImage(true);
+        console.log('[BookEditor] Pasting image from clipboard:', file.name, file.type);
+
+        try {
+          const formData = new FormData();
+          formData.append('image', file);
+          formData.append('chapterId', currentChapter.id.toString());
+          formData.append('imageType', 'illustration');
+          formData.append('position', cursorPosition.toString());
+          formData.append('placement', 'center');
+          formData.append('caption', '');
+          formData.append('altText', 'Pasted image');
+
+          const response = await fetch(`/api/books/${bookId}/images/upload`, {
+            method: 'POST',
+            body: formData,
+          });
+
+          const data = await response.json();
+
+          if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to upload pasted image');
+          }
+
+          console.log('[BookEditor] Pasted image uploaded successfully:', data);
+
+          // Add the image to state
+          const newImage = {
+            id: data.image.id,
+            imageUrl: data.imageUrl,
+            thumbnailUrl: data.imageUrl,
+            imageType: 'illustration' as BookImageType,
+            position: cursorPosition,
+            placement: 'center' as ImagePlacement,
+            caption: undefined,
+            altText: 'Pasted image',
+            chapterId: currentChapter.id,
+          };
+
+          setAllBookImages(prev => [...prev, newImage]);
+          setChapterImages(prev => [...prev, newImage]);
+          
+          // Switch to preview mode to show the image
+          setViewMode('preview');
+
+        } catch (error) {
+          console.error('[BookEditor] Error uploading pasted image:', error);
+          alert(error instanceof Error ? error.message : 'Failed to upload pasted image');
+        } finally {
+          setIsPastingImage(false);
+        }
+
+        return; // Only handle the first image
+      }
+    }
+  }, [bookId, currentChapter.id, cursorPosition]);
+
   const fontSizeClasses = {
     sm: 'text-sm',
     base: 'text-base',
@@ -1206,17 +1296,30 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
             {viewMode === 'edit' ? (
               /* Edit Mode - Textarea */
-              <textarea
-                ref={textareaRef}
-                id="chapter-content"
-                value={currentChapter.content}
-                onChange={(e) => updateChapterContent(e.target.value)}
-                onClick={handleTextareaClick}
-                onKeyUp={handleTextareaKeyUp}
-                className={`w-full min-h-[600px] bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
-                placeholder="Start writing your chapter..."
-                style={{ fontFamily: 'Georgia, serif' }}
-              />
+              <div className="relative">
+                <textarea
+                  ref={textareaRef}
+                  id="chapter-content"
+                  value={currentChapter.content}
+                  onChange={(e) => updateChapterContent(e.target.value)}
+                  onClick={handleTextareaClick}
+                  onKeyUp={handleTextareaKeyUp}
+                  onPaste={handlePaste}
+                  className={`w-full min-h-[600px] bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
+                  placeholder="Start writing your chapter... (Tip: You can paste images directly!)"
+                  style={{ fontFamily: 'Georgia, serif' }}
+                />
+                
+                {/* Paste indicator */}
+                {isPastingImage && (
+                  <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center rounded-lg">
+                    <div className="flex items-center gap-3 px-6 py-4 bg-yellow-400 text-black rounded-xl shadow-lg">
+                      <span className="animate-spin">⏳</span>
+                      <span className="font-medium">Uploading pasted image...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               /* Preview Mode - Content with Images */
               <div className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 min-h-[600px] overflow-auto">
@@ -1366,6 +1469,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       <ImageManager
         bookId={bookId}
         chapterId={currentChapter.id}
+        chapterContent={currentChapter.content}
         isOpen={showImageManager}
         onClose={() => setShowImageManager(false)}
         onInsertImage={(position) => {
@@ -1377,6 +1481,18 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           setViewMode('preview');
         }}
         onImageDelete={handleImageDelete}
+        onImagesChanged={async () => {
+          // Refresh images from the API
+          try {
+            const response = await fetch(`/api/books/${bookId}/images`);
+            const data = await response.json();
+            if (data.success && data.images) {
+              setAllBookImages(data.images);
+            }
+          } catch (error) {
+            console.error('Error refreshing images:', error);
+          }
+        }}
       />
     </div>
   );
