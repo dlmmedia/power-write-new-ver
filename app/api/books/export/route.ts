@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getBookWithChaptersAndBibliography, ensureDemoUser } from '@/lib/db/operations';
+import { auth } from '@clerk/nextjs/server';
+import { getBookWithChaptersAndBibliography } from '@/lib/db/operations';
 import { ExportService } from '@/lib/services/export-service';
 import { ExportServiceAdvanced } from '@/lib/services/export-service-advanced';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
@@ -12,18 +13,27 @@ export const maxDuration = 60; // 60 seconds for export generation
 
 export async function POST(request: NextRequest) {
   try {
+    // Use Clerk server-side authentication
+    const { userId: clerkUserId } = await auth();
+    
+    if (!clerkUserId) {
+      return NextResponse.json(
+        { error: 'Unauthorized - Please sign in to export books' },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
-    const { userId, bookId, format, layoutType } = body as {
-      userId: string;
+    const { bookId, format, layoutType } = body as {
       bookId: string | number;
       format: 'txt' | 'md' | 'html' | 'pdf' | 'docx' | 'epub';
       layoutType?: BookLayoutType; // Optional layout type for PDF export
     };
 
     // Validate required fields
-    if (!userId || !bookId || !format) {
+    if (!bookId || !format) {
       return NextResponse.json(
-        { error: 'Missing required fields: userId, bookId, format' },
+        { error: 'Missing required fields: bookId, format' },
         { status: 400 }
       );
     }
@@ -35,9 +45,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure demo user exists
-    await ensureDemoUser(userId);
-
     // Get book with chapters and bibliography
     const book = await getBookWithChaptersAndBibliography(bookId);
     if (!book) {
@@ -47,10 +54,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify ownership
-    if (book.userId !== userId) {
+    // Verify ownership using Clerk userId
+    if (book.userId !== clerkUserId) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - You do not own this book' },
         { status: 403 }
       );
     }

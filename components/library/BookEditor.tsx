@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
+import { SaveStatus, SaveState } from '@/components/ui/SaveStatus';
 import { AIChapterModal } from './AIChapterModal';
 import { ImageInsertModal } from './ImageInsertModal';
 import { ImageManager } from './ImageManager';
@@ -61,6 +62,9 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   const [chapters, setChapters] = useState<Chapter[]>(initialChapters);
   const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showChapterList, setShowChapterList] = useState(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('base');
@@ -573,11 +577,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
   const handleSave = async () => {
     if (!hasUnsavedChanges) {
-      alert('No changes to save');
       return;
     }
 
     setIsSaving(true);
+    setSaveState('saving');
+    setSaveError(null);
+    
     try {
       const response = await fetch(`/api/books/${bookId}/chapters`, {
         method: 'PUT',
@@ -610,6 +616,8 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       }
 
       setHasUnsavedChanges(false);
+      setSaveState('saved');
+      setLastSaved(new Date());
       
       // Clear undo/redo history after save
       setUndoHistory([]);
@@ -619,10 +627,15 @@ export const BookEditor: React.FC<BookEditorProps> = ({
         onSave(chapters);
       }
 
-      alert('Changes saved successfully!');
+      // Reset to idle after a delay
+      setTimeout(() => {
+        setSaveState('idle');
+      }, 3000);
     } catch (error) {
       console.error('Save error:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save changes');
+      const errorMsg = error instanceof Error ? error.message : 'Failed to save changes';
+      setSaveError(errorMsg);
+      setSaveState('error');
     } finally {
       setIsSaving(false);
     }
@@ -695,9 +708,12 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     console.log('[BookEditor] handleImageInserted called with:', image);
     
     try {
+      // Create a temporary ID that's unique
+      const tempId = -Date.now(); // Negative to distinguish from real IDs
+      
       // Create the new image object for local state
       const newImage = {
-        id: Date.now(), // Temporary ID until saved
+        id: tempId,
         imageUrl: image.imageUrl,
         thumbnailUrl: image.imageUrl,
         imageType: image.imageType,
@@ -710,9 +726,22 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       
       console.log('[BookEditor] Adding new image to state:', newImage);
       
-      // Immediately add to state so the image shows up
-      setAllBookImages(prev => [...prev, newImage]);
-      setChapterImages(prev => [...prev, newImage]);
+      // Check for existing image with same URL to prevent duplicates
+      setAllBookImages(prev => {
+        const exists = prev.some(img => img.imageUrl === image.imageUrl && img.chapterId === currentChapter.id);
+        if (exists) {
+          console.log('[BookEditor] Image already exists, skipping duplicate');
+          return prev;
+        }
+        return [...prev, newImage];
+      });
+      setChapterImages(prev => {
+        const exists = prev.some(img => img.imageUrl === image.imageUrl);
+        if (exists) {
+          return prev;
+        }
+        return [...prev, newImage];
+      });
       
       // Switch to preview mode to show the image
       setViewMode('preview');
@@ -738,13 +767,32 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       console.log('[BookEditor] Save image response:', data);
       
       if (data.success && data.image) {
-        // Update the temporary ID with the real database ID
-        setAllBookImages(prev => prev.map(img => 
-          img.id === newImage.id ? { ...data.image, chapterId: currentChapter.id } : img
-        ));
-        setChapterImages(prev => prev.map(img => 
-          img.id === newImage.id ? { ...data.image, chapterId: currentChapter.id } : img
-        ));
+        // Update the temporary ID with the real database ID, filtering out any duplicates
+        setAllBookImages(prev => {
+          // First update the temp image with real ID
+          const updated = prev.map(img => 
+            img.id === tempId ? { ...data.image, chapterId: currentChapter.id } : img
+          );
+          // Remove any duplicates by imageUrl
+          const seen = new Set<string>();
+          return updated.filter(img => {
+            const key = `${img.imageUrl}-${img.chapterId}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+        setChapterImages(prev => {
+          const updated = prev.map(img => 
+            img.id === tempId ? { ...data.image, chapterId: currentChapter.id } : img
+          );
+          const seen = new Set<string>();
+          return updated.filter(img => {
+            if (seen.has(img.imageUrl)) return false;
+            seen.add(img.imageUrl);
+            return true;
+          });
+        });
         console.log('[BookEditor] Image saved successfully with ID:', data.image.id);
       } else {
         console.error('[BookEditor] Failed to save image:', data.error);
@@ -756,21 +804,35 @@ export const BookEditor: React.FC<BookEditorProps> = ({
     }
   };
 
-  // Handle image deletion
+  // Handle image deletion with optimistic UI update
   const handleImageDelete = async (imageId: number) => {
+    console.log('[BookEditor] Deleting image:', imageId);
+    
+    // Optimistic update - remove immediately from UI
+    setAllBookImages(prev => prev.filter(img => img.id !== imageId));
+    setChapterImages(prev => prev.filter(img => img.id !== imageId));
+    
     try {
+      // For temporary IDs (negative), no need to call API
+      if (imageId < 0) {
+        console.log('[BookEditor] Removed temporary image from state');
+        return;
+      }
+      
       const response = await fetch(`/api/books/${bookId}/images/${imageId}`, {
         method: 'DELETE',
       });
 
-      if (response.ok) {
-        // Remove from all book images
-        setAllBookImages(allBookImages.filter(img => img.id !== imageId));
-        // Remove from current chapter images
-        setChapterImages(chapterImages.filter(img => img.id !== imageId));
+      if (!response.ok) {
+        console.error('[BookEditor] Failed to delete image from server');
+        // Could restore the image here, but for now just log the error
+        // The image is already removed from UI
+      } else {
+        console.log('[BookEditor] Image deleted successfully');
       }
     } catch (error) {
-      console.error('Error deleting image:', error);
+      console.error('[BookEditor] Error deleting image:', error);
+      // Image is already removed from UI - could show a toast notification here
     }
   };
 
@@ -917,20 +979,28 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               </button>
             </div>
 
-            <Button
-              variant={hasUnsavedChanges ? 'primary' : 'outline'}
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-            >
-              {isSaving ? (
-                <>
-                  <span className="animate-spin mr-2">⏳</span>
-                  Saving...
-                </>
-              ) : (
-                <>💾 Save Changes</>
-              )}
-            </Button>
+            <div className="flex items-center gap-2">
+              <SaveStatus 
+                state={saveState} 
+                lastSaved={lastSaved}
+                errorMessage={saveError || undefined}
+                onRetry={handleSave}
+              />
+              <Button
+                variant={hasUnsavedChanges ? 'primary' : 'outline'}
+                onClick={handleSave}
+                disabled={isSaving || !hasUnsavedChanges}
+              >
+                {isSaving ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Saving...
+                  </>
+                ) : (
+                  <>💾 Save</>
+                )}
+              </Button>
+            </div>
 
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-900 rounded px-2 py-1">
               <span className="text-xs text-gray-600 dark:text-gray-400 mr-2">Font:</span>
@@ -1420,13 +1490,21 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             <Button variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              disabled={isSaving || !hasUnsavedChanges}
-            >
-              {isSaving ? 'Saving...' : 'Save All Changes'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <SaveStatus 
+                state={saveState} 
+                lastSaved={lastSaved}
+                errorMessage={saveError || undefined}
+                onRetry={handleSave}
+              />
+              <Button
+                variant="primary"
+                onClick={handleSave}
+                disabled={isSaving || !hasUnsavedChanges}
+              >
+                {isSaving ? 'Saving...' : 'Save All Changes'}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

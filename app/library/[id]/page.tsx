@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { BookReader } from '@/components/library/BookReader';
 import { BookEditor } from '@/components/library/BookEditor';
-import { AudioGenerator } from '@/components/library/AudioGenerator';
+import { Workspace, WorkspaceModeSwitcher } from '@/components/library/Workspace';
+import { AudioGeneratorCompact } from '@/components/library/AudioGeneratorCompact';
 import { BibliographyManager } from '@/components/library/BibliographyManager';
 import CoverGenerator from '@/components/studio/CoverGenerator';
 import { PublishingSettings } from '@/components/library/publishing';
@@ -102,6 +103,9 @@ export default function BookDetailPage() {
   const [isReading, setIsReading] = useState(false);
   const [initialChapterIndex, setInitialChapterIndex] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
+  const [isWorkspaceOpen, setIsWorkspaceOpen] = useState(false);
+  const [workspaceMode, setWorkspaceMode] = useState<'read' | 'edit'>('read');
+  const [manageSubTab, setManageSubTab] = useState<'cover' | 'publishing' | 'settings'>('cover');
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -163,8 +167,8 @@ export default function BookDetailPage() {
       const response = await fetch('/api/books/export', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for Clerk auth
         body: JSON.stringify({
-          userId: getDemoUserId(),
           bookId: book.id,
           format,
         }),
@@ -826,11 +830,9 @@ export default function BookDetailPage() {
         <Tabs
           tabs={[
             { id: 'overview', label: 'Overview' },
-            { id: 'chapters', label: 'Chapters' },
-            { id: 'cover', label: 'Cover' },
+            { id: 'workspace', label: 'Read & Edit' },
             { id: 'audio', label: 'Audio' },
-            { id: 'publishing', label: 'Publishing' },
-            { id: 'settings', label: 'Settings' }
+            { id: 'manage', label: 'Manage' }
           ]}
           activeTab={activeTab}
           onChange={setActiveTab}
@@ -1111,8 +1113,28 @@ export default function BookDetailPage() {
             </div>
           )}
 
-          {activeTab === 'chapters' && (
+          {activeTab === 'workspace' && (
             <div className="space-y-4">
+              {/* Workspace Mode Toggle */}
+              <div className="flex items-center justify-between mb-4">
+                <WorkspaceModeSwitcher 
+                  mode={workspaceMode} 
+                  onChange={setWorkspaceMode} 
+                />
+                {book.chapters && book.chapters.length > 0 && (
+                  <Button 
+                    variant="primary" 
+                    onClick={() => {
+                      setInitialChapterIndex(0);
+                      setIsWorkspaceOpen(true);
+                    }}
+                  >
+                    Open Full Workspace
+                  </Button>
+                )}
+              </div>
+
+              {/* Chapter List */}
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h3 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
@@ -1246,12 +1268,34 @@ export default function BookDetailPage() {
             </div>
           )}
 
-          {activeTab === 'cover' && (
-            <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-              <h3 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
-                <span className="text-yellow-600 dark:text-yellow-400">🎨</span>
-                Book Cover
-              </h3>
+          {activeTab === 'manage' && (
+            <div className="space-y-6">
+              {/* Sub-navigation for manage tab */}
+              <div className="flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 pb-4">
+                {(['cover', 'publishing', 'settings'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setManageSubTab(tab)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      manageSubTab === tab
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    {tab === 'cover' && '🎨 Cover'}
+                    {tab === 'publishing' && '📤 Publishing'}
+                    {tab === 'settings' && '⚙️ Settings'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Cover Sub-tab */}
+              {manageSubTab === 'cover' && (
+                <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
+                  <h3 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
+                    <span className="text-yellow-600 dark:text-yellow-400">🎨</span>
+                    Book Cover
+                  </h3>
               {isProUser ? (
                 <CoverGenerator
                   bookId={book.id}
@@ -1310,30 +1354,144 @@ export default function BookDetailPage() {
                   )}
                 </div>
               )}
+              </div>
+              )}
+
+              {/* Publishing Sub-tab */}
+              {manageSubTab === 'publishing' && (
+                isProUser ? (
+                  <PublishingSettings
+                    bookId={book.id}
+                    bookTitle={book.title}
+                    onSave={() => {
+                      fetchBookDetail();
+                    }}
+                  />
+                ) : (
+                  <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-lg border border-purple-200 dark:border-purple-800 p-8 text-center">
+                    <Lock className="w-12 h-12 mx-auto text-purple-500 mb-4" />
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Pro Feature</h4>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      Publishing settings require Pro access
+                    </p>
+                    <button
+                      onClick={() => triggerUpgradeModal('publish-book')}
+                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all"
+                    >
+                      Upgrade to Pro
+                    </button>
+                  </div>
+                )
+              )}
+
+              {/* Settings Sub-tab */}
+              {manageSubTab === 'settings' && (
+                <div className="space-y-6">
+                  {/* Public Showcase Section */}
+                  <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700 p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start gap-4">
+                        <div className="p-3 bg-yellow-100 dark:bg-yellow-800/50 rounded-lg">
+                          <Globe className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                        </div>
+                        <div>
+                          <h4 className="text-lg font-bold text-gray-900 dark:text-white">Public Showcase</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                            Share your book with the world in our public showcase
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleToggleShowcase}
+                        disabled={isTogglingShowcase}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                          book.isPublic
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {isTogglingShowcase ? (
+                          <span className="animate-spin">⏳</span>
+                        ) : book.isPublic ? (
+                          <>
+                            <Eye className="w-4 h-4" />
+                            Public
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="w-4 h-4" />
+                            Private
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Danger Zone */}
+                  <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-lg border border-red-200 dark:border-red-800 p-6">
+                    <h4 className="text-lg font-bold text-red-700 dark:text-red-400 mb-4">Danger Zone</h4>
+                    <div className="flex flex-wrap gap-3">
+                      {isProUser ? (
+                        <Button 
+                          variant="outline" 
+                          onClick={handleDuplicateBook}
+                          disabled={isDuplicating}
+                        >
+                          {isDuplicating ? 'Duplicating...' : '📋 Duplicate Book'}
+                        </Button>
+                      ) : (
+                        <button
+                          onClick={() => triggerUpgradeModal('duplicate-book')}
+                          className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                        >
+                          <Lock className="w-4 h-4" />
+                          Duplicate
+                        </button>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        onClick={handleArchiveBook}
+                        disabled={isArchiving}
+                      >
+                        {isArchiving ? 'Archiving...' : '📦 Archive'}
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        onClick={handleDeleteBook}
+                        disabled={isDeleting}
+                        className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20"
+                      >
+                        {isDeleting ? 'Deleting...' : '🗑️ Delete Book'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'audio' && book.chapters && book.chapters.length > 0 && (
-            <div className="space-y-6">
-              {/* Audiobook Player Link - Available to all users if audio exists */}
+            <div className="space-y-3">
+              {/* Audiobook Player Link - Compact */}
               {hasAudio && (
-                <div className="bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 rounded-xl border border-amber-500/30 p-6">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/30">
-                        <Headphones className="w-7 h-7 text-white" />
+                <div className="bg-gradient-to-r from-green-500/10 via-emerald-500/10 to-green-500/10 rounded-xl border border-green-500/30 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center">
+                        <Headphones className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-900 dark:text-white">Audiobook Player</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {chaptersWithAudio} of {book.chapters.length} chapters have audio
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Listen to Your Audiobook</h3>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          {chaptersWithAudio} of {book.chapters.length} chapters ready
                         </p>
                       </div>
                     </div>
                     <Button 
                       variant="primary" 
+                      size="sm"
                       onClick={() => router.push(`/library/${book.id}/listen`)}
-                      className="flex items-center justify-center gap-2 px-6"
+                      className="flex items-center gap-2"
                     >
                       <Headphones className="w-4 h-4" />
                       Listen Now
@@ -1344,7 +1502,7 @@ export default function BookDetailPage() {
 
               {/* Audio Generation - Pro only */}
               {isProUser ? (
-                <AudioGenerator
+                <AudioGeneratorCompact
                   bookId={book.id}
                   bookTitle={book.title}
                   chapters={book.chapters}
@@ -1358,24 +1516,26 @@ export default function BookDetailPage() {
                   }}
                 />
               ) : (
-                <div className="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
-                  <div className="mb-6">
-                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/30">
-                      <Lock className="w-10 h-10 text-white" />
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-800 p-6">
+                  <div className="flex flex-col sm:flex-row items-center gap-4">
+                    <div className="w-14 h-14 bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg flex-shrink-0">
+                      <Lock className="w-7 h-7 text-white" />
                     </div>
+                    <div className="flex-1 text-center sm:text-left">
+                      <h4 className="text-lg font-bold text-gray-900 dark:text-white">Audio Generation is a Pro Feature</h4>
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                        Upgrade to Pro to generate AI narration.
+                        {hasAudio && ' You can still listen to existing audio.'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => triggerUpgradeModal('generate-audio')}
+                      className="px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg flex items-center gap-2 flex-shrink-0"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      Upgrade
+                    </button>
                   </div>
-                  <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Audio Generation is a Pro Feature</h4>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                    Upgrade to Pro to generate high-quality AI narration for your books.
-                    {hasAudio && ' You can still listen to existing audio above.'}
-                  </p>
-                  <button
-                    onClick={() => triggerUpgradeModal('generate-audio')}
-                    className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2 mx-auto"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    Upgrade to Pro
-                  </button>
                 </div>
               )}
             </div>

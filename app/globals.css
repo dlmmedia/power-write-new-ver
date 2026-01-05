@@ -96,6 +96,87 @@ body * {
   animation: slide-down 0.3s ease-out;
 }
 
+/* Hero Section Book Animations */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(0deg);
+    opacity: 0.6;
+  }
+  25% {
+    transform: translateY(-12px) rotate(5deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translateY(-6px) rotate(-3deg);
+    opacity: 0.8;
+  }
+  75% {
+    transform: translateY(-18px) rotate(3deg);
+    opacity: 0.9;
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 200% 0;
+    opacity: 0.5;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #d1d5db 25%, #9ca3af 50%, #d1d5db 75%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+@keyframes typewriter {
+  0% {
+    width: 0%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-typewriter {
+  animation: typewriter 2s ease-out forwards;
+  animation-iteration-count: infinite;
+}
+
+@keyframes write {
+  0%, 100% {
+    transform: translateY(-50%) translateX(0) rotate(-15deg);
+  }
+  25% {
+    transform: translateY(-50%) translateX(-8px) rotate(-25deg);
+  }
+  50% {
+    transform: translateY(-50%) translateX(-4px) rotate(-10deg);
+  }
+  75% {
+    transform: translateY(-50%) translateX(-12px) rotate(-20deg);
+  }
+}
+
+.animate-write {
+  animation: write 1.5s ease-in-out infinite;
+}
+
 /* Mobile-specific styles */
 @media (max-width: 768px) {
   /* Add padding to bottom for bottom navigation */

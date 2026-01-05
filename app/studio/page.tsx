@@ -23,6 +23,8 @@ import { ProFeatureGate, ProButton } from '@/components/pro/ProFeatureGate';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
+import { AuthGuard } from '@/components/auth/AuthGuard';
+import { UpgradeBanner } from '@/components/pro/UpgradeBanner';
 import { Lock, Crown, Sparkles } from 'lucide-react';
 
 type UserTier = 'free' | 'pro';
@@ -63,7 +65,7 @@ type ConfigTab =
   | 'bibliography'
   | 'advanced';
 
-export default function StudioPage() {
+function StudioPageContent() {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUser();
   const { selectedBooks } = useBookStore();
@@ -664,26 +666,7 @@ export default function StudioPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
       {/* Free Tier Banner */}
-      {!isProUser && (
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-3">
-          <div className="container mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Lock className="w-5 h-5" />
-              <div>
-                <p className="font-medium text-sm">Free Tier - Read Only Access</p>
-                <p className="text-white/80 text-xs">Book generation requires Pro access. Upgrade to create unlimited books.</p>
-              </div>
-            </div>
-            <button
-              onClick={() => triggerUpgradeModal('generate-book')}
-              className="flex items-center gap-2 px-4 py-2 bg-white text-purple-600 rounded-lg font-medium text-sm hover:bg-white/90 transition-all"
-            >
-              <Crown className="w-4 h-4" />
-              Upgrade to Pro
-            </button>
-          </div>
-        </div>
-      )}
+      <UpgradeBanner variant="full" dismissible={false} />
 
       {/* Header */}
       <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
@@ -1450,5 +1433,14 @@ export default function StudioPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Wrap with auth guard
+export default function StudioPage() {
+  return (
+    <AuthGuard feature="studio">
+      <StudioPageContent />
+    </AuthGuard>
   );
 }

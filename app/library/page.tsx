@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
+import { AuthGuard } from '@/components/auth/AuthGuard';
 import { 
   Library, 
   CheckCircle2, 
@@ -54,7 +55,7 @@ interface BookListItem {
 
 type UserTier = 'free' | 'pro';
 
-export default function LibraryPage() {
+function LibraryPageContent() {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUser();
   const { userTier, isProUser, showUpgradeModal: triggerUpgradeModal, setUserTier, syncUser: contextSyncUser } = useUserTier();
@@ -720,5 +721,14 @@ export default function LibraryPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// Wrap with auth guard
+export default function LibraryPage() {
+  return (
+    <AuthGuard feature="library">
+      <LibraryPageContent />
+    </AuthGuard>
   );
 }
