@@ -63,7 +63,6 @@ export async function GET() {
       console.error('[User Sync] Database sync error:', dbError);
       // If it's a unique constraint violation, try to get existing user info instead
       if (dbError instanceof Error && dbError.message.includes('unique')) {
-        console.log('[User Sync] Attempting to fetch existing user info after unique constraint error');
         const userInfo = await getUserInfo(userId);
         if (userInfo) {
           return NextResponse.json({

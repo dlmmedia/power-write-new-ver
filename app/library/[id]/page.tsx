@@ -79,6 +79,7 @@ interface BookDetail {
   coverUrl?: string; // Add cover URL to interface
   backCoverUrl?: string; // Add back cover URL to interface
   isPublic?: boolean; // Whether book is in public showcase
+  isOwner?: boolean; // Whether current user owns this book
   metadata: {
     wordCount: number;
     chapters: number;
@@ -95,7 +96,7 @@ export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams();
   const bookId = params?.id;
-  const { isProUser, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  const { isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
 
   const [book, setBook] = useState<BookDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -730,6 +731,7 @@ export default function BookDetailPage() {
                 </>
               )}
               <div className="relative">
+                {/* Pro users always see enabled export button - API handles ownership check */}
                 {isProUser ? (
                   <Button 
                     variant="outline" 
@@ -749,7 +751,18 @@ export default function BookDetailPage() {
                       </>
                     )}
                   </Button>
+                ) : isTierLoading ? (
+                  // Show loading state while checking tier
+                  <Button 
+                    variant="outline" 
+                    disabled
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="w-4 h-4 opacity-50" />
+                    Export
+                  </Button>
                 ) : (
+                  // Free user - show upgrade prompt
                   <button
                     onClick={() => triggerUpgradeModal('export-book')}
                     className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-all"

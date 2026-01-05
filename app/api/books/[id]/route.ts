@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth } from '@clerk/nextjs/server';
 import { getBookWithChaptersAndBibliography } from '@/lib/db/operations';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 
@@ -8,6 +9,15 @@ export async function GET(
 ) {
   try {
     const { id: bookId } = await params;
+    
+    // Get current user ID for ownership check
+    let currentUserId: string | null = null;
+    try {
+      const { userId } = await auth();
+      currentUserId = userId;
+    } catch {
+      // Not authenticated, that's ok - just won't have ownership info
+    }
 
     // Get book with all chapters and bibliography from database
     const bookWithChapters = await getBookWithChaptersAndBibliography(bookId);
@@ -88,6 +98,9 @@ export async function GET(
       };
     }
     
+    // Check if current user owns this book
+    const isOwner = currentUserId ? bookWithChapters.userId === currentUserId : false;
+    
     const book = {
       id: bookWithChapters.id,
       title: bookWithChapters.title,
@@ -98,6 +111,7 @@ export async function GET(
       coverUrl: bookWithChapters.coverUrl || undefined, // Include cover URL
       backCoverUrl: metadata.backCoverUrl || undefined, // Include back cover URL from metadata
       isPublic: bookWithChapters.isPublic || false, // Include public showcase status
+      isOwner, // Whether the current user owns this book
       createdAt: bookWithChapters.createdAt?.toISOString() || new Date().toISOString(),
       metadata: {
         wordCount: metadata.wordCount || 0,
@@ -105,6 +119,7 @@ export async function GET(
         targetWordCount: metadata.targetWordCount || 0,
         description: bookWithChapters.summary || '',
         backCoverUrl: metadata.backCoverUrl || undefined, // Also include in metadata for reference
+        modelUsed: metadata.modelUsed || undefined, // Model used for generation
       },
       chapters: bookWithChapters.chapters.map(ch => ({
         id: ch.id,

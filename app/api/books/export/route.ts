@@ -6,6 +6,7 @@ import { ExportServiceAdvanced } from '@/lib/services/export-service-advanced';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 import { PublishingSettings, DEFAULT_PUBLISHING_SETTINGS } from '@/lib/types/publishing';
 import { BookLayoutType, BOOK_LAYOUTS } from '@/lib/types/book-layouts';
+import { getUserInfo } from '@/lib/services/user-service';
 
 // Configure route for longer execution time and Node.js runtime
 export const runtime = 'nodejs';
@@ -54,12 +55,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verify ownership using Clerk userId
-    if (book.userId !== clerkUserId) {
+    // Check if user is Pro - Pro users can export any book
+    const userInfo = await getUserInfo(clerkUserId);
+    const isProUser = userInfo?.tier === 'pro';
+    
+    // Verify ownership using Clerk userId OR if user is Pro
+    if (book.userId !== clerkUserId && !isProUser) {
       return NextResponse.json(
         { error: 'Unauthorized - You do not own this book' },
         { status: 403 }
       );
+    }
+    
+    // Pro users can export any book, but log for audit purposes
+    if (book.userId !== clerkUserId && isProUser) {
+      console.log(`[Export] Pro user ${clerkUserId} exporting book ${bookId} owned by ${book.userId}`);
     }
 
     // Convert database bibliography to export format

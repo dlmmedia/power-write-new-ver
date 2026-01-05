@@ -82,7 +82,7 @@ function StudioPageContent() {
   } = useStudioStore();
   
   // Use global tier context
-  const { userTier, isProUser, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  const { userTier, isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
   
   const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
@@ -736,14 +736,15 @@ function StudioPageContent() {
                   {viewMode === 'config' ? 'Outline' : 'Config'}
                 </Button>
               )}
-              {isProUser ? (
+              {/* Show enabled buttons while loading or if Pro user */}
+              {(isTierLoading || isProUser) ? (
                 <>
                   <Button
                     variant="outline"
                     size="md"
                     onClick={handleGenerateOutline}
                     isLoading={generationType === 'outline'}
-                    disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
+                    disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating || isTierLoading}
                     className="min-w-[140px]"
                   >
                     Generate Outline
@@ -753,7 +754,7 @@ function StudioPageContent() {
                     size="md"
                     onClick={handleGenerateBookClick}
                     isLoading={generationType === 'book'}
-                    disabled={isGenerating}
+                    disabled={isGenerating || isTierLoading}
                     className="min-w-[140px]"
                   >
                     Generate Book

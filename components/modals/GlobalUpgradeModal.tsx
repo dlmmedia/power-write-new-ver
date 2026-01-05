@@ -10,10 +10,22 @@ import { UpgradeModal } from './UpgradeModal';
 export function GlobalUpgradeModal() {
   const { upgradeModalVisible, hideUpgradeModal, upgradeFeature, setUserTier, syncUser } = useUserTier();
 
-  const handleSuccess = () => {
+  const handleSuccess = async () => {
+    // Immediately set to pro for instant UI feedback
     setUserTier('pro');
-    syncUser();
+    
+    // Close the modal first so user sees the updated UI
     hideUpgradeModal();
+    
+    // Then sync in background to confirm from database
+    // The setUserTier('pro') above ensures immediate access even if sync is slow
+    try {
+      await syncUser();
+      console.log('[GlobalUpgradeModal] User tier synced successfully after upgrade');
+    } catch (error) {
+      console.error('[GlobalUpgradeModal] Error syncing after upgrade:', error);
+      // Keep the pro tier set - it was already updated in the database by the promo API
+    }
   };
 
   return (

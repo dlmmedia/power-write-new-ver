@@ -229,7 +229,7 @@ export async function syncUserToDatabase(clerkUser: {
       .limit(1);
 
     if (existingUser) {
-      // Update existing user
+      // Update existing user (but preserve plan - don't overwrite it)
       await db
         .update(users)
         .set({
@@ -241,7 +241,15 @@ export async function syncUserToDatabase(clerkUser: {
         })
         .where(eq(users.id, clerkUser.id));
 
-      const tier = existingUser.plan === 'pro' || existingUser.plan === 'professional' || existingUser.plan === 'enterprise'
+      // Re-fetch user to get the CURRENT plan value (in case it was just updated by promo API)
+      const [freshUser] = await db
+        .select({ plan: users.plan })
+        .from(users)
+        .where(eq(users.id, clerkUser.id))
+        .limit(1);
+
+      const currentPlan = freshUser?.plan || existingUser.plan;
+      const tier = currentPlan === 'pro' || currentPlan === 'professional' || currentPlan === 'enterprise'
         ? 'pro'
         : 'free';
 

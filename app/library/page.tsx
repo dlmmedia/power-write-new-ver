@@ -58,7 +58,7 @@ type UserTier = 'free' | 'pro';
 function LibraryPageContent() {
   const router = useRouter();
   const { user, isLoaded: isUserLoaded } = useUser();
-  const { userTier, isProUser, showUpgradeModal: triggerUpgradeModal, setUserTier, syncUser: contextSyncUser } = useUserTier();
+  const { userTier, isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal, setUserTier, syncUser: contextSyncUser } = useUserTier();
   const [books, setBooks] = useState<BookListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -341,8 +341,14 @@ function LibraryPageContent() {
                 Showcase
               </Button>
               <ThemeToggleCompact />
-              {isProUser ? (
-                <Button variant="primary" onClick={() => router.push('/studio')} className="flex items-center gap-2">
+              {/* Show enabled button while loading or if Pro user */}
+              {(isTierLoading || isProUser) ? (
+                <Button 
+                  variant="primary" 
+                  onClick={() => router.push('/studio')} 
+                  className="flex items-center gap-2"
+                  disabled={isTierLoading}
+                >
                   <Plus className="w-4 h-4" />
                   New Book
                 </Button>
@@ -376,8 +382,15 @@ function LibraryPageContent() {
               </div>
               <div className="flex items-center gap-2">
                 <ThemeToggleCompact />
-                {isProUser ? (
-                  <Button variant="primary" size="sm" onClick={() => router.push('/studio')} className="flex items-center gap-1">
+                {/* Show enabled button while loading or if Pro user */}
+                {(isTierLoading || isProUser) ? (
+                  <Button 
+                    variant="primary" 
+                    size="sm" 
+                    onClick={() => router.push('/studio')} 
+                    className="flex items-center gap-1"
+                    disabled={isTierLoading}
+                  >
                     <Plus className="w-4 h-4" />
                     New
                   </Button>

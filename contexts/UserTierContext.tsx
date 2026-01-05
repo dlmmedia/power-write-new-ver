@@ -111,8 +111,14 @@ export function UserTierProvider({ children }: UserTierProviderProps) {
     }
 
     try {
-      const response = await fetch('/api/user/sync', {
+      // Add cache-busting to ensure fresh data
+      const timestamp = Date.now();
+      const response = await fetch(`/api/user/sync?_t=${timestamp}`, {
         credentials: 'include',
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
       });
 
       if (response.ok) {
@@ -122,7 +128,7 @@ export function UserTierProvider({ children }: UserTierProviderProps) {
         }
       }
     } catch (error) {
-      console.error('Error syncing user tier:', error);
+      console.error('[UserTier] Error syncing user tier:', error);
     } finally {
       setIsLoading(false);
     }
