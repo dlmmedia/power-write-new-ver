@@ -492,10 +492,18 @@ export function AudioGeneratorCompact({
             const VoiceIcon = voice.icon;
             
             return (
-              <button
+              <div
                 key={voice.id}
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedVoice(voice.id)}
-                className={`relative p-3 rounded-lg border-2 transition-all text-left ${
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedVoice(voice.id);
+                  }
+                }}
+                className={`relative p-3 rounded-lg border-2 transition-all text-left cursor-pointer ${
                   isSelected
                     ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20'
                     : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
@@ -533,7 +541,7 @@ export function AudioGeneratorCompact({
                     <Play className="w-2.5 h-2.5" />
                   )}
                 </button>
-              </button>
+              </div>
             );
           })}
         </div>
