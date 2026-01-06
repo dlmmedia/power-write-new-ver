@@ -5,8 +5,8 @@ import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 // TTS Provider types
 export type TTSProvider = 'openai' | 'gemini';
 
-// OpenAI TTS supports 11 voices (as of 2024)
-export type OpenAIVoiceId = 'alloy' | 'ash' | 'ballad' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer' | 'verse';
+// OpenAI TTS supports 9 voices (as of 2024)
+export type OpenAIVoiceId = 'alloy' | 'ash' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer';
 
 // Gemini TTS supports 30 voices
 export type GeminiVoiceId = 

@@ -174,6 +174,16 @@ export default function BookDetailPage() {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editedTitle, setEditedTitle] = useState('');
   const [isSavingTitle, setIsSavingTitle] = useState(false);
+  
+  // Author editing state
+  const [isEditingAuthor, setIsEditingAuthor] = useState(false);
+  const [editedAuthor, setEditedAuthor] = useState('');
+  const [isSavingAuthor, setIsSavingAuthor] = useState(false);
+  
+  // Synopsis editing state
+  const [isEditingSynopsis, setIsEditingSynopsis] = useState(false);
+  const [editedSynopsis, setEditedSynopsis] = useState('');
+  const [isSavingSynopsis, setIsSavingSynopsis] = useState(false);
 
   // Load book - try cache first for instant display, then fetch fresh
   useEffect(() => {
@@ -518,6 +528,77 @@ export default function BookDetailPage() {
       alert('Failed to update title. Please try again.');
     } finally {
       setIsSavingTitle(false);
+    }
+  };
+
+  // Handle saving edited author name
+  const handleSaveAuthor = async () => {
+    if (!book || !editedAuthor.trim()) return;
+    
+    // Don't save if author hasn't changed
+    if (editedAuthor.trim() === book.author) {
+      setIsEditingAuthor(false);
+      return;
+    }
+
+    setIsSavingAuthor(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ author: editedAuthor.trim() }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Update local state with new author
+        setBook(prev => prev ? { ...prev, author: editedAuthor.trim() } : null);
+        setIsEditingAuthor(false);
+      } else {
+        alert('Failed to update author: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Author update error:', error);
+      alert('Failed to update author. Please try again.');
+    } finally {
+      setIsSavingAuthor(false);
+    }
+  };
+
+  // Handle saving edited synopsis
+  const handleSaveSynopsis = async () => {
+    if (!book) return;
+    
+    // Don't save if synopsis hasn't changed
+    if (editedSynopsis.trim() === (book.metadata.description || '')) {
+      setIsEditingSynopsis(false);
+      return;
+    }
+
+    setIsSavingSynopsis(true);
+    try {
+      const response = await fetch(`/api/books/${book.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ summary: editedSynopsis.trim() }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        // Update local state with new synopsis
+        setBook(prev => prev ? { 
+          ...prev, 
+          metadata: { ...prev.metadata, description: editedSynopsis.trim() } 
+        } : null);
+        setIsEditingSynopsis(false);
+      } else {
+        alert('Failed to update synopsis: ' + (data.error || 'Unknown error'));
+      }
+    } catch (error) {
+      console.error('Synopsis update error:', error);
+      alert('Failed to update synopsis. Please try again.');
+    } finally {
+      setIsSavingSynopsis(false);
     }
   };
 
@@ -917,9 +998,117 @@ export default function BookDetailPage() {
                   {/* Book Details */}
                   <div className="flex-1 space-y-4">
                     <div className="flex items-start justify-between">
-                      <div>
-                        <h2 className="text-4xl font-bold mb-2" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h2>
-                        <p className="text-xl text-gray-600 dark:text-gray-400 mb-1">by {book.author}</p>
+                      <div className="flex-1">
+                        {/* Editable Title */}
+                        {isEditingTitle ? (
+                          <div className="flex items-center gap-2 mb-2">
+                            <input
+                              type="text"
+                              value={editedTitle}
+                              onChange={(e) => setEditedTitle(e.target.value)}
+                              className="flex-1 text-3xl md:text-4xl font-bold px-3 py-1 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                              style={{ fontFamily: 'var(--font-header)' }}
+                              placeholder="Enter book title"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveTitle();
+                                if (e.key === 'Escape') {
+                                  setIsEditingTitle(false);
+                                  setEditedTitle(book.title);
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={handleSaveTitle}
+                              disabled={isSavingTitle || !editedTitle.trim()}
+                              className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
+                              title="Save"
+                            >
+                              {isSavingTitle ? <span className="animate-spin">⏳</span> : <Save className="w-5 h-5" />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditingTitle(false);
+                                setEditedTitle(book.title);
+                              }}
+                              disabled={isSavingTitle}
+                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                              title="Cancel"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="group flex items-center gap-2 mb-2">
+                            <h2 className="text-4xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h2>
+                            <button
+                              onClick={() => {
+                                setEditedTitle(book.title);
+                                setIsEditingTitle(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              title="Edit title"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Editable Author */}
+                        {isEditingAuthor ? (
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xl text-gray-600 dark:text-gray-400">by</span>
+                            <input
+                              type="text"
+                              value={editedAuthor}
+                              onChange={(e) => setEditedAuthor(e.target.value)}
+                              className="flex-1 text-xl px-3 py-1 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                              placeholder="Enter author name"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveAuthor();
+                                if (e.key === 'Escape') {
+                                  setIsEditingAuthor(false);
+                                  setEditedAuthor(book.author);
+                                }
+                              }}
+                            />
+                            <button
+                              onClick={handleSaveAuthor}
+                              disabled={isSavingAuthor || !editedAuthor.trim()}
+                              className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
+                              title="Save"
+                            >
+                              {isSavingAuthor ? <span className="animate-spin">⏳</span> : <Save className="w-5 h-5" />}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditingAuthor(false);
+                                setEditedAuthor(book.author);
+                              }}
+                              disabled={isSavingAuthor}
+                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                              title="Cancel"
+                            >
+                              <X className="w-5 h-5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="group flex items-center gap-2 mb-1">
+                            <p className="text-xl text-gray-600 dark:text-gray-400">by {book.author}</p>
+                            <button
+                              onClick={() => {
+                                setEditedAuthor(book.author);
+                                setIsEditingAuthor(true);
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              title="Edit author"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        
                         <div className="flex items-center gap-3 mt-3">
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             Created {new Date(book.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -951,12 +1140,66 @@ export default function BookDetailPage() {
                       </div>
                     </div>
 
-                    {book.metadata.description && (
-                      <div className="mt-6 p-4 bg-white/30 dark:bg-black/10 rounded-lg border border-gray-200 dark:border-gray-700">
-                        <h4 className="font-semibold mb-2 text-sm text-gray-700 dark:text-gray-300">Synopsis</h4>
-                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{book.metadata.description}</p>
+                    {/* Editable Synopsis */}
+                    <div className="mt-6 p-4 bg-white/30 dark:bg-black/10 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="group flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Synopsis</h4>
+                        {!isEditingSynopsis && (
+                          <button
+                            onClick={() => {
+                              setEditedSynopsis(book.metadata.description || '');
+                              setIsEditingSynopsis(true);
+                            }}
+                            className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                            title="Edit synopsis"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                    )}
+                      {isEditingSynopsis ? (
+                        <div className="space-y-2">
+                          <textarea
+                            value={editedSynopsis}
+                            onChange={(e) => setEditedSynopsis(e.target.value)}
+                            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-y min-h-[100px]"
+                            placeholder="Enter book synopsis..."
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') {
+                                setIsEditingSynopsis(false);
+                                setEditedSynopsis(book.metadata.description || '');
+                              }
+                            }}
+                          />
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={handleSaveSynopsis}
+                              disabled={isSavingSynopsis}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+                            >
+                              {isSavingSynopsis ? <span className="animate-spin">⏳</span> : <Save className="w-4 h-4" />}
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setIsEditingSynopsis(false);
+                                setEditedSynopsis(book.metadata.description || '');
+                              }}
+                              disabled={isSavingSynopsis}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                          {book.metadata.description || <span className="text-gray-400 italic">Click edit to add a synopsis...</span>}
+                        </p>
+                      )}
+                    </div>
 
                     {book.chapters && book.chapters.length > 0 && (
                       <div className="flex flex-wrap gap-3 mt-6">
@@ -1465,6 +1708,245 @@ export default function BookDetailPage() {
                     </div>
                   </div>
 
+                  {/* Book Information - Editable */}
+                  <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
+                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                      <FileText className="w-5 h-5" />
+                      Book Information
+                    </h4>
+                    
+                    <div className="space-y-4">
+                      {/* Title Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Book Title
+                        </label>
+                        {isEditingTitle ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editedTitle}
+                              onChange={(e) => setEditedTitle(e.target.value)}
+                              className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                              placeholder="Enter book title"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveTitle();
+                                if (e.key === 'Escape') {
+                                  setIsEditingTitle(false);
+                                  setEditedTitle(book.title);
+                                }
+                              }}
+                            />
+                            <Button
+                              variant="primary"
+                              onClick={handleSaveTitle}
+                              disabled={isSavingTitle || !editedTitle.trim()}
+                              className="flex items-center gap-2"
+                            >
+                              {isSavingTitle ? (
+                                <>
+                                  <span className="animate-spin">⏳</span>
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4" />
+                                  Save
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setIsEditingTitle(false);
+                                setEditedTitle(book.title);
+                              }}
+                              disabled={isSavingTitle}
+                              className="flex items-center gap-2"
+                            >
+                              <X className="w-4 h-4" />
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
+                              {book.title}
+                            </span>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setEditedTitle(book.title);
+                                setIsEditingTitle(true);
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Author Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Author
+                        </label>
+                        {isEditingAuthor ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editedAuthor}
+                              onChange={(e) => setEditedAuthor(e.target.value)}
+                              className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                              placeholder="Enter author name"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveAuthor();
+                                if (e.key === 'Escape') {
+                                  setIsEditingAuthor(false);
+                                  setEditedAuthor(book.author);
+                                }
+                              }}
+                            />
+                            <Button
+                              variant="primary"
+                              onClick={handleSaveAuthor}
+                              disabled={isSavingAuthor || !editedAuthor.trim()}
+                              className="flex items-center gap-2"
+                            >
+                              {isSavingAuthor ? (
+                                <>
+                                  <span className="animate-spin">⏳</span>
+                                  Saving...
+                                </>
+                              ) : (
+                                <>
+                                  <Save className="w-4 h-4" />
+                                  Save
+                                </>
+                              )}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setIsEditingAuthor(false);
+                                setEditedAuthor(book.author);
+                              }}
+                              disabled={isSavingAuthor}
+                              className="flex items-center gap-2"
+                            >
+                              <X className="w-4 h-4" />
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
+                              {book.author}
+                            </span>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setEditedAuthor(book.author);
+                                setIsEditingAuthor(true);
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Synopsis Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Synopsis
+                        </label>
+                        {isEditingSynopsis ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editedSynopsis}
+                              onChange={(e) => setEditedSynopsis(e.target.value)}
+                              className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-y min-h-[120px]"
+                              placeholder="Enter book synopsis..."
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setIsEditingSynopsis(false);
+                                  setEditedSynopsis(book.metadata.description || '');
+                                }
+                              }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                variant="primary"
+                                onClick={handleSaveSynopsis}
+                                disabled={isSavingSynopsis}
+                                className="flex items-center gap-2"
+                              >
+                                {isSavingSynopsis ? (
+                                  <>
+                                    <span className="animate-spin">⏳</span>
+                                    Saving...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Save className="w-4 h-4" />
+                                    Save
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setIsEditingSynopsis(false);
+                                  setEditedSynopsis(book.metadata.description || '');
+                                }}
+                                disabled={isSavingSynopsis}
+                                className="flex items-center gap-2"
+                              >
+                                <X className="w-4 h-4" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-3">
+                            <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white whitespace-pre-wrap min-h-[60px]">
+                              {book.metadata.description || <span className="text-gray-400 italic">No synopsis added</span>}
+                            </span>
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setEditedSynopsis(book.metadata.description || '');
+                                setIsEditingSynopsis(true);
+                              }}
+                              className="flex items-center gap-2"
+                            >
+                              <Edit3 className="w-4 h-4" />
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Genre (Read-only) */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Genre
+                        </label>
+                        <span className="block px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
+                          {book.genre}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Danger Zone */}
                   <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-lg border border-red-200 dark:border-red-800 p-6">
                     <h4 className="text-lg font-bold text-red-700 dark:text-red-400 mb-4">Danger Zone</h4>
@@ -1765,17 +2247,153 @@ export default function BookDetailPage() {
                     )}
                   </div>
 
-                  {/* Author (Read-only for now) */}
+                  {/* Author Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Author
                     </label>
-                    <span className="block px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
-                      {book.author}
-                    </span>
+                    {isEditingAuthor ? (
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={editedAuthor}
+                          onChange={(e) => setEditedAuthor(e.target.value)}
+                          className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
+                          placeholder="Enter author name"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleSaveAuthor();
+                            if (e.key === 'Escape') {
+                              setIsEditingAuthor(false);
+                              setEditedAuthor(book.author);
+                            }
+                          }}
+                        />
+                        <Button
+                          variant="primary"
+                          onClick={handleSaveAuthor}
+                          disabled={isSavingAuthor || !editedAuthor.trim()}
+                          className="flex items-center gap-2"
+                        >
+                          {isSavingAuthor ? (
+                            <>
+                              <span className="animate-spin">⏳</span>
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-4 h-4" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsEditingAuthor(false);
+                            setEditedAuthor(book.author);
+                          }}
+                          disabled={isSavingAuthor}
+                          className="flex items-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
+                          {book.author}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setEditedAuthor(book.author);
+                            setIsEditingAuthor(true);
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          Edit Author
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Genre (Read-only for now) */}
+                  {/* Synopsis Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Synopsis
+                    </label>
+                    {isEditingSynopsis ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={editedSynopsis}
+                          onChange={(e) => setEditedSynopsis(e.target.value)}
+                          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-y min-h-[120px]"
+                          placeholder="Enter book synopsis..."
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Escape') {
+                              setIsEditingSynopsis(false);
+                              setEditedSynopsis(book.metadata.description || '');
+                            }
+                          }}
+                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="primary"
+                            onClick={handleSaveSynopsis}
+                            disabled={isSavingSynopsis}
+                            className="flex items-center gap-2"
+                          >
+                            {isSavingSynopsis ? (
+                              <>
+                                <span className="animate-spin">⏳</span>
+                                Saving...
+                              </>
+                            ) : (
+                              <>
+                                <Save className="w-4 h-4" />
+                                Save
+                              </>
+                            )}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setIsEditingSynopsis(false);
+                              setEditedSynopsis(book.metadata.description || '');
+                            }}
+                            disabled={isSavingSynopsis}
+                            className="flex items-center gap-2"
+                          >
+                            <X className="w-4 h-4" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3">
+                        <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white whitespace-pre-wrap min-h-[60px]">
+                          {book.metadata.description || <span className="text-gray-400 italic">No synopsis added</span>}
+                        </span>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setEditedSynopsis(book.metadata.description || '');
+                            setIsEditingSynopsis(true);
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          Edit Synopsis
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Genre (Read-only) */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Genre

@@ -24,8 +24,10 @@ import {
   Sparkles,
   Lock,
   Headphones,
-  Globe
+  Globe,
+  Upload
 } from 'lucide-react';
+import { BookUploadModal } from '@/components/library/BookUploadModal';
 
 function LibraryPageContent() {
   const router = useRouter();
@@ -55,6 +57,13 @@ function LibraryPageContent() {
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
   const [generationProgress, setGenerationProgress] = useState<{[key: number]: { progress: number; message: string }}>({});
+  const [showUploadModal, setShowUploadModal] = useState(false);
+
+  // Handle upload completion
+  const handleUploadComplete = useCallback((bookId: number) => {
+    refreshBooks();
+    router.push(`/library/${bookId}`);
+  }, [refreshBooks, router]);
 
   const handleGenerateCover = async (bookId: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -239,6 +248,16 @@ function LibraryPageContent() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Upload Book Button */}
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2"
+                onClick={() => setShowUploadModal(true)}
+              >
+                <Upload className="w-4 h-4" />
+                Upload Book
+              </Button>
+              
               {/* Show enabled button while loading or if Pro user */}
               {(isTierLoading || isProUser) ? (
                 <Link href="/studio">
@@ -285,6 +304,15 @@ function LibraryPageContent() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {/* Upload Book Button - Mobile */}
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  title="Upload Book"
+                >
+                  <Upload className="w-5 h-5" />
+                </button>
+                
                 {/* Show enabled button while loading or if Pro user */}
                 {(isTierLoading || isProUser) ? (
                   <Link href="/studio">
@@ -634,6 +662,13 @@ function LibraryPageContent() {
           </div>
         )}
       </div>
+
+      {/* Upload Book Modal */}
+      <BookUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onImportComplete={handleUploadComplete}
+      />
     </div>
   );
 }

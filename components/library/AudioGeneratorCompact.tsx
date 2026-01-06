@@ -54,6 +54,7 @@ import { CollapsibleSection, CollapsibleItem } from '@/components/ui/Collapsible
 import { AudioPlayer } from './AudioPlayer';
 import JSZip from 'jszip';
 import type { TTSProvider, GeminiVoiceId, OpenAIVoiceId } from '@/lib/services/tts-service';
+import { VOICE_PREVIEW_URLS, preloadVoicePreviews, playVoicePreview as getPreviewAudio } from '@/lib/voice-previews';
 
 interface Chapter {
   id: number;
@@ -126,23 +127,22 @@ export function AudioGeneratorCompact({
   const [voicePreviewUrls, setVoicePreviewUrls] = useState<Record<string, string>>({});
   const [loadingPreview, setLoadingPreview] = useState<VoiceType | null>(null);
 
-  // OpenAI voice definitions
+  // OpenAI voice definitions (9 supported voices)
   const openaiVoices: VoiceInfo[] = [
-    { id: 'nova', name: 'Nova', title: 'Professional', description: 'Warm & Professional', expertise: ['Business', 'Leadership'], gender: 'feminine', style: 'Warm & Professional', icon: Briefcase, gradient: 'from-rose-500 to-pink-600', provider: 'openai' },
-    { id: 'alloy', name: 'Alloy', title: 'Versatile', description: 'Balanced & Clear', expertise: ['Education', 'Training'], gender: 'neutral', style: 'Clear & Articulate', icon: GraduationCap, gradient: 'from-violet-500 to-purple-600', provider: 'openai' },
-    { id: 'ash', name: 'Ash', title: 'Senior', description: 'Deep & Commanding', expertise: ['Drama', 'Thriller'], gender: 'masculine', style: 'Deep & Commanding', icon: Shield, gradient: 'from-stone-500 to-zinc-700', provider: 'openai' },
-    { id: 'ballad', name: 'Ballad', title: 'Story Weaver', description: 'Melodic & Emotive', expertise: ['Romance', 'Drama'], gender: 'feminine', style: 'Melodic & Emotive', icon: Heart, gradient: 'from-pink-400 to-rose-600', provider: 'openai' },
-    { id: 'coral', name: 'Coral', title: 'Dynamic', description: 'Warm & Energetic', expertise: ['Adventure', 'Memoir'], gender: 'feminine', style: 'Warm & Energetic', icon: Star, gradient: 'from-orange-500 to-red-500', provider: 'openai' },
-    { id: 'echo', name: 'Echo', title: 'Scholar', description: 'Thoughtful & Measured', expertise: ['Philosophy', 'Academic'], gender: 'masculine', style: 'Thoughtful & Measured', icon: Book, gradient: 'from-slate-500 to-gray-600', provider: 'openai' },
-    { id: 'fable', name: 'Fable', title: 'Creative', description: 'Dynamic & Expressive', expertise: ['Fantasy', 'Adventure'], gender: 'neutral', style: 'Dynamic & Expressive', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', provider: 'openai' },
-    { id: 'onyx', name: 'Onyx', title: 'Authoritative', description: 'Bold & Commanding', expertise: ['Mystery', 'History'], gender: 'masculine', style: 'Authoritative & Bold', icon: Shield, gradient: 'from-emerald-500 to-teal-600', provider: 'openai' },
-    { id: 'sage', name: 'Sage', title: 'Guide', description: 'Patient & Wise', expertise: ['Education', 'Science'], gender: 'feminine', style: 'Patient & Wise', icon: GraduationCap, gradient: 'from-indigo-500 to-purple-600', provider: 'openai' },
-    { id: 'shimmer', name: 'Shimmer', title: 'Calming', description: 'Gentle & Soothing', expertise: ['Wellness', 'Self-Help'], gender: 'feminine', style: 'Calming & Intimate', icon: Heart, gradient: 'from-cyan-500 to-blue-600', provider: 'openai' },
-    { id: 'verse', name: 'Verse', title: 'Literary', description: 'Poetic & Lyrical', expertise: ['Poetry', 'Literature'], gender: 'masculine', style: 'Poetic & Lyrical', icon: Feather, gradient: 'from-fuchsia-500 to-purple-600', provider: 'openai' },
+    { id: 'nova', name: 'Victoria Sterling', title: 'Professional', description: 'Warm & Professional', expertise: ['Business', 'Leadership'], gender: 'feminine', style: 'Warm & Professional', icon: Briefcase, gradient: 'from-rose-500 to-pink-600', provider: 'openai' },
+    { id: 'alloy', name: 'Morgan Blake', title: 'Versatile', description: 'Balanced & Clear', expertise: ['Education', 'Training'], gender: 'neutral', style: 'Clear & Articulate', icon: GraduationCap, gradient: 'from-violet-500 to-purple-600', provider: 'openai' },
+    { id: 'ash', name: 'Alexander Grey', title: 'Senior', description: 'Deep & Commanding', expertise: ['Drama', 'Thriller'], gender: 'masculine', style: 'Deep & Commanding', icon: Shield, gradient: 'from-stone-500 to-zinc-700', provider: 'openai' },
+    { id: 'coral', name: 'Camille Rose', title: 'Dynamic', description: 'Warm & Energetic', expertise: ['Adventure', 'Memoir'], gender: 'feminine', style: 'Warm & Energetic', icon: Star, gradient: 'from-orange-500 to-red-500', provider: 'openai' },
+    { id: 'echo', name: 'Sebastian Cross', title: 'Scholar', description: 'Thoughtful & Measured', expertise: ['Philosophy', 'Academic'], gender: 'masculine', style: 'Thoughtful & Measured', icon: Book, gradient: 'from-slate-500 to-gray-600', provider: 'openai' },
+    { id: 'fable', name: 'Aurora Winters', title: 'Creative', description: 'Dynamic & Expressive', expertise: ['Fantasy', 'Adventure'], gender: 'neutral', style: 'Dynamic & Expressive', icon: Sparkles, gradient: 'from-amber-500 to-orange-600', provider: 'openai' },
+    { id: 'onyx', name: 'Marcus Ashford', title: 'Authoritative', description: 'Bold & Commanding', expertise: ['Mystery', 'History'], gender: 'masculine', style: 'Authoritative & Bold', icon: Shield, gradient: 'from-emerald-500 to-teal-600', provider: 'openai' },
+    { id: 'sage', name: 'Professor Elena Sage', title: 'Guide', description: 'Patient & Wise', expertise: ['Education', 'Science'], gender: 'feminine', style: 'Patient & Wise', icon: GraduationCap, gradient: 'from-indigo-500 to-purple-600', provider: 'openai' },
+    { id: 'shimmer', name: 'Isabella Chen', title: 'Calming', description: 'Gentle & Soothing', expertise: ['Wellness', 'Self-Help'], gender: 'feminine', style: 'Calming & Intimate', icon: Heart, gradient: 'from-cyan-500 to-blue-600', provider: 'openai' },
   ];
 
-  // Gemini voice definitions (condensed)
+  // Gemini voice definitions (all 30 voices)
   const geminiVoices: VoiceInfo[] = [
+    // Primary voices
     { id: 'Zephyr', name: 'Zephyr', title: 'Host', description: 'Friendly & Approachable', expertise: ['Podcast', 'Interview'], gender: 'neutral', style: 'Friendly', icon: Wind, gradient: 'from-sky-400 to-blue-500', provider: 'gemini' },
     { id: 'Puck', name: 'Puck', title: 'Energetic', description: 'Upbeat & Fun', expertise: ['Entertainment', 'Youth'], gender: 'neutral', style: 'Upbeat', icon: Sparkles, gradient: 'from-green-400 to-emerald-500', provider: 'gemini' },
     { id: 'Charon', name: 'Charon', title: 'Authoritative', description: 'Deep & Commanding', expertise: ['Documentary', 'Drama'], gender: 'masculine', style: 'Authoritative', icon: Shield, gradient: 'from-slate-600 to-gray-800', provider: 'gemini' },
@@ -151,8 +151,30 @@ export function AudioGeneratorCompact({
     { id: 'Leda', name: 'Leda', title: 'Elegant', description: 'Sophisticated', expertise: ['Literature', 'Poetry'], gender: 'feminine', style: 'Elegant', icon: Feather, gradient: 'from-purple-500 to-pink-500', provider: 'gemini' },
     { id: 'Orus', name: 'Orus', title: 'Technical', description: 'Clear & Articulate', expertise: ['Technical', 'Science'], gender: 'masculine', style: 'Clear', icon: Cpu, gradient: 'from-teal-500 to-cyan-600', provider: 'gemini' },
     { id: 'Aoede', name: 'Aoede', title: 'Creative', description: 'Dynamic & Expressive', expertise: ['Creative', 'Art'], gender: 'feminine', style: 'Dynamic', icon: Music, gradient: 'from-fuchsia-500 to-purple-600', provider: 'gemini' },
+    // Extended collection
     { id: 'Callirrhoe', name: 'Callirrhoe', title: 'Poetic', description: 'Graceful & Flowing', expertise: ['Poetry', 'Romance'], gender: 'feminine', style: 'Graceful', icon: Feather, gradient: 'from-rose-400 to-pink-500', provider: 'gemini' },
+    { id: 'Autonoe', name: 'Autonoe', title: 'Conversationalist', description: 'Natural & Engaging', expertise: ['Interview', 'Podcast'], gender: 'feminine', style: 'Natural', icon: Users, gradient: 'from-amber-400 to-orange-500', provider: 'gemini' },
+    { id: 'Enceladus', name: 'Enceladus', title: 'Gentle', description: 'Breathy & Soothing', expertise: ['Meditation', 'Wellness'], gender: 'neutral', style: 'Gentle', icon: Cloud, gradient: 'from-blue-300 to-indigo-400', provider: 'gemini' },
+    { id: 'Iapetus', name: 'Iapetus', title: 'Wise Sage', description: 'Deep & Thoughtful', expertise: ['Philosophy', 'Wisdom'], gender: 'masculine', style: 'Wise', icon: Moon, gradient: 'from-indigo-600 to-purple-700', provider: 'gemini' },
     { id: 'Umbriel', name: 'Umbriel', title: 'Mysterious', description: 'Atmospheric', expertise: ['Fantasy', 'Thriller'], gender: 'neutral', style: 'Mysterious', icon: Moon, gradient: 'from-violet-600 to-purple-800', provider: 'gemini' },
+    { id: 'Algieba', name: 'Algieba', title: 'Bright', description: 'Clear & Cheerful', expertise: ['Children', 'Education'], gender: 'neutral', style: 'Bright', icon: Sun, gradient: 'from-yellow-400 to-orange-500', provider: 'gemini' },
+    { id: 'Despina', name: 'Despina', title: 'Cheerful', description: 'Energetic & Fun', expertise: ['Lifestyle', 'Travel'], gender: 'feminine', style: 'Cheerful', icon: Star, gradient: 'from-pink-400 to-rose-500', provider: 'gemini' },
+    { id: 'Erinome', name: 'Erinome', title: 'Dramatic', description: 'Emotional & Deep', expertise: ['Drama', 'Theater'], gender: 'feminine', style: 'Dramatic', icon: Flame, gradient: 'from-red-500 to-orange-600', provider: 'gemini' },
+    // Stellar voices
+    { id: 'Algenib', name: 'Algenib', title: 'Science', description: 'Clear & Informative', expertise: ['Science', 'Research'], gender: 'masculine', style: 'Informative', icon: Compass, gradient: 'from-cyan-500 to-blue-600', provider: 'gemini' },
+    { id: 'Rasalgethi', name: 'Rasalgethi', title: 'Epic', description: 'Commanding & Grand', expertise: ['Epic', 'History'], gender: 'masculine', style: 'Commanding', icon: Mountain, gradient: 'from-amber-600 to-red-700', provider: 'gemini' },
+    { id: 'Laomedeia', name: 'Laomedeia', title: 'Wellness', description: 'Soothing & Calming', expertise: ['Wellness', 'Self-Help'], gender: 'feminine', style: 'Soothing', icon: Heart, gradient: 'from-teal-400 to-green-500', provider: 'gemini' },
+    { id: 'Achernar', name: 'Achernar', title: 'Business', description: 'Crisp & Professional', expertise: ['Business', 'Finance'], gender: 'masculine', style: 'Crisp', icon: Briefcase, gradient: 'from-blue-600 to-slate-700', provider: 'gemini' },
+    { id: 'Alnilam', name: 'Alnilam', title: 'Motivational', description: 'Strong & Convincing', expertise: ['Motivation', 'Leadership'], gender: 'masculine', style: 'Motivational', icon: Flame, gradient: 'from-orange-500 to-red-600', provider: 'gemini' },
+    { id: 'Schedar', name: 'Schedar', title: 'Family', description: 'Warm & Nurturing', expertise: ['Family', 'Children'], gender: 'feminine', style: 'Nurturing', icon: Heart, gradient: 'from-rose-400 to-pink-500', provider: 'gemini' },
+    { id: 'Gacrux', name: 'Gacrux', title: 'Technical', description: 'Precise & Clear', expertise: ['Technical', 'Tutorial'], gender: 'masculine', style: 'Precise', icon: Cpu, gradient: 'from-slate-500 to-gray-600', provider: 'gemini' },
+    { id: 'Pulcherrima', name: 'Pulcherrima', title: 'Romance', description: 'Elegant & Romantic', expertise: ['Romance', 'Literature'], gender: 'feminine', style: 'Romantic', icon: Heart, gradient: 'from-pink-500 to-rose-600', provider: 'gemini' },
+    { id: 'Achird', name: 'Achird', title: 'Personal', description: 'Friendly & Relatable', expertise: ['Memoir', 'Storytelling'], gender: 'neutral', style: 'Relatable', icon: User, gradient: 'from-amber-500 to-yellow-600', provider: 'gemini' },
+    { id: 'Zubenelgenubi', name: 'Zubenelgenubi', title: 'Unique', description: 'Distinctive & Creative', expertise: ['Creative', 'Experimental'], gender: 'neutral', style: 'Distinctive', icon: Sparkles, gradient: 'from-violet-500 to-fuchsia-600', provider: 'gemini' },
+    { id: 'Vindemiatrix', name: 'Vindemiatrix', title: 'Cultural', description: 'Sophisticated & Cultured', expertise: ['Culture', 'Art'], gender: 'feminine', style: 'Cultured', icon: Globe, gradient: 'from-purple-500 to-indigo-600', provider: 'gemini' },
+    { id: 'Sadachbia', name: 'Sadachbia', title: 'Hopeful', description: 'Optimistic & Bright', expertise: ['Inspiration', 'Hope'], gender: 'feminine', style: 'Hopeful', icon: Sun, gradient: 'from-yellow-400 to-amber-500', provider: 'gemini' },
+    { id: 'Sadaltager', name: 'Sadaltager', title: 'Mindful', description: 'Thoughtful & Reflective', expertise: ['Mindfulness', 'Meditation'], gender: 'masculine', style: 'Reflective', icon: Leaf, gradient: 'from-green-500 to-teal-600', provider: 'gemini' },
+    { id: 'Sulafat', name: 'Sulafat', title: 'Versatile', description: 'Adaptable & Flexible', expertise: ['Versatile', 'General'], gender: 'neutral', style: 'Versatile', icon: Waves, gradient: 'from-blue-500 to-cyan-600', provider: 'gemini' },
   ];
 
   const voices = selectedProvider === 'gemini' ? geminiVoices : openaiVoices;
@@ -162,7 +184,15 @@ export function AudioGeneratorCompact({
     setChaptersData(chapters);
   }, [chapters]);
 
-  // Voice preview functionality
+  // Preload voice previews on mount for instant playback
+  useEffect(() => {
+    const voiceIds = voices.map(v => v.id);
+    preloadVoicePreviews(voiceIds).catch(() => {
+      // Silent fail - will fallback to API on play
+    });
+  }, [selectedProvider]); // Re-preload when provider changes
+
+  // Voice preview functionality - uses static files first, then API fallback
   const playVoiceSample = async (voiceId: VoiceType) => {
     if (voiceSampleRef.current) {
       voiceSampleRef.current.pause();
@@ -174,6 +204,33 @@ export function AudioGeneratorCompact({
       return;
     }
 
+    // First try static preview file
+    const staticUrl = VOICE_PREVIEW_URLS[voiceId];
+    if (staticUrl) {
+      const audio = getPreviewAudio(voiceId);
+      if (audio) {
+        setPlayingVoiceSample(voiceId);
+        voiceSampleRef.current = audio;
+        audio.onended = () => setPlayingVoiceSample(null);
+        audio.onerror = async () => {
+          // Static file failed, fallback to API
+          setPlayingVoiceSample(null);
+          await playVoiceSampleFromApi(voiceId);
+        };
+        audio.play().catch(async () => {
+          setPlayingVoiceSample(null);
+          await playVoiceSampleFromApi(voiceId);
+        });
+        return;
+      }
+    }
+
+    // Fallback to API
+    await playVoiceSampleFromApi(voiceId);
+  };
+
+  // Fallback: Play voice sample from API (for when static files don't exist)
+  const playVoiceSampleFromApi = async (voiceId: VoiceType) => {
     let audioUrl = voicePreviewUrls[voiceId];
     
     if (!audioUrl) {
@@ -195,6 +252,8 @@ export function AudioGeneratorCompact({
       }
       setLoadingPreview(null);
     }
+
+    if (!audioUrl) return;
 
     setPlayingVoiceSample(voiceId);
     const audio = new Audio(audioUrl);
@@ -813,21 +872,6 @@ export function AudioGeneratorCompact({
           title="Your Audio Library"
           subtitle={`${chaptersWithAudio} chapters with audio`}
           icon={<div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center"><FileAudio className="w-4 h-4 text-white" /></div>}
-          headerRight={
-            <Button variant="outline" size="sm" onClick={handleDownloadAllAudio} disabled={isDownloading}>
-              {isDownloading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                  {downloadProgress}%
-                </>
-              ) : (
-                <>
-                  <Archive className="w-4 h-4 mr-1" />
-                  Download All
-                </>
-              )}
-            </Button>
-          }
           defaultOpen={false}
           variant="card"
         >
