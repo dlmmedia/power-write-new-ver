@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { X, Sun, Moon, Download, Settings, HelpCircle, Info, Trash2 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
+import type { LucideIcon } from 'lucide-react';
 
 interface HamburgerMenuProps {
   isOpen: boolean;
@@ -12,8 +13,15 @@ interface HamburgerMenuProps {
   showInstallButton: boolean;
 }
 
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  onClick?: () => void;
+  href?: string;
+}
+
 export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButton }: HamburgerMenuProps) {
-  const router = useRouter();
   const { theme, toggleTheme } = useTheme();
 
   // Close on escape key
@@ -43,7 +51,7 @@ export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButt
 
   if (!isOpen) return null;
 
-  const menuItems = [
+  const menuItems: MenuItem[] = [
     {
       id: 'theme',
       label: theme === 'dark' ? 'Light Mode' : 'Dark Mode',
@@ -69,10 +77,7 @@ export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButt
       id: 'about',
       label: 'About PowerWrite',
       icon: Info,
-      onClick: () => {
-        router.push('/landing');
-        onClose();
-      },
+      href: '/landing',
     },
     {
       id: 'help',
@@ -119,6 +124,46 @@ export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButt
     },
   ];
 
+  const renderMenuItem = (item: MenuItem) => {
+    const Icon = item.icon;
+    const content = (
+      <>
+        <Icon size={20} className="text-yellow-400" />
+        <span className="text-gray-900 dark:text-white font-medium">
+          {item.label}
+        </span>
+      </>
+    );
+
+    const className = "w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors text-left";
+
+    // If item has href, render as Link
+    if (item.href) {
+      return (
+        <Link
+          key={item.id}
+          href={item.href}
+          onClick={onClose}
+          className={className}
+          prefetch={true}
+        >
+          {content}
+        </Link>
+      );
+    }
+
+    // Otherwise render as button
+    return (
+      <button
+        key={item.id}
+        onClick={item.onClick}
+        className={className}
+      >
+        {content}
+      </button>
+    );
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -151,21 +196,7 @@ export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButt
         {/* Menu Items */}
         <div className="p-4">
           <nav className="space-y-2">
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  onClick={item.onClick}
-                  className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-900 transition-colors text-left"
-                >
-                  <Icon size={20} className="text-yellow-400" />
-                  <span className="text-gray-900 dark:text-white font-medium">
-                    {item.label}
-                  </span>
-                </button>
-              );
-            })}
+            {menuItems.map(renderMenuItem)}
           </nav>
         </div>
 
@@ -182,6 +213,3 @@ export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButt
     </>
   );
 }
-
-
-

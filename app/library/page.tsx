@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useUser, UserButton, SignedIn } from '@clerk/nextjs';
+import Link from 'next/link';
 import { useUserTier } from '@/contexts/UserTierContext';
+import { useBooks } from '@/contexts/BooksContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
-import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
-import { Logo } from '@/components/ui/Logo';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { 
   Library, 
@@ -16,7 +15,6 @@ import {
   Type, 
   Layers,
   Plus,
-  ArrowLeft,
   Play,
   Loader2,
   BookOpen,
@@ -29,38 +27,28 @@ import {
   Globe
 } from 'lucide-react';
 
-interface BookListItem {
-  id: number;
-  title: string;
-  author: string;
-  genre: string;
-  status: string;
-  coverUrl?: string;
-  createdAt: string;
-  outline?: any;
-  config?: any;
-  isOwner?: boolean;
-  isPublic?: boolean;
-  metadata: {
-    wordCount: number;
-    chapters: number;
-    modelUsed?: string;
-  };
-  audioStats?: {
-    chaptersWithAudio: number;
-    totalChapters: number;
-    totalDuration: number;
-  } | null;
-}
-
-type UserTier = 'free' | 'pro';
-
 function LibraryPageContent() {
   const router = useRouter();
-  const { user, isLoaded: isUserLoaded } = useUser();
-  const { userTier, isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal, setUserTier, syncUser: contextSyncUser } = useUserTier();
-  const [books, setBooks] = useState<BookListItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Use centralized books context - no more local fetching!
+  const { 
+    books, 
+    isLoading: loading, 
+    error,
+    refreshBooks,
+    updateBookInCache,
+    fetchBookDetail,
+  } = useBooks();
+  
+  // Prefetch book details on hover for instant page loads
+  const handleBookHover = useCallback((bookId: number) => {
+    // Prefetch in background - uses cache if available, fetches if not
+    fetchBookDetail(bookId, false);
+  }, [fetchBookDetail]);
+  
+  const { isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  
+  // Local UI state only
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
@@ -68,82 +56,9 @@ function LibraryPageContent() {
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
   const [generationProgress, setGenerationProgress] = useState<{[key: number]: { progress: number; message: string }}>({});
 
-  // Sync user on mount and fetch books
-  useEffect(() => {
-    if (isUserLoaded) {
-      if (user) {
-        // User is authenticated - sync and fetch books
-        contextSyncUser().then(() => {
-          fetchBooks();
-        }).catch(() => {
-          // Even if sync fails, try to fetch books (user might already exist)
-          fetchBooks();
-        });
-      } else {
-        // User is not authenticated - just fetch books (they might be public)
-        fetchBooks();
-      }
-    }
-  }, [isUserLoaded, user, contextSyncUser]);
-
-  // Note: User sync is now handled by UserTierContext
-
-  const fetchBooks = async (retryCount = 0) => {
-    const maxRetries = 3;
-    const retryDelay = 500; // Start with 500ms delay
-
-    setLoading(true);
-    try {
-      // Add cache busting to ensure fresh data
-      const timestamp = Date.now();
-      const response = await fetch(`/api/books?_t=${timestamp}`, {
-        cache: 'no-store',
-        credentials: 'include', // Ensure cookies are sent
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      
-      if (!response.ok) {
-        // If 500 or 401 and we haven't exhausted retries, retry with exponential backoff
-        if ((response.status === 500 || response.status === 401) && retryCount < maxRetries) {
-          const delay = retryDelay * Math.pow(2, retryCount);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return fetchBooks(retryCount + 1);
-        }
-        
-        // Only log error if we've exhausted retries or it's not a retryable error
-        if (retryCount >= maxRetries || (response.status !== 500 && response.status !== 401)) {
-          console.error('Fetch books failed:', response.status);
-        }
-        return;
-      }
-      
-      const data = await response.json();
-      setBooks(data.books || []);
-      if (data.tier) {
-        setUserTier(data.tier);
-      }
-    } catch (error) {
-      // Retry on network errors too
-      if (retryCount < maxRetries) {
-        const delay = retryDelay * Math.pow(2, retryCount);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return fetchBooks(retryCount + 1);
-      }
-      // Only log if we've exhausted retries
-      console.error('Error fetching books:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Upgrade success is handled by the GlobalUpgradeModal and UserTierContext
-
   const handleGenerateCover = async (bookId: number, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation(); // Prevent navigation to book detail
+    if (e) e.stopPropagation();
     
-    // Check if Pro user
     if (!isProUser) {
       triggerUpgradeModal('generate-cover');
       return;
@@ -159,10 +74,8 @@ function LibraryPageContent() {
       const data = await response.json();
       
       if (data.success && data.coverUrl) {
-        // Update book in local state
-        setBooks(prev => prev.map(book => 
-          book.id === bookId ? { ...book, coverUrl: data.coverUrl } : book
-        ));
+        // Update book in context cache
+        updateBookInCache(bookId, { coverUrl: data.coverUrl });
         return true;
       } else {
         console.error('Failed to generate cover:', data.error);
@@ -181,10 +94,9 @@ function LibraryPageContent() {
   };
 
   // Continue generating a book that was interrupted
-  const handleContinueGeneration = useCallback(async (book: BookListItem, e?: React.MouseEvent) => {
+  const handleContinueGeneration = useCallback(async (book: typeof books[0], e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     
-    // Check if Pro user
     if (!isProUser) {
       triggerUpgradeModal('continue-generation');
       return;
@@ -246,8 +158,8 @@ function LibraryPageContent() {
         }));
 
         if (data.phase === 'completed') {
-          // Refresh the books list
-          await fetchBooks();
+          // Refresh the books list from context
+          await refreshBooks();
           setGenerationProgress(prev => {
             const newState = { ...prev };
             delete newState[book.id];
@@ -272,7 +184,7 @@ function LibraryPageContent() {
         return newSet;
       });
     }
-  }, []);
+  }, [isProUser, triggerUpgradeModal, refreshBooks]);
 
   const filteredAndSortedBooks = books
     .filter((book) => {
@@ -289,7 +201,6 @@ function LibraryPageContent() {
 
   const genres = ['all', ...Array.from(new Set(books.map((b) => b.genre)))];
 
-  // Helper function to format duration in seconds to a readable format
   const formatDuration = (seconds: number): string => {
     if (seconds < 60) return `${seconds}s`;
     const mins = Math.floor(seconds / 60);
@@ -303,20 +214,12 @@ function LibraryPageContent() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Toolbar */}
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
             {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/')}
-                className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
-                <span className="font-medium">Home</span>
-              </button>
-              <Logo size="md" />
               <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{libraryTitle}</h1>
               {/* Tier Badge */}
               {isProUser ? (
@@ -336,22 +239,18 @@ function LibraryPageContent() {
             </div>
 
             <div className="flex items-center gap-3">
-              <Button variant="outline" onClick={() => router.push('/showcase')} className="flex items-center gap-2">
-                <Globe className="w-4 h-4" />
-                Showcase
-              </Button>
-              <ThemeToggleCompact />
               {/* Show enabled button while loading or if Pro user */}
               {(isTierLoading || isProUser) ? (
-                <Button 
-                  variant="primary" 
-                  onClick={() => router.push('/studio')} 
-                  className="flex items-center gap-2"
-                  disabled={isTierLoading}
-                >
-                  <Plus className="w-4 h-4" />
-                  New Book
-                </Button>
+                <Link href="/studio">
+                  <Button 
+                    variant="primary" 
+                    className="flex items-center gap-2"
+                    disabled={isTierLoading}
+                  >
+                    <Plus className="w-4 h-4" />
+                    New Book
+                  </Button>
+                </Link>
               ) : (
                 <button
                   onClick={() => triggerUpgradeModal('generate-book')}
@@ -362,9 +261,6 @@ function LibraryPageContent() {
                   <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
                 </button>
               )}
-              <SignedIn>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
             </div>
           </div>
 
@@ -372,28 +268,36 @@ function LibraryPageContent() {
           <div className="md:hidden">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => router.push('/')}
-                  className="group p-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
-                </button>
-                <Logo size="sm" />
+                <h1 className="text-lg font-bold">{libraryTitle}</h1>
+                {isProUser ? (
+                  <Badge variant="success" size="sm" className="flex items-center gap-1">
+                    <Crown className="w-3 h-3" />
+                    Pro
+                  </Badge>
+                ) : (
+                  <button
+                    onClick={() => triggerUpgradeModal()}
+                    className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    Upgrade
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2">
-                <ThemeToggleCompact />
                 {/* Show enabled button while loading or if Pro user */}
                 {(isTierLoading || isProUser) ? (
-                  <Button 
-                    variant="primary" 
-                    size="sm" 
-                    onClick={() => router.push('/studio')} 
-                    className="flex items-center gap-1"
-                    disabled={isTierLoading}
-                  >
-                    <Plus className="w-4 h-4" />
-                    New
-                  </Button>
+                  <Link href="/studio">
+                    <Button 
+                      variant="primary" 
+                      size="sm" 
+                      className="flex items-center gap-1"
+                      disabled={isTierLoading}
+                    >
+                      <Plus className="w-4 h-4" />
+                      New
+                    </Button>
+                  </Link>
                 ) : (
                   <button
                     onClick={() => triggerUpgradeModal('generate-book')}
@@ -403,27 +307,7 @@ function LibraryPageContent() {
                     New
                   </button>
                 )}
-                <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
-                </SignedIn>
               </div>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <h1 className="text-lg font-bold">{libraryTitle}</h1>
-              {isProUser ? (
-                <Badge variant="success" size="sm" className="flex items-center gap-1">
-                  <Crown className="w-3 h-3" />
-                  Pro
-                </Badge>
-              ) : (
-                <button
-                  onClick={() => triggerUpgradeModal()}
-                  className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  Upgrade
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -431,6 +315,19 @@ function LibraryPageContent() {
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-4 md:py-8">
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+            <p className="text-red-700 dark:text-red-400">{error}</p>
+            <button 
+              onClick={() => refreshBooks()}
+              className="mt-2 text-sm text-red-600 dark:text-red-300 underline hover:no-underline"
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
         {/* Filters & Search */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 mb-6 md:mb-8">
           <div className="flex-1">
@@ -457,7 +354,7 @@ function LibraryPageContent() {
 
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as any)}
+              onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'words')}
               className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
             >
               <option value="date">Date</option>
@@ -556,9 +453,11 @@ function LibraryPageContent() {
               {searchQuery || filterGenre !== 'all' ? 'No books match your filters' : 'No books yet'}
             </p>
             {isProUser ? (
-              <Button variant="primary" size="md" onClick={() => router.push('/studio')}>
-                Create Your First Book
-              </Button>
+              <Link href="/studio">
+                <Button variant="primary" size="md">
+                  Create Your First Book
+                </Button>
+              </Link>
             ) : (
               <button
                 onClick={() => triggerUpgradeModal('generate-book')}
@@ -573,10 +472,12 @@ function LibraryPageContent() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {filteredAndSortedBooks.map((book) => (
-              <div
+              <Link
                 key={book.id}
-                className="bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-800 hover:border-yellow-400 transition-all hover:shadow-xl cursor-pointer group"
-                onClick={() => router.push(`/library/${book.id}`)}
+                href={`/library/${book.id}`}
+                prefetch={true}
+                onMouseEnter={() => handleBookHover(book.id)}
+                className="bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-800 hover:border-yellow-400 transition-all hover:shadow-xl cursor-pointer group block"
               >
                 {/* Cover Image */}
                 <div className="relative w-full aspect-[2/3] bg-gray-800 overflow-hidden">
@@ -631,7 +532,7 @@ function LibraryPageContent() {
                               </button>
                             ) : (
                               <button
-                                onClick={(e) => { e.stopPropagation(); triggerUpgradeModal('continue-generation'); }}
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); triggerUpgradeModal('continue-generation'); }}
                                 className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
                               >
                                 <span className="flex items-center gap-2">
@@ -664,7 +565,7 @@ function LibraryPageContent() {
                             </button>
                           ) : (
                             <button
-                              onClick={(e) => { e.stopPropagation(); triggerUpgradeModal('generate-cover'); }}
+                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); triggerUpgradeModal('generate-cover'); }}
                               className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
                             >
                               <span className="flex items-center gap-2">
@@ -728,7 +629,7 @@ function LibraryPageContent() {
                     {new Date(book.createdAt).toLocaleDateString()}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

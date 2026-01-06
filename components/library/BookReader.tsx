@@ -54,6 +54,7 @@ interface BookReaderProps {
   initialChapterIndex?: number;
   bibliography?: BibliographyData;
   onClose?: () => void;
+  onEdit?: () => void;
   onAudioGenerated?: (chapterNumber: number, audioUrl: string, duration: number) => void;
 }
 
@@ -78,6 +79,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
   initialChapterIndex = 0,
   bibliography,
   onClose,
+  onEdit,
   onAudioGenerated,
 }) => {
   const [currentChapterIndex, setCurrentChapterIndex] = useState(initialChapterIndex);
@@ -618,26 +620,16 @@ export const BookReader: React.FC<BookReaderProps> = ({
               )}
             </div>
 
-            {/* Download and Regenerate Buttons (if audio exists) */}
-            {currentChapter.audioUrl && (
-              <>
-                <button
-                  onClick={handleRegenerateAudio}
-                  className="flex items-center gap-2 px-3 py-2 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg transition-colors"
-                  title="Regenerate audio with different voice"
-                >
-                  <span>🔄</span>
-                  <span className="text-sm font-medium">Regenerate</span>
-                </button>
-                <button
-                  onClick={handleDownloadAudio}
-                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  title="Download audio"
-                >
-                  <span>⬇️</span>
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Download</span>
-                </button>
-              </>
+            {/* Edit Button */}
+            {onEdit && (
+              <button
+                onClick={onEdit}
+                className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg transition-colors font-medium"
+                title="Edit this book"
+              >
+                <span>✏️</span>
+                <span className="text-sm">Edit</span>
+              </button>
             )}
 
             {/* Chapter Navigator */}

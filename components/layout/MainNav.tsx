@@ -1,12 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { SignInButton, SignUpButton, SignedIn, SignedOut, UserButton } from '@clerk/nextjs';
 import { useUserTier } from '@/contexts/UserTierContext';
 import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
-import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { 
   LogIn, 
@@ -31,9 +31,8 @@ interface NavLink {
 }
 
 export function MainNav() {
-  const router = useRouter();
   const pathname = usePathname();
-  const { isProUser, showUpgradeModal } = useUserTier();
+  const { isProUser, isLoading: isTierLoading, showUpgradeModal } = useUserTier();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const navLinks: NavLink[] = [
@@ -47,11 +46,6 @@ export function MainNav() {
   const isActive = (href: string) => {
     if (href === '/') return pathname === '/';
     return pathname?.startsWith(href);
-  };
-
-  const handleNavClick = (link: NavLink) => {
-    setMobileMenuOpen(false);
-    router.push(link.href);
   };
 
   return (
@@ -72,8 +66,9 @@ export function MainNav() {
               {navLinks.map((link) => (
                 <SignedOut key={`${link.href}-signedout`}>
                   {!link.requiresAuth && (
-                    <button
-                      onClick={() => handleNavClick(link)}
+                    <Link
+                      href={link.href}
+                      prefetch={true}
                       className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
                         isActive(link.href)
                           ? 'bg-yellow-400 text-black'
@@ -82,15 +77,16 @@ export function MainNav() {
                     >
                       {link.icon}
                       {link.label}
-                    </button>
+                    </Link>
                   )}
                 </SignedOut>
               ))}
               <SignedIn>
                 {navLinks.map((link) => (
-                  <button
+                  <Link
                     key={link.href}
-                    onClick={() => handleNavClick(link)}
+                    href={link.href}
+                    prefetch={true}
                     className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-full transition-all duration-200 ${
                       isActive(link.href)
                         ? 'bg-yellow-400 text-black'
@@ -102,7 +98,7 @@ export function MainNav() {
                     {link.requiresAuth && !isProUser && link.href === '/studio' && (
                       <Lock className="w-3 h-3 text-purple-500" />
                     )}
-                  </button>
+                  </Link>
                 ))}
               </SignedIn>
             </nav>
@@ -113,7 +109,10 @@ export function MainNav() {
             
             {/* Tier Badge / Upgrade Button */}
             <SignedIn>
-              {isProUser ? (
+              {isTierLoading ? (
+                // Show subtle loading state while tier is being determined
+                <div className="w-20 h-8 bg-gray-200 dark:bg-gray-700 rounded-full animate-pulse" />
+              ) : isProUser ? (
                 <Badge variant="success" size="sm" className="flex items-center gap-1 bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700">
                   <Crown className="w-3 h-3" />
                   Pro
@@ -156,7 +155,7 @@ export function MainNav() {
             <div className="flex items-center gap-2">
               <ThemeToggleCompact />
               <SignedIn>
-                {!isProUser && (
+                {!isTierLoading && !isProUser && (
                   <button
                     onClick={() => showUpgradeModal()}
                     className="flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
@@ -190,8 +189,10 @@ export function MainNav() {
                 {navLinks.map((link) => (
                   <SignedOut key={`mobile-${link.href}-signedout`}>
                     {!link.requiresAuth && (
-                      <button
-                        onClick={() => handleNavClick(link)}
+                      <Link
+                        href={link.href}
+                        prefetch={true}
+                        onClick={() => setMobileMenuOpen(false)}
                         className={`flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg transition-all ${
                           isActive(link.href)
                             ? 'bg-yellow-400 text-black'
@@ -200,15 +201,17 @@ export function MainNav() {
                       >
                         {link.icon}
                         {link.label}
-                      </button>
+                      </Link>
                     )}
                   </SignedOut>
                 ))}
                 <SignedIn>
                   {navLinks.map((link) => (
-                    <button
+                    <Link
                       key={`mobile-${link.href}`}
-                      onClick={() => handleNavClick(link)}
+                      href={link.href}
+                      prefetch={true}
+                      onClick={() => setMobileMenuOpen(false)}
                       className={`flex items-center gap-3 w-full px-4 py-3 text-sm font-medium rounded-lg transition-all ${
                         isActive(link.href)
                           ? 'bg-yellow-400 text-black'
@@ -220,14 +223,14 @@ export function MainNav() {
                       {link.requiresAuth && !isProUser && link.href === '/studio' && (
                         <Lock className="w-3 h-3 text-purple-500 ml-auto" />
                       )}
-                    </button>
+                    </Link>
                   ))}
                 </SignedIn>
               </div>
               
               {/* Mobile Upgrade CTA */}
               <SignedIn>
-                {!isProUser && (
+                {!isTierLoading && !isProUser && (
                   <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                     <button
                       onClick={() => {

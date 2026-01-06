@@ -15,7 +15,7 @@ export function UpgradeBanner({
   dismissible = true, 
   storageKey = 'upgrade-banner-dismissed' 
 }: UpgradeBannerProps) {
-  const { isProUser, showUpgradeModal } = useUserTier();
+  const { isProUser, isLoading: isTierLoading, showUpgradeModal } = useUserTier();
   const [isDismissed, setIsDismissed] = useState(false);
 
   // Check if dismissed on mount
@@ -37,8 +37,8 @@ export function UpgradeBanner({
     }
   };
 
-  // Don't show for Pro users or if dismissed
-  if (isProUser || isDismissed) return null;
+  // Don't show for Pro users, if dismissed, or while still loading tier
+  if (isProUser || isDismissed || isTierLoading) return null;
 
   // Full width banner at top of page
   if (variant === 'full') {
@@ -175,9 +175,11 @@ export function ProFeatureLock({
   feature: string; 
   children?: React.ReactNode;
 }) {
-  const { isProUser, showUpgradeModal } = useUserTier();
+  const { isProUser, isLoading: isTierLoading, showUpgradeModal } = useUserTier();
 
-  if (isProUser) return <>{children}</>;
+  // While loading, show children (optimistic UI for Pro users)
+  // Or show a loading placeholder if preferred
+  if (isTierLoading || isProUser) return <>{children}</>;
 
   return (
     <div className="relative">

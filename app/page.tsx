@@ -1,6 +1,5 @@
 'use client';
 
-import { MainNav } from '@/components/layout/MainNav';
 import { HeroSection } from '@/components/home/HeroSection';
 import { FeaturesSection } from '@/components/home/FeaturesSection';
 import { HowItWorks } from '@/components/home/HowItWorks';
@@ -11,9 +10,6 @@ import { FAQSection } from '@/components/home/FAQSection';
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-black text-white">
-      {/* Use shared navigation */}
-      <MainNav />
-
       {/* Hero Section */}
       <HeroSection />
 

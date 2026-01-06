@@ -2,21 +2,63 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
-import { BookReader } from '@/components/library/BookReader';
-import { BookEditor } from '@/components/library/BookEditor';
-import { Workspace, WorkspaceModeSwitcher } from '@/components/library/Workspace';
-import { AudioGeneratorCompact } from '@/components/library/AudioGeneratorCompact';
-import { BibliographyManager } from '@/components/library/BibliographyManager';
-import CoverGenerator from '@/components/studio/CoverGenerator';
-import { PublishingSettings } from '@/components/library/publishing';
+import { WorkspaceModeSwitcher } from '@/components/library/Workspace';
 import { FlipBookCover } from '@/components/library/FlipBookCover';
-import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
 import { getDemoUserId } from '@/lib/services/demo-account';
-import { Logo } from '@/components/ui/Logo';
 import { useUserTier } from '@/contexts/UserTierContext';
+import { useBooks } from '@/contexts/BooksContext';
 import type { BibliographyConfig, Reference } from '@/lib/types/bibliography';
+
+// Loading skeleton components for dynamic imports
+const LoadingSkeleton = () => (
+  <div className="animate-pulse bg-gray-200 dark:bg-gray-800 rounded-lg h-64 w-full" />
+);
+
+const FullScreenLoadingSkeleton = () => (
+  <div className="fixed inset-0 bg-white dark:bg-black flex items-center justify-center z-50">
+    <div className="animate-spin h-8 w-8 border-4 border-yellow-400 border-t-transparent rounded-full" />
+  </div>
+);
+
+// Dynamic imports for heavy components - these load on demand
+const BookReader = dynamic(
+  () => import('@/components/library/BookReader').then(mod => ({ default: mod.BookReader })),
+  { loading: () => <FullScreenLoadingSkeleton />, ssr: false }
+);
+
+const BookEditor = dynamic(
+  () => import('@/components/library/BookEditor').then(mod => ({ default: mod.BookEditor })),
+  { loading: () => <FullScreenLoadingSkeleton />, ssr: false }
+);
+
+const CoverGenerator = dynamic(
+  () => import('@/components/studio/CoverGenerator'),
+  { loading: () => <LoadingSkeleton />, ssr: false }
+);
+
+const AudioGeneratorCompact = dynamic(
+  () => import('@/components/library/AudioGeneratorCompact').then(mod => ({ default: mod.AudioGeneratorCompact })),
+  { loading: () => <LoadingSkeleton />, ssr: false }
+);
+
+const BibliographyManager = dynamic(
+  () => import('@/components/library/BibliographyManager').then(mod => ({ default: mod.BibliographyManager })),
+  { loading: () => <LoadingSkeleton />, ssr: false }
+);
+
+const PublishingSettings = dynamic(
+  () => import('@/components/library/publishing').then(mod => ({ default: mod.PublishingSettings })),
+  { loading: () => <LoadingSkeleton />, ssr: false }
+);
+
+const AudiobookPlayer = dynamic(
+  () => import('@/components/library/AudiobookPlayer').then(mod => ({ default: mod.AudiobookPlayer })),
+  { loading: () => <FullScreenLoadingSkeleton />, ssr: false }
+);
 
 import { 
   BookOpen, 
@@ -49,7 +91,8 @@ import {
   Save,
   X
 } from 'lucide-react';
-import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
+// AudiobookPlayer is dynamically imported above
+import type { AudiobookChapter } from '@/components/library/AudiobookPlayer';
 
 interface Chapter {
   id: number;
@@ -95,8 +138,16 @@ interface BookDetail {
 export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const bookId = params?.id;
+  const bookId = params?.id ? Number(params.id) : null;
   const { isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  
+  // Use centralized books context for caching
+  const { 
+    getBookDetailFromCache, 
+    fetchBookDetail: fetchBookDetailFromContext,
+    updateBookDetailInCache,
+    invalidateBookDetail,
+  } = useBooks();
 
   const [book, setBook] = useState<BookDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -124,25 +175,35 @@ export default function BookDetailPage() {
   const [editedTitle, setEditedTitle] = useState('');
   const [isSavingTitle, setIsSavingTitle] = useState(false);
 
+  // Load book - try cache first for instant display, then fetch fresh
   useEffect(() => {
-    if (bookId) {
-      fetchBookDetail();
+    if (!bookId) return;
+    
+    // Try to get from cache first for instant display
+    const cachedBook = getBookDetailFromCache(bookId);
+    if (cachedBook) {
+      setBook(cachedBook as BookDetail);
+      setLoading(false);
     }
+    
+    // Always fetch fresh data
+    fetchBookDetail();
   }, [bookId]);
 
   const fetchBookDetail = async () => {
-    setLoading(true);
+    if (!bookId) return;
+    
+    // Only show loading if we don't have cached data
+    if (!book) {
+      setLoading(true);
+    }
+    
     try {
-      // Add cache busting to ensure fresh data
-      const timestamp = Date.now();
-      const response = await fetch(`/api/books/${bookId}?_t=${timestamp}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache',
-        },
-      });
-      const data = await response.json();
-      setBook(data.book);
+      // Use context's fetch which handles caching
+      const fetchedBook = await fetchBookDetailFromContext(bookId, true);
+      if (fetchedBook) {
+        setBook(fetchedBook as BookDetail);
+      }
     } catch (error) {
       console.error('Error fetching book:', error);
     } finally {
@@ -571,9 +632,11 @@ export default function BookDetailPage() {
       <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Book not found</h2>
-          <Button variant="primary" onClick={() => router.push('/library')}>
-            Back to Library
-          </Button>
+          <Link href="/library">
+            <Button variant="primary">
+              Back to Library
+            </Button>
+          </Link>
         </div>
       </div>
     );
@@ -634,6 +697,15 @@ export default function BookDetailPage() {
           // Refresh book data to get any newly generated audio
           fetchBookDetail();
         }}
+        onEdit={() => {
+          // Switch from reading to editing mode (Pro only)
+          if (!isProUser) {
+            triggerUpgradeModal('edit-book');
+            return;
+          }
+          setIsReading(false);
+          setIsEditing(true);
+        }}
         onAudioGenerated={(chapterNumber, audioUrl, duration) => {
           // Update local state immediately when audio is generated in reader
           if (book) {
@@ -651,24 +723,22 @@ export default function BookDetailPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Toolbar */}
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/library')}
+              <Link
+                href="/library"
                 className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md font-medium"
               >
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
                 Library
-              </button>
-              <Logo size="md" />
+              </Link>
               <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h1>
             </div>
 
             <div className="flex items-center gap-3">
-              <ThemeToggleCompact />
               {/* Tier Badge */}
               {isProUser ? (
                 <span className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-yellow-100 to-amber-100 dark:from-yellow-900/30 dark:to-amber-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700">
@@ -686,34 +756,6 @@ export default function BookDetailPage() {
               )}
               {book.chapters && book.chapters.length > 0 && (
                 <>
-                  {isProUser ? (
-                    <Button variant="outline" onClick={() => setShowBibliography(true)} className="flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" />
-                      Bibliography
-                    </Button>
-                  ) : (
-                    <button
-                      onClick={() => triggerUpgradeModal('bibliography')}
-                      className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
-                    >
-                      <Lock className="w-4 h-4" />
-                      Bibliography
-                    </button>
-                  )}
-                  {isProUser ? (
-                    <Button variant="outline" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
-                      <Edit3 className="w-4 h-4" />
-                      Edit
-                    </Button>
-                  ) : (
-                    <button
-                      onClick={() => triggerUpgradeModal('edit-book')}
-                      className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
-                    >
-                      <Lock className="w-4 h-4" />
-                      Edit
-                    </button>
-                  )}
                   <Button variant="primary" onClick={startReading} className="flex items-center gap-2">
                     <Book className="w-4 h-4" />
                     Read Book
@@ -1132,19 +1174,22 @@ export default function BookDetailPage() {
               <div className="flex items-center justify-between mb-4">
                 <WorkspaceModeSwitcher 
                   mode={workspaceMode} 
-                  onChange={setWorkspaceMode} 
-                />
-                {book.chapters && book.chapters.length > 0 && (
-                  <Button 
-                    variant="primary" 
-                    onClick={() => {
+                  onChange={(newMode) => {
+                    if (newMode === 'read') {
+                      setWorkspaceMode(newMode);
                       setInitialChapterIndex(0);
-                      setIsWorkspaceOpen(true);
-                    }}
-                  >
-                    Open Full Workspace
-                  </Button>
-                )}
+                      setIsReading(true);
+                    } else {
+                      // Edit requires Pro
+                      if (!isProUser) {
+                        triggerUpgradeModal('edit-book');
+                        return;
+                      }
+                      setWorkspaceMode(newMode);
+                      setIsEditing(true);
+                    }
+                  }} 
+                />
               </div>
 
               {/* Chapter List */}
@@ -1163,26 +1208,6 @@ export default function BookDetailPage() {
                     )}
                   </p>
                 </div>
-                {book.chapters && book.chapters.length > 0 && (
-                  <div className="flex gap-2">
-                    {isProUser ? (
-                      <Button variant="outline" onClick={() => setIsEditing(true)}>
-                        ✏️ Edit
-                      </Button>
-                    ) : (
-                      <button
-                        onClick={() => triggerUpgradeModal('edit-book')}
-                        className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
-                      >
-                        <Lock className="w-4 h-4" />
-                        Edit
-                      </button>
-                    )}
-                    <Button variant="primary" onClick={startReading}>
-                      📖 Start Reading
-                    </Button>
-                  </div>
-                )}
               </div>
 
               {book.chapters && book.chapters.length > 0 ? (

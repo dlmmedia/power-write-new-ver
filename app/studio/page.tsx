@@ -1,11 +1,13 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useUser, UserButton, SignedIn } from '@clerk/nextjs';
+import { useUser } from '@clerk/nextjs';
 import { useBookStore } from '@/lib/store/book-store';
 import { useStudioStore } from '@/lib/store/studio-store';
 import { useUserTier } from '@/contexts/UserTierContext';
+import { useBooks } from '@/contexts/BooksContext';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { BasicInfo } from '@/components/studio/config/BasicInfo';
@@ -21,8 +23,6 @@ import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
 import { SmartPrompt } from '@/components/studio/SmartPrompt';
 import { ProFeatureGate, ProButton } from '@/components/pro/ProFeatureGate';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
-import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
-import { Logo } from '@/components/ui/Logo';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { UpgradeBanner } from '@/components/pro/UpgradeBanner';
 import { Lock, Crown, Sparkles } from 'lucide-react';
@@ -83,6 +83,9 @@ function StudioPageContent() {
   
   // Use global tier context
   const { userTier, isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  
+  // Use books context for cache invalidation
+  const { refreshBooks } = useBooks();
   
   const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
@@ -260,7 +263,10 @@ function StudioPageContent() {
           });
 
           // Show success message and redirect to the new book
-          setTimeout(() => {
+          setTimeout(async () => {
+            // Refresh books cache so library shows new book immediately
+            await refreshBooks();
+            
             alert(
               `Book generated successfully!\n\n` +
               `Title: ${data.book.title}\n` +
@@ -477,7 +483,10 @@ function StudioPageContent() {
                   }
                 }
 
-                setTimeout(() => {
+                setTimeout(async () => {
+                  // Refresh books cache so library shows new book immediately
+                  await refreshBooks();
+                  
                   alert(
                     `Book generated successfully!\n\n` +
                     `Title: ${data.title}\n` +
@@ -668,20 +677,12 @@ function StudioPageContent() {
       {/* Free Tier Banner */}
       <UpgradeBanner variant="full" dismissible={false} />
 
-      {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Toolbar */}
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
           {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.push('/')}
-                className="group relative p-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 shadow-sm hover:shadow-md"
-                title="Back to Home"
-              >
-                <span className="group-hover:-translate-x-0.5 transition-transform duration-200 block">←</span>
-              </button>
-              <Logo size="md" />
               <h1 className="text-xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>Book Studio</h1>
               <button
                 onClick={() => {
@@ -711,10 +712,6 @@ function StudioPageContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              <ThemeToggleCompact />
-              <SignedIn>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
                 <Badge variant="info" size="sm">
                   {selectedBooks.length + uploadedReferences.length} Ref{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
@@ -786,15 +783,7 @@ function StudioPageContent() {
           {/* Mobile Header */}
           <div className="md:hidden">
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => router.push('/')}
-                  className="group p-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 shadow-sm hover:shadow-md"
-                >
-                  <span className="group-hover:-translate-x-0.5 transition-transform duration-200 block">←</span>
-                </button>
-                <Logo size="sm" />
-              </div>
+              <h1 className="text-lg font-bold">Book Studio</h1>
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -812,13 +801,8 @@ function StudioPageContent() {
                 >
                   ✨ New
                 </Button>
-                <ThemeToggleCompact />
-                <SignedIn>
-                  <UserButton afterSignOutUrl="/" />
-                </SignedIn>
               </div>
             </div>
-            <h1 className="text-lg font-bold mb-3">Book Studio</h1>
             <div className="flex items-center gap-2 overflow-x-auto pb-2">
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
                 <Badge variant="info" size="sm">

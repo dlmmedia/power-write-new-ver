@@ -8,7 +8,6 @@ import { BookCard } from '@/components/books/BookCard';
 import { SelectedBooksPanel } from '@/components/books/SelectedBooksPanel';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { MainNav } from '@/components/layout/MainNav';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Trophy, Sparkles, BookOpen, Library, Search, 
@@ -188,8 +187,6 @@ export default function BrowsePage() {
 
   return (
     <main className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white pb-32 md:pb-8 transition-colors">
-      <MainNav />
-
       {/* Search Bar */}
       <section className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50">
         <div className="container mx-auto px-4 py-4">
@@ -212,7 +209,7 @@ export default function BrowsePage() {
       </section>
 
       {/* Category Tabs */}
-      <section className="border-b border-gray-200 dark:border-gray-800 sticky top-[57px] z-30 bg-white/90 dark:bg-black/90 backdrop-blur-md">
+      <section className="border-b border-gray-200 dark:border-gray-800 sticky top-16 z-30 bg-white/90 dark:bg-black/90 backdrop-blur-md">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center py-3" style={{ fontFamily: '"SF Compact Rounded", sans-serif' }}>
             <div className="flex items-center gap-4 overflow-x-auto pb-1">

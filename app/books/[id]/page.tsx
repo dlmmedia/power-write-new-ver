@@ -7,7 +7,6 @@ import { BookResult } from '@/lib/services/google-books';
 import { useBookStore } from '@/lib/store/book-store';
 import { convertToSelectedBook } from '@/lib/utils/book-helpers';
 import { Button } from '@/components/ui/Button';
-import { Logo } from '@/components/ui/Logo';
 
 export default function BookDetailPage() {
   const params = useParams();
@@ -82,17 +81,10 @@ export default function BookDetailPage() {
   
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Toolbar */}
+      <header className="border-b border-yellow-600/20 bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center space-x-8">
-            <Logo size="md" />
-            <nav className="hidden md:flex space-x-6">
-              <Link href="/" className="text-gray-300 hover:text-white">Browse Books</Link>
-              <Link href="/studio" className="text-gray-300 hover:text-white">Studio</Link>
-              <Link href="/library" className="text-gray-300 hover:text-white">Library</Link>
-            </nav>
-          </div>
+          <h1 className="text-xl font-bold text-white line-clamp-1">{book?.title || 'Book Details'}</h1>
           <Button onClick={() => router.back()} variant="outline" size="sm">
             ← Back
           </Button>

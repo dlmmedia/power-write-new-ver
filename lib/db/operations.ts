@@ -563,14 +563,18 @@ export async function deleteCitation(id: string): Promise<void> {
 }
 
 // Get complete bibliography data for a book (for export)
+// Parallelized for better performance
 export async function getBookBibliography(bookId: number): Promise<{
   config: BibliographyConfigDB | null;
   references: BibliographyReference[];
   citations: Citation[];
 } | null> {
-  const config = await getBibliographyConfig(bookId);
-  const references = await getBibliographyReferences(bookId);
-  const bookCitations = await getBookCitations(bookId);
+  // Fetch all bibliography data in parallel for better performance
+  const [config, references, bookCitations] = await Promise.all([
+    getBibliographyConfig(bookId),
+    getBibliographyReferences(bookId),
+    getBookCitations(bookId),
+  ]);
   
   return {
     config,
@@ -580,14 +584,21 @@ export async function getBookBibliography(bookId: number): Promise<{
 }
 
 // Get book with chapters and bibliography
+// Parallelized for better performance - fetches book, chapters, and bibliography simultaneously
 export async function getBookWithChaptersAndBibliography(bookId: number | string) {
   const id = typeof bookId === 'string' ? parseInt(bookId, 10) : bookId;
+  
+  // First fetch book to check if it exists
   const book = await getBook(id);
   if (!book) {
     return null;
   }
-  const chapters = await getBookChapters(id);
-  const bibliography = await getBookBibliography(id);
+  
+  // Then fetch chapters and bibliography in parallel for better performance
+  const [chapters, bibliography] = await Promise.all([
+    getBookChapters(id),
+    getBookBibliography(id),
+  ]);
   
   return {
     ...book,
@@ -632,14 +643,19 @@ export async function getPublicBook(bookId: number): Promise<GeneratedBook | nul
   return book || null;
 }
 
+// Parallelized for better performance
 export async function getPublicBookWithChapters(bookId: number | string) {
   const id = typeof bookId === 'string' ? parseInt(bookId, 10) : bookId;
   const book = await getPublicBook(id);
   if (!book) {
     return null;
   }
-  const chapters = await getBookChapters(id);
-  const bibliography = await getBookBibliography(id);
+  
+  // Fetch chapters and bibliography in parallel
+  const [chapters, bibliography] = await Promise.all([
+    getBookChapters(id),
+    getBookBibliography(id),
+  ]);
   
   return {
     ...book,

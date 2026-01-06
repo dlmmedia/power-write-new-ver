@@ -3,9 +3,11 @@
 import { useEffect } from 'react';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { UserTierProvider } from '@/contexts/UserTierContext';
+import { BooksProvider } from '@/contexts/BooksContext';
 import { PWAProvider } from './PWAProvider';
 import { PWALayout } from '@/components/layout/PWALayout';
 import { GlobalUpgradeModal } from '@/components/modals/GlobalUpgradeModal';
+import { ErrorBoundary } from '@/components/errors/ErrorBoundary';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // Suppress Next.js 15+ async params/searchParams warnings in development
@@ -33,13 +35,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <PWAProvider>
-      <ThemeProvider>
-        <UserTierProvider>
-          <PWALayout>{children}</PWALayout>
-          <GlobalUpgradeModal />
-        </UserTierProvider>
-      </ThemeProvider>
-    </PWAProvider>
+    <ErrorBoundary>
+      <PWAProvider>
+        <ThemeProvider>
+          <BooksProvider>
+            <UserTierProvider>
+              <PWALayout>{children}</PWALayout>
+              <GlobalUpgradeModal />
+            </UserTierProvider>
+          </BooksProvider>
+        </ThemeProvider>
+      </PWAProvider>
+    </ErrorBoundary>
   );
 }

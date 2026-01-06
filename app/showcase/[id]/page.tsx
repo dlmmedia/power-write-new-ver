@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { BookReader } from '@/components/library/BookReader';
 import { FlipBookCover } from '@/components/library/FlipBookCover';
-import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
-import { Logo } from '@/components/ui/Logo';
 import type { BibliographyConfig, Reference } from '@/lib/types/bibliography';
 
 import { 
@@ -169,8 +167,8 @@ export default function ShowcaseBookDetailPage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Toolbar */}
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -181,7 +179,6 @@ export default function ShowcaseBookDetailPage() {
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
                 Showcase
               </button>
-              <Logo size="md" />
               <div className="flex items-center gap-2">
                 <Globe className="w-5 h-5 text-yellow-500" />
                 <h1 className="text-2xl font-bold line-clamp-1" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h1>
@@ -189,7 +186,6 @@ export default function ShowcaseBookDetailPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <ThemeToggleCompact />
               {book.chapters && book.chapters.length > 0 && (
                 <>
                   <Button variant="primary" onClick={startReading} className="flex items-center gap-2">

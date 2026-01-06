@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ThemeToggleCompact } from '@/components/ui/ThemeToggle';
-import { Logo } from '@/components/ui/Logo';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -13,7 +11,6 @@ import {
   FileText, 
   Headphones,
   Search,
-  ArrowLeft,
   Star,
   Users,
   Globe
@@ -91,31 +88,13 @@ export default function ShowcasePage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Header */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-0 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Toolbar */}
+      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => router.push('/')}
-                className="group relative px-4 py-2 rounded-lg bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 border border-yellow-200 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-300 hover:from-yellow-100 hover:to-amber-100 dark:hover:from-yellow-900/50 dark:hover:to-amber-900/50 hover:border-yellow-300 dark:hover:border-yellow-700 transition-all duration-200 flex items-center gap-2 shadow-sm hover:shadow-md"
-              >
-                <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform duration-200" />
-                <span className="font-medium">Home</span>
-              </button>
-              <Logo size="md" />
-              <div className="flex items-center gap-2">
-                <Globe className="w-5 h-5 text-yellow-500" />
-                <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>Public Showcase</h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ThemeToggleCompact />
-              <Button variant="outline" onClick={() => router.push('/library')} className="flex items-center gap-2">
-                <Library className="w-4 h-4" />
-                My Library
-              </Button>
+            <div className="flex items-center gap-2">
+              <Globe className="w-5 h-5 text-yellow-500" />
+              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>Public Showcase</h1>
             </div>
           </div>
         </div>

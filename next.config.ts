@@ -8,6 +8,39 @@ const nextConfig: NextConfig = {
   // Configure Turbopack (empty config to silence warning, webpack still used for build)
   turbopack: {},
   
+  // Performance optimizations
+  experimental: {
+    // Optimize imports for commonly used packages to reduce bundle size
+    // This enables tree-shaking for these large packages
+    optimizePackageImports: [
+      'lucide-react',
+      'framer-motion',
+      'date-fns',
+      '@radix-ui/react-dialog',
+      '@radix-ui/react-dropdown-menu',
+      '@radix-ui/react-select',
+      '@radix-ui/react-tabs',
+      '@radix-ui/react-toast',
+    ],
+  },
+  
+  // Image optimization for better loading performance
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 60 * 60 * 24, // 24 hours
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: '**.vercel-storage.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.blob.vercel-storage.com',
+      },
+    ],
+  },
   
   // Logging configuration to reduce noise from async API warnings
   logging: {

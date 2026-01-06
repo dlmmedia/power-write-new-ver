@@ -16,34 +16,39 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user tier (this is safe even if user doesn't exist - returns 'free')
+    // Fetch tier and books in parallel for better performance
     let tier: 'free' | 'pro' = 'free';
-    try {
-      tier = await getUserTier(clerkUserId);
-    } catch (tierError) {
-      console.error('Error getting user tier:', tierError);
-      // Continue with default 'free' tier
-    }
-
-    // Both tiers can view all books (shared library)
-    // Free tier is limited to generating only 1 book, but can view all
     let userBooks: Awaited<ReturnType<typeof getAllBooks>> = [];
+    
     try {
-      userBooks = await getAllBooks();
-    } catch (dbError) {
-      console.error('Error fetching books from database:', dbError);
-      // Return empty array if database query fails
-      userBooks = [];
+      // Parallelize tier and books fetch for better performance
+      const [tierResult, booksResult] = await Promise.all([
+        getUserTier(clerkUserId).catch((err) => {
+          console.error('Error getting user tier:', err);
+          return 'free' as const;
+        }),
+        getAllBooks().catch((err) => {
+          console.error('Error fetching books from database:', err);
+          return [] as Awaited<ReturnType<typeof getAllBooks>>;
+        }),
+      ]);
+      
+      tier = tierResult;
+      userBooks = booksResult;
+    } catch (err) {
+      console.error('Error in parallel fetch:', err);
     }
 
     // Get audio stats for all books
     let audioStatsMap = new Map<number, { chaptersWithAudio: number; totalChapters: number; totalDuration: number }>();
-    try {
-      const bookIds = userBooks.map(book => book.id);
-      audioStatsMap = await getBooksAudioStats(bookIds);
-    } catch (audioError) {
-      console.error('Error fetching audio stats:', audioError);
-      // Continue without audio stats
+    if (userBooks.length > 0) {
+      try {
+        const bookIds = userBooks.map(book => book.id);
+        audioStatsMap = await getBooksAudioStats(bookIds);
+      } catch (audioError) {
+        console.error('Error fetching audio stats:', audioError);
+        // Continue without audio stats
+      }
     }
 
     // Format books for response
