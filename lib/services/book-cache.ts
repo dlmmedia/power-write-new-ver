@@ -116,25 +116,58 @@ export class BookCacheService {
   }
 
   /**
-   * Search cached books by title or author
+   * Search cached books by title, author, description, or categories
    */
   async searchCachedBooks(query: string): Promise<BookResult[]> {
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.CACHE_DURATION_DAYS);
+      const searchTerm = `%${query}%`;
 
       const results = await db.query.cachedBooks.findMany({
         where: and(
           or(
-            ilike(cachedBooks.title, `%${query}%`),
-            sql`${cachedBooks.authors}::text ILIKE ${'%' + query + '%'}`
+            ilike(cachedBooks.title, searchTerm),
+            sql`${cachedBooks.authors}::text ILIKE ${searchTerm}`,
+            ilike(cachedBooks.description, searchTerm),
+            sql`${cachedBooks.categories}::text ILIKE ${searchTerm}`,
+            ilike(cachedBooks.publisher, searchTerm),
+            ilike(cachedBooks.isbn, searchTerm)
           ),
           gt(cachedBooks.updatedAt, cutoffDate)
         ),
-        limit: 40,
+        limit: 60,
       });
 
-      return results.map(result => this.convertToBookResult(result));
+      // Sort results by relevance to the query
+      const scoredResults = results.map(result => {
+        const book = this.convertToBookResult(result);
+        const lowerQuery = query.toLowerCase();
+        let score = 0;
+        
+        // Exact title match (highest priority)
+        if (book.title.toLowerCase() === lowerQuery) score += 1000;
+        // Title starts with query
+        else if (book.title.toLowerCase().startsWith(lowerQuery)) score += 500;
+        // Title contains query
+        else if (book.title.toLowerCase().includes(lowerQuery)) score += 300;
+        
+        // Author contains query
+        if (book.authors.some(a => a.toLowerCase().includes(lowerQuery))) score += 200;
+        
+        // Categories contain query
+        if (book.categories?.some(c => c.toLowerCase().includes(lowerQuery))) score += 100;
+        
+        // Description contains query (lower priority)
+        if (book.description?.toLowerCase().includes(lowerQuery)) score += 50;
+        
+        return { book, score };
+      });
+
+      scoredResults.sort((a, b) => b.score - a.score);
+      
+      console.log(`[Cache] Found ${results.length} cached books for "${query}"`);
+      return scoredResults.map(r => r.book);
     } catch (error) {
       console.error('Error searching cached books:', error);
       return [];

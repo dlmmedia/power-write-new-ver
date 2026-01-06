@@ -334,7 +334,9 @@ function splitByWordCount(content: string, options: ParserOptions): { chapters: 
  */
 async function parsePDF(buffer: Buffer): Promise<string> {
   // Dynamic import to avoid issues with pdf-parse in edge runtime
-  const pdfParse = (await import('pdf-parse')).default;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfParseModule = await import('pdf-parse') as any;
+  const pdfParse = pdfParseModule.default || pdfParseModule;
   
   try {
     const data = await pdfParse(buffer);
@@ -434,11 +436,13 @@ export async function parseBookFile(
   
   // Get buffer from file
   let buffer: Buffer;
-  if (file instanceof Buffer) {
+  if (Buffer.isBuffer(file)) {
     buffer = file;
-  } else {
+  } else if ('arrayBuffer' in file && typeof file.arrayBuffer === 'function') {
     const arrayBuffer = await file.arrayBuffer();
     buffer = Buffer.from(arrayBuffer);
+  } else {
+    throw new Error('Invalid file input: expected Buffer or File');
   }
   
   const fileSize = buffer.length;

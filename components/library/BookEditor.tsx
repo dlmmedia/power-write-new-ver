@@ -9,8 +9,12 @@ import { SaveStatus, SaveState } from '@/components/ui/SaveStatus';
 import { AIChapterModal } from './AIChapterModal';
 import { ImageInsertModal } from './ImageInsertModal';
 import { ImageManager } from './ImageManager';
-import { ContentWithImages, ImagePreviewStrip } from './ContentWithImages';
+import { ContentWithImages } from './ContentWithImages';
+import { CitationInserter } from './CitationInserter';
+import { BibliographyManager } from './BibliographyManager';
+import { BlockEditor } from './editor';
 import { BookImageType, ImagePlacement } from '@/lib/types/book-images';
+import { getDemoUserId } from '@/lib/services/demo-account';
 
 interface Chapter {
   id: number;
@@ -71,8 +75,11 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   const [showAIChapterModal, setShowAIChapterModal] = useState(false);
   const [showImageInsertModal, setShowImageInsertModal] = useState(false);
   const [showImageManager, setShowImageManager] = useState(false);
+  const [showCitationInserter, setShowCitationInserter] = useState(false);
+  const [showBibliographyManager, setShowBibliographyManager] = useState(false);
   const [cursorPosition, setCursorPosition] = useState(0);
   const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
+  const [selectedImageId, setSelectedImageId] = useState<number | null>(null);
   const [chapterImages, setChapterImages] = useState<Array<{
     id: number;
     imageUrl: string;
@@ -1154,18 +1161,22 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           </Button>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
           
-          {/* Image Tools */}
+          {/* Image & Citation Tools */}
           <Button
             variant="outline"
             size="sm"
-            onClick={() => {
-              const textarea = textareaRef.current;
-              if (textarea) setCursorPosition(textarea.selectionStart);
-              setShowImageInsertModal(true);
-            }}
-            title="Insert image at cursor position"
+            onClick={() => setShowImageInsertModal(true)}
+            title="Insert image (also available via + menu in editor)"
           >
             🖼️ Add Image
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowCitationInserter(true)}
+            title="Insert citation"
+          >
+            📚 Cite
           </Button>
           <Button
             variant={showImageManager ? 'primary' : 'outline'}
@@ -1175,31 +1186,6 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           >
             📷 Images {chapterImages.length > 0 && `(${chapterImages.length})`}
           </Button>
-          <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
-          
-          {/* View Mode Toggle */}
-          <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
-            <button
-              onClick={() => setViewMode('edit')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'edit'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              ✏️ Edit
-            </button>
-            <button
-              onClick={() => setViewMode('preview')}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                viewMode === 'preview'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              👁️ Preview {chapterImages.length > 0 && `(${chapterImages.length} 🖼️)`}
-            </button>
-          </div>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
           
           {/* Find and Replace Toggle */}
@@ -1335,89 +1321,110 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-400">
                 Content
               </label>
-              {chapterImages.length > 0 && viewMode === 'edit' && (
-                <button
-                  onClick={() => setViewMode('preview')}
-                  className="text-xs text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 flex items-center gap-1"
-                >
-                  <span>🖼️</span>
-                  <span>{chapterImages.length} image{chapterImages.length !== 1 ? 's' : ''} - Click to preview</span>
-                </button>
-              )}
+              <div className="flex items-center gap-3">
+                {chapterImages.length > 0 && (
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    🖼️ {chapterImages.length} image{chapterImages.length !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {/* View Mode Toggle */}
+                <div className="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-0.5">
+                  <button
+                    onClick={() => setViewMode('edit')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      viewMode === 'edit'
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    ✏️ Edit
+                  </button>
+                  <button
+                    onClick={() => setViewMode('preview')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      viewMode === 'preview'
+                        ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    👁️ Preview
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {/* Image Preview Strip - always shows in edit mode */}
-            {viewMode === 'edit' && (
-              <div className="mb-3">
-                <ImagePreviewStrip
-                  images={chapterImages}
-                  onImageClick={(image) => {
-                    console.log('[BookEditor] Image clicked in strip, switching to preview');
-                    setViewMode('preview');
-                  }}
-                  onAddImage={() => {
-                    const textarea = textareaRef.current;
-                    if (textarea) setCursorPosition(textarea.selectionStart);
-                    setShowImageInsertModal(true);
-                  }}
-                />
-              </div>
-            )}
-
             {viewMode === 'edit' ? (
-              /* Edit Mode - Textarea */
-              <div className="relative">
-                <textarea
-                  ref={textareaRef}
-                  id="chapter-content"
-                  value={currentChapter.content}
-                  onChange={(e) => updateChapterContent(e.target.value)}
-                  onClick={handleTextareaClick}
-                  onKeyUp={handleTextareaKeyUp}
-                  onPaste={handlePaste}
-                  className={`w-full min-h-[600px] bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 transition-colors ${fontSizeClasses[fontSize]} leading-relaxed font-serif`}
-                  placeholder="Start writing your chapter... (Tip: You can paste images directly!)"
-                  style={{ fontFamily: 'Georgia, serif' }}
-                />
-                
-                {/* Paste indicator */}
-                {isPastingImage && (
-                  <div className="absolute inset-0 bg-white/80 dark:bg-gray-900/80 flex items-center justify-center rounded-lg">
-                    <div className="flex items-center gap-3 px-6 py-4 bg-yellow-400 text-black rounded-xl shadow-lg">
-                      <span className="animate-spin">⏳</span>
-                      <span className="font-medium">Uploading pasted image...</span>
-                    </div>
-                  </div>
-                )}
-              </div>
+              /* Edit Mode - Block Editor with inline images */
+              <BlockEditor
+                content={currentChapter.content}
+                images={chapterImages}
+                fontSize={fontSize}
+                onChange={(newContent, wordCount) => {
+                  const updatedChapters = [...chapters];
+                  updatedChapters[currentChapterIndex] = {
+                    ...currentChapter,
+                    content: newContent,
+                    wordCount,
+                    isEdited: true,
+                  };
+                  setChapters(updatedChapters);
+                  setHasUnsavedChanges(true);
+                }}
+                onImageInsert={() => setShowImageInsertModal(true)}
+                onCitationInsert={() => setShowCitationInserter(true)}
+                onBibliographyOpen={() => setShowBibliographyManager(true)}
+                onImageClick={(image) => {
+                  setSelectedImageId(image.id);
+                  setShowImageManager(true);
+                }}
+                onImageDelete={handleImageDelete}
+                onImageUpdate={async (imageId, updates) => {
+                  try {
+                    const response = await fetch(`/api/books/${bookId}/images/${imageId}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(updates),
+                    });
+                    if (response.ok) {
+                      // Refresh images
+                      const imagesResponse = await fetch(`/api/books/${bookId}/images`);
+                      const data = await imagesResponse.json();
+                      if (data.success && data.images) {
+                        setAllBookImages(data.images);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('Error updating image:', error);
+                  }
+                }}
+                bookId={bookId}
+                chapterId={currentChapter.id}
+              />
             ) : (
-              /* Preview Mode - Content with Images */
+              /* Preview Mode - Final preview with formatted content */
               <div className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg p-6 min-h-[600px] overflow-auto">
-                {/* Always show ContentWithImages in preview mode, even with 0 images */}
                 <ContentWithImages
                   content={currentChapter.content}
                   images={chapterImages}
                   fontSize={fontSize}
                   onImageClick={(image) => {
-                    console.log('Image clicked:', image);
+                    setSelectedImageId(image.id);
+                    setShowImageManager(true);
                   }}
                   onImageDelete={handleImageDelete}
-                  isEditing={true}
+                  isEditing={false}
                 />
                 
                 {/* Preview mode info bar */}
                 <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {chapterImages.length > 0 
-                      ? `📖 Preview mode - ${chapterImages.length} image${chapterImages.length !== 1 ? 's' : ''} shown at their positions`
-                      : '📖 Preview mode - No images in this chapter yet'
-                    }
+                    📖 Final preview - This is how readers will see your chapter
                   </p>
                   <button
                     onClick={() => setViewMode('edit')}
                     className="text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 font-medium"
                   >
-                    ✏️ Switch to Edit
+                    ✏️ Back to Edit
                   </button>
                 </div>
               </div>
@@ -1549,14 +1556,16 @@ export const BookEditor: React.FC<BookEditorProps> = ({
         chapterId={currentChapter.id}
         chapterContent={currentChapter.content}
         isOpen={showImageManager}
-        onClose={() => setShowImageManager(false)}
+        onClose={() => {
+          setShowImageManager(false);
+          setSelectedImageId(null);
+        }}
         onInsertImage={(position) => {
           setCursorPosition(position || cursorPosition);
           setShowImageInsertModal(true);
         }}
         onImageClick={(image) => {
-          // Switch to preview to see the image in context
-          setViewMode('preview');
+          console.log('[BookEditor] Image clicked in manager:', image.id);
         }}
         onImageDelete={handleImageDelete}
         onImagesChanged={async () => {
@@ -1571,7 +1580,43 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             console.error('Error refreshing images:', error);
           }
         }}
+        selectedImageId={selectedImageId}
       />
+
+      {/* Citation Inserter Modal */}
+      {showCitationInserter && (
+        <CitationInserter
+          chapterId={currentChapter.id}
+          onInsert={(citationText, referenceId) => {
+            // Insert citation at current position in the content
+            const newContent = currentChapter.content + citationText;
+            const wordCount = newContent.trim().split(/\s+/).filter(Boolean).length;
+            const updatedChapters = [...chapters];
+            updatedChapters[currentChapterIndex] = {
+              ...currentChapter,
+              content: newContent,
+              wordCount,
+              isEdited: true,
+            };
+            setChapters(updatedChapters);
+            setHasUnsavedChanges(true);
+          }}
+          onClose={() => setShowCitationInserter(false)}
+        />
+      )}
+
+      {/* Bibliography Manager Modal */}
+      {showBibliographyManager && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-auto">
+            <BibliographyManager
+              bookId={bookId}
+              userId={getDemoUserId()}
+              onClose={() => setShowBibliographyManager(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

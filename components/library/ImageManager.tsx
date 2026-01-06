@@ -33,6 +33,7 @@ interface ImageManagerProps {
   onImageDelete?: (imageId: number) => void;
   onImageUpdate?: (imageId: number, updates: Partial<ChapterImage>) => void;
   onImagesChanged?: () => void;  // Callback when images are modified
+  selectedImageId?: number | null;  // Auto-select this image when opening
 }
 
 export const ImageManager: React.FC<ImageManagerProps> = ({
@@ -46,6 +47,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
   onImageDelete,
   onImageUpdate,
   onImagesChanged,
+  selectedImageId,
 }) => {
   const [images, setImages] = useState<ChapterImage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +98,16 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
       fetchImages();
     }
   }, [isOpen, fetchImages]);
+
+  // Auto-select image when selectedImageId is provided
+  useEffect(() => {
+    if (selectedImageId && images.length > 0) {
+      const image = images.find(img => img.id === selectedImageId);
+      if (image) {
+        setSelectedImage(image);
+      }
+    }
+  }, [selectedImageId, images]);
 
   const handleDeleteImage = async (imageId: number) => {
     if (!confirm('Are you sure you want to delete this image?')) {

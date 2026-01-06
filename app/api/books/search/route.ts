@@ -70,7 +70,15 @@ export async function GET(request: NextRequest) {
       googleResults = await googleBooksService.searchByGenre(genre);
     } else if (query) {
       console.log('[API] Searching for:', query);
-      googleResults = await googleBooksService.searchBooks(query);
+      // Search both Google Books and cache in parallel
+      const [gResults, cResults] = await Promise.all([
+        googleBooksService.searchBooks(query),
+        bookCacheService.searchCachedBooks(query)
+      ]);
+      googleResults = gResults;
+      cachedResults = cResults;
+      console.log('[API] Google results:', googleResults.length);
+      console.log('[API] Cached results:', cachedResults.length);
     }
 
     // Cache the Google Books results for faster future lookups
@@ -80,18 +88,25 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch from cached books database
-    if (query) {
-      console.log('[API] Searching cached books...');
-      cachedResults = await bookCacheService.searchCachedBooks(query);
-      console.log('[API] Cached results:', cachedResults.length);
+    // Combine and deduplicate results, prioritizing Google results (already sorted by relevance)
+    const seenIds = new Set<string>();
+    const uniqueResults: BookResult[] = [];
+    
+    // Add Google results first (they're already relevance-sorted)
+    for (const book of googleResults) {
+      if (!seenIds.has(book.id)) {
+        seenIds.add(book.id);
+        uniqueResults.push(book);
+      }
     }
-
-    // Combine and deduplicate results
-    const allResults = [...googleResults, ...cachedResults];
-    const uniqueResults = allResults.filter(
-      (book, index, self) => index === self.findIndex(b => b.id === book.id)
-    );
+    
+    // Add cached results that aren't duplicates
+    for (const book of cachedResults) {
+      if (!seenIds.has(book.id)) {
+        seenIds.add(book.id);
+        uniqueResults.push(book);
+      }
+    }
     
     const results = uniqueResults;
 

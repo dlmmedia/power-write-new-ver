@@ -1346,7 +1346,7 @@ export default function BookDetailPage() {
                       <BookOpen className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
                       Chapter Preview
                     </h3>
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab('chapters')}>
+                    <Button variant="outline" size="sm" onClick={() => setActiveTab('workspace')}>
                       View All →
                     </Button>
                   </div>
