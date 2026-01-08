@@ -443,10 +443,15 @@ ${genreEnhancement ? `- Genre Aesthetic: ${genreEnhancement}` : ''}
       const errorText = await response.text();
       console.error('[BookImage] Nano Banana error:', errorText);
       
-      // Fall back to DALL-E if available
-      if (OPENAI_API_KEY && (response.status === 400 || response.status === 422)) {
-        console.log('[BookImage] Falling back to DALL-E...');
+      // Fall back to DALL-E if available for common errors including 402 (payment required)
+      if (OPENAI_API_KEY && (response.status === 400 || response.status === 402 || response.status === 422 || response.status === 429)) {
+        console.log(`[BookImage] OpenRouter error ${response.status}, falling back to DALL-E...`);
         return this.generateWithDallE(prompt, aspectRatio);
+      }
+      
+      // Provide helpful error message for payment issues
+      if (response.status === 402) {
+        throw new Error('OpenRouter credits exhausted. Please add credits to your OpenRouter account or set OPENAI_API_KEY for DALL-E fallback.');
       }
       
       throw new Error(`Nano Banana generation failed: ${response.status}`);

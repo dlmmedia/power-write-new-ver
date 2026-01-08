@@ -665,10 +665,13 @@ Generate a complete, professional back cover design.`;
       const errorText = await response.text();
       console.error('Nano Banana back cover generation error:', errorText);
       
-      if (response.status === 400 || response.status === 422 || response.status === 404) {
-        console.log('OpenRouter back cover generation not available, falling back to DALL-E...');
+      if (response.status === 400 || response.status === 402 || response.status === 404 || response.status === 422 || response.status === 429) {
+        console.log(`OpenRouter back cover error ${response.status}, falling back to DALL-E...`);
         if (OPENAI_API_KEY) {
           return await this.generateBackCoverWithDallE(title, author, genre, description, style);
+        }
+        if (response.status === 402) {
+          throw new Error('OpenRouter credits exhausted. Please add credits to your OpenRouter account or set OPENAI_API_KEY for DALL-E fallback.');
         }
         throw new Error('Back cover generation failed and no fallback available.');
       }
@@ -1392,11 +1395,15 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
       const errorText = await response.text();
       console.error('Nano Banana image generation error:', errorText);
       
-      // If this model doesn't support image generation, fall back to DALL-E
-      if (response.status === 400 || response.status === 422 || response.status === 404) {
-        console.log('OpenRouter image generation not available, falling back to DALL-E...');
+      // If this model doesn't support image generation or has payment/rate issues, fall back to DALL-E
+      if (response.status === 400 || response.status === 402 || response.status === 404 || response.status === 422 || response.status === 429) {
+        console.log(`OpenRouter error ${response.status}, falling back to DALL-E...`);
         if (OPENAI_API_KEY) {
           return await this.generateWithDallE(title, author, genre, description, style);
+        }
+        // Provide helpful error messages for specific issues
+        if (response.status === 402) {
+          throw new Error('OpenRouter credits exhausted. Please add credits to your OpenRouter account or set OPENAI_API_KEY for DALL-E fallback.');
         }
         throw new Error('Image generation failed and no fallback available. Please set OPENAI_API_KEY for DALL-E.');
       }
