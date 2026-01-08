@@ -1,27 +1,26 @@
 // PowerWrite Service Worker
 // Handles caching, offline functionality, and background sync
-// IMPORTANT: Only active when app is installed as PWA
+// IMPORTANT: Service worker is now active for both PWA and web versions
 
-const CACHE_VERSION = 'v2';
+// Build timestamp for automatic cache busting on deployment
+// This gets updated during build process by scripts/update-sw-version.js
+const BUILD_TIME = '1767872304489';
+const CACHE_VERSION = `v3-${BUILD_TIME}`;
 const CACHE_NAME = `powerwrite-${CACHE_VERSION}`;
 const BOOKS_CACHE_NAME = `powerwrite-books-${CACHE_VERSION}`;
 const MAX_BOOKS_CACHED = 10;
 
 // Assets to cache immediately on install
 const STATIC_ASSETS = [
-  '/',
-  '/library',
-  '/studio',
-  '/landing',
+  '/offline.html',
   '/manifest.json',
   '/icons/icon-192x192.svg',
-  '/icons/icon-512x512.svg',
-  '/offline.html'
+  '/icons/icon-512x512.svg'
 ];
 
-// Install event - cache static assets
+// Install event - cache static assets and skip waiting
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installing service worker...');
+  console.log('[SW] Installing service worker...', CACHE_VERSION);
   
   event.waitUntil(
     caches.open(CACHE_NAME)
@@ -34,13 +33,17 @@ self.addEventListener('install', (event) => {
           )
         );
       })
-      .then(() => self.skipWaiting())
+      .then(() => {
+        console.log('[SW] Installation complete, skipping waiting');
+        // Skip waiting to activate immediately
+        return self.skipWaiting();
+      })
   );
 });
 
-// Activate event - clean up old caches
+// Activate event - clean up old caches and claim clients
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Activating service worker...');
+  console.log('[SW] Activating service worker...', CACHE_VERSION);
   
   event.waitUntil(
     caches.keys()
@@ -48,20 +51,37 @@ self.addEventListener('activate', (event) => {
         return Promise.all(
           cacheNames
             .filter((name) => {
-              // Delete old caches
-              return name.startsWith('powerwrite-') && name !== CACHE_NAME && name !== BOOKS_CACHE_NAME;
+              // Delete ALL old powerwrite caches
+              const isOldCache = name.startsWith('powerwrite-') && 
+                                 name !== CACHE_NAME && 
+                                 name !== BOOKS_CACHE_NAME;
+              if (isOldCache) {
+                console.log('[SW] Deleting old cache:', name);
+              }
+              return isOldCache;
             })
-            .map((name) => {
-              console.log('[SW] Deleting old cache:', name);
-              return caches.delete(name);
-            })
+            .map((name) => caches.delete(name))
         );
       })
-      .then(() => self.clients.claim())
+      .then(() => {
+        console.log('[SW] Claiming clients');
+        return self.clients.claim();
+      })
+      .then(() => {
+        // Notify all clients that the service worker has been updated
+        return self.clients.matchAll().then(clients => {
+          clients.forEach(client => {
+            client.postMessage({
+              type: 'SW_ACTIVATED',
+              version: CACHE_VERSION
+            });
+          });
+        });
+      })
   );
 });
 
-// Fetch event - network first, then cache
+// Fetch event - Network first for HTML, stale-while-revalidate for assets
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -76,90 +96,94 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // API requests - network first, minimal caching
+  // Skip development hot reload
+  if (url.pathname.includes('_next/webpack-hmr') || 
+      url.pathname.includes('__nextjs') ||
+      url.pathname.includes('_next/static/development')) {
+    return;
+  }
+
+  // API requests - network only (no caching for API responses)
   if (url.pathname.startsWith('/api/')) {
-    // Don't cache generation endpoints at all
-    if (url.pathname.includes('/generate/')) {
-      return;
-    }
+    // Don't interfere with API requests at all
+    return;
+  }
 
-    // Don't cache individual book details or book mutations
-    // Only cache the books list for offline viewing
-    if (url.pathname.includes('/books/') || 
-        url.pathname.includes('/api/books') && request.method !== 'GET') {
-      return;
-    }
-
+  // Navigation requests (HTML pages) - Network first, fallback to cache, then offline page
+  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Only cache the books list endpoint for offline library view
-          if (response.ok && url.pathname === '/api/books' && request.method === 'GET') {
+          // Only cache successful responses
+          if (response.ok) {
             const responseClone = response.clone();
-            caches.open(BOOKS_CACHE_NAME).then((cache) => {
+            caches.open(CACHE_NAME).then((cache) => {
               cache.put(request, responseClone);
             });
           }
           return response;
         })
         .catch(() => {
-          // Return cached version only for books list if offline
-          if (url.pathname === '/api/books') {
-            return caches.match(request);
-          }
-          throw error;
+          // Network failed, try cache
+          return caches.match(request)
+            .then((cachedResponse) => {
+              if (cachedResponse) {
+                return cachedResponse;
+              }
+              // No cache, return offline page
+              return caches.match('/offline.html');
+            });
         })
     );
     return;
   }
 
-  // Static assets - cache first, then network
+  // Static assets (JS, CSS, images) - Network first with cache fallback
+  // This ensures users always get fresh content while still having offline support
   event.respondWith(
-    caches.match(request)
-      .then((cachedResponse) => {
-        if (cachedResponse) {
-          // Return cached version and update in background
-          fetch(request)
-            .then((response) => {
-              if (response.ok) {
-                caches.open(CACHE_NAME).then((cache) => {
-                  cache.put(request, response);
-                });
-              }
-            })
-            .catch(() => {/* Ignore network errors */});
-          
-          return cachedResponse;
-        }
-
-        // Not in cache, fetch from network
-        return fetch(request)
-          .then((response) => {
-            // Cache successful responses
-            if (response.ok) {
-              const responseClone = response.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(request, responseClone);
-              });
-            }
-            return response;
-          })
-          .catch((error) => {
-            console.log('[SW] Fetch failed:', error);
-            
-            // Return offline page for navigation requests
-            if (request.mode === 'navigate') {
-              return caches.match('/offline.html');
-            }
-            
-            throw error;
+    fetch(request)
+      .then((response) => {
+        // Only cache successful responses
+        if (response.ok) {
+          const responseClone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseClone);
           });
+        }
+        return response;
+      })
+      .catch(() => {
+        // Network failed, try cache
+        return caches.match(request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Return a generic fallback for images if not cached
+          if (request.destination === 'image') {
+            return new Response(
+              '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#888">Offline</text></svg>',
+              { headers: { 'Content-Type': 'image/svg+xml' } }
+            );
+          }
+          throw new Error('Resource not cached and network unavailable');
+        });
       })
   );
 });
 
 // Message event - handle cache management from client
 self.addEventListener('message', (event) => {
+  console.log('[SW] Received message:', event.data?.type);
+  
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW] Skip waiting requested');
+    self.skipWaiting();
+  }
+  
+  if (event.data && event.data.type === 'GET_VERSION') {
+    event.ports[0]?.postMessage({ version: CACHE_VERSION });
+  }
+  
   if (event.data && event.data.type === 'CACHE_BOOK') {
     const { bookId, bookData } = event.data;
     
@@ -184,22 +208,33 @@ self.addEventListener('message', (event) => {
     });
   }
   
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
-  
   if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('[SW] Clearing all caches');
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((name) => caches.delete(name))
       );
     }).then(() => {
-      event.ports[0].postMessage({ success: true });
+      if (event.ports[0]) {
+        event.ports[0].postMessage({ success: true });
+      }
+    });
+  }
+  
+  if (event.data && event.data.type === 'FORCE_UPDATE') {
+    console.log('[SW] Force update requested');
+    // Clear all caches and skip waiting
+    caches.keys().then((cacheNames) => {
+      return Promise.all(
+        cacheNames.map((name) => caches.delete(name))
+      );
+    }).then(() => {
+      self.skipWaiting();
     });
   }
 });
 
-// Background sync for failed requests (future enhancement)
+// Background sync for failed requests
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-books') {
     event.waitUntil(
@@ -209,7 +244,4 @@ self.addEventListener('sync', (event) => {
   }
 });
 
-console.log('[SW] Service worker loaded');
-
-
-
+console.log('[SW] Service worker loaded, version:', CACHE_VERSION);

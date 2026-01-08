@@ -22,26 +22,116 @@ interface ParsedPrompt {
   confidence: number;
 }
 
-interface SuggestionChip {
+interface SuggestionTab {
+  id: string;
   label: string;
+  shortLabel: string;
   prompt: string;
 }
 
-const QUICK_SUGGESTIONS: SuggestionChip[] = [
-  { label: '📚 Non-Fiction Guide', prompt: 'Write a comprehensive guide about' },
-  { label: '🔮 Fantasy Epic', prompt: 'Write an epic fantasy novel with magic, dragons, and a hero\'s journey' },
-  { label: '💔 Romance Novel', prompt: 'Write a contemporary romance about two people who' },
-  { label: '🔍 Mystery Thriller', prompt: 'Write a gripping mystery thriller where a detective must solve' },
-  { label: '🚀 Sci-Fi Adventure', prompt: 'Write a science fiction story set in a future where' },
-  { label: '👻 Horror Story', prompt: 'Write a psychological horror novel about' },
-  { label: '📖 Literary Fiction', prompt: 'Write a literary fiction exploring themes of' },
-  { label: '🧒 Children\'s Book', prompt: 'Write a children\'s story about' },
+const GENRE_TABS: SuggestionTab[] = [
+  { 
+    id: 'nonfiction',
+    label: '📚 Non-Fiction Guide', 
+    shortLabel: '📚 Non-Fiction',
+    prompt: `Write a comprehensive non-fiction guide that teaches readers practical skills and insights.
+
+Topic: [Your subject area]
+Approach: Well-researched, accessible, with real-world examples and actionable advice.
+Structure: Progressive chapters that build knowledge from fundamentals to advanced concepts.
+Tone: Authoritative yet conversational, making complex topics easy to understand.` 
+  },
+  { 
+    id: 'fantasy',
+    label: '🔮 Fantasy Epic', 
+    shortLabel: '🔮 Fantasy',
+    prompt: `Write an epic fantasy novel set in a richly imagined world with its own magic system, cultures, and history.
+
+Setting: A world where [describe your world's unique elements]
+Protagonist: A hero who discovers [their special ability/destiny]
+Plot: An epic journey involving [quests, battles, ancient prophecies]
+Themes: Good vs evil, the hero's journey, power and its consequences, found family.
+Tone: Grand in scope, with moments of wonder and high stakes adventure.` 
+  },
+  { 
+    id: 'romance',
+    label: '💔 Romance Novel', 
+    shortLabel: '💔 Romance',
+    prompt: `Write a contemporary romance novel with emotional depth and satisfying relationship development.
+
+Setting: [Modern city, small town, workplace, etc.]
+Main characters: Two compelling individuals whose lives intersect unexpectedly
+Conflict: Internal and external obstacles keeping them apart before their happy ending
+Themes: Second chances, self-discovery through love, vulnerability and trust.
+Tone: Emotionally engaging with moments of tension, humor, and heartfelt connection.` 
+  },
+  { 
+    id: 'mystery',
+    label: '🔍 Mystery Thriller', 
+    shortLabel: '🔍 Mystery',
+    prompt: `Write a gripping mystery thriller that keeps readers guessing until the final reveal.
+
+Setting: [City, small town, isolated location]
+Detective/Protagonist: A sharp investigator with [unique skills/personal stakes]
+The Crime: A complex case involving [murder, disappearance, conspiracy]
+Suspects: Multiple characters with motives, secrets, and alibis
+Tone: Suspenseful pacing with clever misdirection, building to a satisfying revelation.` 
+  },
+  { 
+    id: 'scifi',
+    label: '🚀 Sci-Fi Adventure', 
+    shortLabel: '🚀 Sci-Fi',
+    prompt: `Write a science fiction adventure exploring the frontiers of technology and humanity.
+
+Setting: A future where [technological or societal changes have transformed life]
+Protagonist: Someone who [discovers, challenges, or must adapt to] this world
+Central conflict: [AI, space exploration, dystopia, first contact, etc.]
+Themes: What it means to be human, the ethics of progress, hope for the future.
+Tone: Thought-provoking yet action-packed, blending big ideas with personal stakes.` 
+  },
+  { 
+    id: 'horror',
+    label: '👻 Horror Story', 
+    shortLabel: '👻 Horror',
+    prompt: `Write a psychological horror novel that builds dread and lingers in the reader's mind.
+
+Setting: [Haunted house, isolated town, seemingly normal suburb with dark secrets]
+Protagonist: Someone whose past or choices make them vulnerable to [the horror]
+The Threat: Something that preys on [specific fears, guilt, or human weakness]
+Themes: The monsters we create, confronting trauma, the thin line between sanity and madness.
+Tone: Atmospheric and unsettling, with escalating tension and visceral scares.` 
+  },
+  { 
+    id: 'literary',
+    label: '📖 Literary Fiction', 
+    shortLabel: '📖 Literary',
+    prompt: `Write a literary fiction novel with beautiful prose and profound character exploration.
+
+Setting: [Grounded, realistic world that reflects contemporary or historical life]
+Protagonist: A complex individual navigating [a pivotal life moment or internal struggle]
+Narrative focus: Character development, relationships, and emotional truth over plot
+Themes: Identity, memory, family, mortality, the human condition.
+Tone: Introspective and lyrical, with moments of quiet revelation.` 
+  },
+  { 
+    id: 'childrens',
+    label: '🧒 Children\'s Book', 
+    shortLabel: '🧒 Children\'s',
+    prompt: `Write an engaging children's story with memorable characters and a meaningful message.
+
+Age range: [Picture book 3-6, Early reader 6-8, Middle grade 8-12]
+Main character: A relatable young protagonist who [faces a challenge]
+Adventure: [A fun journey, magical discovery, or everyday problem to solve]
+Themes: Friendship, bravery, kindness, being yourself, trying new things.
+Tone: Warm, imaginative, and age-appropriate with gentle humor and heart.` 
+  },
 ];
 
 export function SmartPrompt() {
   const { config, updateConfig, setConfig } = useStudioStore();
   const { selectedBooks } = useBookStore();
   const [prompt, setPrompt] = useState('');
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [parsedResult, setParsedResult] = useState<ParsedPrompt | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -211,8 +301,19 @@ export function SmartPrompt() {
     setTimeout(() => setShowAppliedNotification(false), 3000);
   };
 
-  const handleSuggestionClick = (suggestion: SuggestionChip) => {
-    setPrompt(suggestion.prompt + ' ');
+  const handleTabClick = (tab: SuggestionTab) => {
+    if (selectedTab === tab.id) {
+      // Clicking same tab deselects it and clears prompt
+      setSelectedTab(null);
+      setPrompt('');
+    } else {
+      // Select new tab and fill prompt
+      setSelectedTab(tab.id);
+      setPrompt(tab.prompt);
+    }
+    // Clear any previous analysis when switching tabs
+    setParsedResult(null);
+    setError(null);
   };
 
   return (
@@ -264,17 +365,28 @@ export function SmartPrompt() {
         )}
       </div>
 
-      {/* Quick Suggestions */}
+      {/* Genre Tabs */}
       <div className="flex flex-wrap gap-2">
-        {QUICK_SUGGESTIONS.map((suggestion, idx) => (
-          <button
-            key={idx}
-            onClick={() => handleSuggestionClick(suggestion)}
-            className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-full text-sm hover:bg-yellow-100 dark:hover:bg-yellow-900 hover:text-yellow-700 dark:hover:text-yellow-300 transition-colors"
-          >
-            {suggestion.label}
-          </button>
-        ))}
+        {GENRE_TABS.map((tab) => {
+          const isSelected = selectedTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => handleTabClick(tab)}
+              className={
+                isSelected 
+                  ? 'px-3 py-2 rounded-lg text-sm font-semibold bg-gradient-to-r from-yellow-500 to-amber-500 dark:from-yellow-500 dark:to-amber-600 text-white shadow-lg shadow-yellow-500/25 ring-2 ring-yellow-400 dark:ring-yellow-500 transform scale-[1.02]' 
+                  : 'px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors'
+              }
+            >
+              <span className="hidden sm:inline">{tab.label}</span>
+              <span className="sm:hidden">{tab.shortLabel}</span>
+              {isSelected && (
+                <span className="ml-1.5">✓</span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Main Prompt Input */}

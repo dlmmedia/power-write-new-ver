@@ -8,10 +8,35 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { ChapterOutline } from '@/lib/types/generation';
 
+interface EditingCharacter {
+  index: number;
+  name: string;
+  role: string;
+}
+
 export const OutlineEditor: React.FC = () => {
   const { outline, setOutline } = useStudioStore();
   const [editingChapter, setEditingChapter] = useState<ChapterOutline | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  
+  // Editable fields states
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isEditingAuthor, setIsEditingAuthor] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editAuthor, setEditAuthor] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  
+  // Theme editing
+  const [newTheme, setNewTheme] = useState('');
+  const [isAddingTheme, setIsAddingTheme] = useState(false);
+  
+  // Character editing
+  const [editingCharacter, setEditingCharacter] = useState<EditingCharacter | null>(null);
+  const [isCharacterModalOpen, setIsCharacterModalOpen] = useState(false);
+  const [isAddingCharacter, setIsAddingCharacter] = useState(false);
+  const [newCharacterName, setNewCharacterName] = useState('');
+  const [newCharacterRole, setNewCharacterRole] = useState('');
 
   if (!outline) {
     return (
@@ -21,6 +46,125 @@ export const OutlineEditor: React.FC = () => {
       </div>
     );
   }
+
+  // Title editing handlers
+  const handleStartEditTitle = () => {
+    setEditTitle(outline.title);
+    setIsEditingTitle(true);
+  };
+
+  const handleSaveTitle = () => {
+    if (editTitle.trim() && outline) {
+      setOutline({ ...outline, title: editTitle.trim() });
+    }
+    setIsEditingTitle(false);
+  };
+
+  // Author editing handlers
+  const handleStartEditAuthor = () => {
+    setEditAuthor(outline.author);
+    setIsEditingAuthor(true);
+  };
+
+  const handleSaveAuthor = () => {
+    if (editAuthor.trim() && outline) {
+      setOutline({ ...outline, author: editAuthor.trim() });
+    }
+    setIsEditingAuthor(false);
+  };
+
+  // Description editing handlers
+  const handleStartEditDescription = () => {
+    setEditDescription(outline.description || '');
+    setIsEditingDescription(true);
+  };
+
+  const handleSaveDescription = () => {
+    if (outline) {
+      setOutline({ ...outline, description: editDescription.trim() });
+    }
+    setIsEditingDescription(false);
+  };
+
+  // Theme handlers
+  const handleAddTheme = () => {
+    if (newTheme.trim() && outline) {
+      const currentThemes = outline.themes || [];
+      setOutline({ ...outline, themes: [...currentThemes, newTheme.trim()] });
+      setNewTheme('');
+      setIsAddingTheme(false);
+    }
+  };
+
+  const handleDeleteTheme = (indexToDelete: number) => {
+    if (outline && outline.themes) {
+      const updatedThemes = outline.themes.filter((_, idx) => idx !== indexToDelete);
+      setOutline({ ...outline, themes: updatedThemes });
+    }
+  };
+
+  // Character handlers
+  const handleEditCharacter = (index: number) => {
+    if (outline?.characters?.[index]) {
+      setEditingCharacter({
+        index,
+        name: outline.characters[index].name,
+        role: outline.characters[index].role,
+      });
+      setIsCharacterModalOpen(true);
+      setIsAddingCharacter(false);
+    }
+  };
+
+  const handleSaveCharacter = () => {
+    if (!editingCharacter || !outline) return;
+
+    const updatedCharacters = outline.characters?.map((char, idx) =>
+      idx === editingCharacter.index
+        ? { ...char, name: editingCharacter.name, role: editingCharacter.role }
+        : char
+    ) || [];
+
+    setOutline({ ...outline, characters: updatedCharacters });
+    setIsCharacterModalOpen(false);
+    setEditingCharacter(null);
+  };
+
+  const handleAddCharacter = () => {
+    setNewCharacterName('');
+    setNewCharacterRole('');
+    setIsAddingCharacter(true);
+    setIsCharacterModalOpen(true);
+    setEditingCharacter(null);
+  };
+
+  const handleSaveNewCharacter = () => {
+    if (newCharacterName.trim() && newCharacterRole.trim() && outline) {
+      const currentCharacters = outline.characters || [];
+      setOutline({
+        ...outline,
+        characters: [...currentCharacters, { 
+          name: newCharacterName.trim(), 
+          role: newCharacterRole.trim(),
+          description: '' 
+        }],
+      });
+      setIsCharacterModalOpen(false);
+      setIsAddingCharacter(false);
+      setNewCharacterName('');
+      setNewCharacterRole('');
+    }
+  };
+
+  const handleDeleteCharacter = (indexToDelete: number) => {
+    if (outline && outline.characters) {
+      const confirmed = confirm(`Delete character "${outline.characters[indexToDelete].name}"?`);
+      if (!confirmed) return;
+      
+      const updatedCharacters = outline.characters.filter((_, idx) => idx !== indexToDelete);
+      setOutline({ ...outline, characters: updatedCharacters });
+    }
+  };
 
   const handleEditChapter = (chapter: ChapterOutline) => {
     setEditingChapter(chapter);
@@ -144,11 +288,89 @@ export const OutlineEditor: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - Title & Author Editable */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">{outline.title}</h2>
-          <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">by {outline.author}</p>
+        <div className="flex-1">
+          {/* Editable Title */}
+          {isEditingTitle ? (
+            <div className="flex items-center gap-2 mb-1">
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="text-2xl font-bold bg-white dark:bg-gray-900 border border-yellow-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 w-full max-w-md"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveTitle();
+                  if (e.key === 'Escape') setIsEditingTitle(false);
+                }}
+              />
+              <button
+                onClick={handleSaveTitle}
+                className="p-1 text-green-500 hover:text-green-600"
+                title="Save"
+              >
+                ✓
+              </button>
+              <button
+                onClick={() => setIsEditingTitle(false)}
+                className="p-1 text-gray-500 hover:text-gray-600"
+                title="Cancel"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <h2
+              className="text-2xl font-bold cursor-pointer hover:text-yellow-400 transition-colors group inline-flex items-center gap-2"
+              onClick={handleStartEditTitle}
+              title="Click to edit title"
+            >
+              {outline.title}
+              <span className="opacity-0 group-hover:opacity-100 text-sm text-gray-400 transition-opacity">✎</span>
+            </h2>
+          )}
+
+          {/* Editable Author */}
+          {isEditingAuthor ? (
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-gray-600 dark:text-gray-400 text-sm">by</span>
+              <input
+                type="text"
+                value={editAuthor}
+                onChange={(e) => setEditAuthor(e.target.value)}
+                className="text-sm bg-white dark:bg-gray-900 border border-yellow-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveAuthor();
+                  if (e.key === 'Escape') setIsEditingAuthor(false);
+                }}
+              />
+              <button
+                onClick={handleSaveAuthor}
+                className="p-1 text-green-500 hover:text-green-600 text-sm"
+                title="Save"
+              >
+                ✓
+              </button>
+              <button
+                onClick={() => setIsEditingAuthor(false)}
+                className="p-1 text-gray-500 hover:text-gray-600 text-sm"
+                title="Cancel"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <p
+              className="text-gray-600 dark:text-gray-400 text-sm mt-1 cursor-pointer hover:text-yellow-400 transition-colors group inline-flex items-center gap-1"
+              onClick={handleStartEditAuthor}
+              title="Click to edit author"
+            >
+              by {outline.author}
+              <span className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 transition-opacity">✎</span>
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <div className="relative group">
@@ -156,13 +378,13 @@ export const OutlineEditor: React.FC = () => {
             <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg py-1 w-36 z-10">
               <button
                 onClick={() => handleExportOutline('pdf')}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:bg-gray-800 transition-colors text-sm"
+                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
               >
                 Export as PDF
               </button>
               <button
                 onClick={() => handleExportOutline('docx')}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:bg-gray-800 transition-colors text-sm"
+                className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
               >
                 Export as DOCX
               </button>
@@ -173,42 +395,169 @@ export const OutlineEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* Description */}
-      {outline.description && (
-        <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
-          <h3 className="font-semibold mb-2">Description</h3>
-          <p className="text-sm text-gray-700 dark:text-gray-300">{outline.description}</p>
+      {/* Description - Editable */}
+      <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-semibold">Description</h3>
+          {!isEditingDescription && (
+            <button
+              onClick={handleStartEditDescription}
+              className="text-sm text-gray-500 hover:text-yellow-400 transition-colors"
+              title="Edit description"
+            >
+              ✎ Edit
+            </button>
+          )}
         </div>
-      )}
-
-      {/* Themes & Characters */}
-      <div className="grid grid-cols-2 gap-4">
-        {outline.themes && outline.themes.length > 0 && (
-          <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
-            <h3 className="font-semibold mb-2">Themes</h3>
-            <div className="flex flex-wrap gap-2">
-              {outline.themes.map((theme, idx) => (
-                <Badge key={idx} variant="default">
-                  {theme}
-                </Badge>
-              ))}
+        {isEditingDescription ? (
+          <div className="space-y-2">
+            <textarea
+              value={editDescription}
+              onChange={(e) => setEditDescription(e.target.value)}
+              rows={4}
+              className="w-full bg-white dark:bg-gray-900 border border-yellow-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setIsEditingDescription(false)}
+                className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveDescription}
+                className="px-3 py-1 text-sm bg-yellow-400 text-black rounded hover:bg-yellow-500"
+              >
+                Save
+              </button>
             </div>
           </div>
+        ) : (
+          <p className="text-sm text-gray-700 dark:text-gray-300">
+            {outline.description || 'No description yet. Click Edit to add one.'}
+          </p>
         )}
+      </div>
 
-        {outline.characters && outline.characters.length > 0 && (
-          <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
-            <h3 className="font-semibold mb-2">Characters</h3>
-            <div className="space-y-2">
-              {outline.characters.map((char, idx) => (
-                <div key={idx} className="text-sm">
-                  <span className="font-semibold text-yellow-400">{char.name}</span>
-                  <span className="text-gray-600 dark:text-gray-400"> — {char.role}</span>
+      {/* Themes & Characters - Editable */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Themes - Editable */}
+        <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold">Themes</h3>
+            <button
+              onClick={() => setIsAddingTheme(true)}
+              className="text-sm text-gray-500 hover:text-yellow-400 transition-colors"
+              title="Add theme"
+            >
+              + Add
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {outline.themes && outline.themes.length > 0 ? (
+              outline.themes.map((theme, idx) => (
+                <div key={idx} className="group relative">
+                  <Badge variant="default" className="pr-6">
+                    {theme}
+                  </Badge>
+                  <button
+                    onClick={() => handleDeleteTheme(idx)}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 text-xs transition-opacity"
+                    title="Remove theme"
+                  >
+                    ✕
+                  </button>
                 </div>
-              ))}
-            </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 italic">No themes yet</p>
+            )}
           </div>
-        )}
+          {isAddingTheme && (
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="text"
+                value={newTheme}
+                onChange={(e) => setNewTheme(e.target.value)}
+                placeholder="Enter new theme..."
+                className="flex-1 bg-white dark:bg-gray-900 border border-yellow-400 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAddTheme();
+                  if (e.key === 'Escape') {
+                    setIsAddingTheme(false);
+                    setNewTheme('');
+                  }
+                }}
+              />
+              <button
+                onClick={handleAddTheme}
+                className="p-1 text-green-500 hover:text-green-600"
+                title="Add"
+              >
+                ✓
+              </button>
+              <button
+                onClick={() => {
+                  setIsAddingTheme(false);
+                  setNewTheme('');
+                }}
+                className="p-1 text-gray-500 hover:text-gray-600"
+                title="Cancel"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Characters - Editable */}
+        <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold">Characters</h3>
+            <button
+              onClick={handleAddCharacter}
+              className="text-sm text-gray-500 hover:text-yellow-400 transition-colors"
+              title="Add character"
+            >
+              + Add
+            </button>
+          </div>
+          <div className="space-y-2">
+            {outline.characters && outline.characters.length > 0 ? (
+              outline.characters.map((char, idx) => (
+                <div
+                  key={idx}
+                  className="group flex items-center justify-between text-sm hover:bg-gray-200 dark:hover:bg-gray-700 rounded px-2 py-1 -mx-2 transition-colors"
+                >
+                  <div>
+                    <span className="font-semibold text-yellow-400">{char.name}</span>
+                    <span className="text-gray-600 dark:text-gray-400"> — {char.role}</span>
+                  </div>
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleEditCharacter(idx)}
+                      className="p-1 text-gray-500 hover:text-yellow-400"
+                      title="Edit"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCharacter(idx)}
+                      className="p-1 text-gray-500 hover:text-red-400"
+                      title="Delete"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-500 italic">No characters yet</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Chapters */}
@@ -279,7 +628,7 @@ export const OutlineEditor: React.FC = () => {
         </div>
       </div>
 
-      {/* Edit Modal */}
+      {/* Chapter Edit Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => {
@@ -341,6 +690,61 @@ export const OutlineEditor: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Character Edit Modal */}
+      <Modal
+        isOpen={isCharacterModalOpen}
+        onClose={() => {
+          setIsCharacterModalOpen(false);
+          setEditingCharacter(null);
+          setIsAddingCharacter(false);
+        }}
+        title={isAddingCharacter ? 'Add Character' : 'Edit Character'}
+        size="md"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Character Name"
+            value={isAddingCharacter ? newCharacterName : (editingCharacter?.name || '')}
+            onChange={(e) =>
+              isAddingCharacter
+                ? setNewCharacterName(e.target.value)
+                : setEditingCharacter(editingCharacter ? { ...editingCharacter, name: e.target.value } : null)
+            }
+            placeholder="e.g., John Smith"
+          />
+
+          <Input
+            label="Role / Description"
+            value={isAddingCharacter ? newCharacterRole : (editingCharacter?.role || '')}
+            onChange={(e) =>
+              isAddingCharacter
+                ? setNewCharacterRole(e.target.value)
+                : setEditingCharacter(editingCharacter ? { ...editingCharacter, role: e.target.value } : null)
+            }
+            placeholder="e.g., Protagonist, a brave knight"
+          />
+
+          <div className="flex justify-end gap-2 pt-4">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsCharacterModalOpen(false);
+                setEditingCharacter(null);
+                setIsAddingCharacter(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={isAddingCharacter ? handleSaveNewCharacter : handleSaveCharacter}
+            >
+              {isAddingCharacter ? 'Add Character' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

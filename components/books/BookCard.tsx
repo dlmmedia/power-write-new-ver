@@ -12,6 +12,7 @@ interface BookCardProps {
   onToggleSelect: (book: BookResult) => void;
   onClick?: (book: BookResult) => void;
   viewMode?: 'grid' | 'list';
+  onImageError?: (bookId: string) => void;
 }
 
 export const BookCard: React.FC<BookCardProps> = ({
@@ -20,11 +21,20 @@ export const BookCard: React.FC<BookCardProps> = ({
   onToggleSelect,
   onClick,
   viewMode = 'grid',
+  onImageError,
 }) => {
   const router = useRouter();
   const [imageError, setImageError] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  
+  const handleImageError = () => {
+    setImageError(true);
+    // Report the failed image to parent so it can filter out this book
+    if (onImageError) {
+      onImageError(book.id);
+    }
+  };
   
   const handleCardClick = (e: React.MouseEvent) => {
     // If clicking the selection area or if it's a selection interaction
@@ -118,7 +128,7 @@ export const BookCard: React.FC<BookCardProps> = ({
                 animate={{ scale: isHovered ? 1.05 : 1 }}
                 transition={{ duration: 0.4 }}
                 onLoad={() => setImageLoaded(true)}
-                onError={() => setImageError(true)}
+                onError={handleImageError}
                 loading="lazy"
               />
               {!imageLoaded && (
@@ -225,6 +235,7 @@ export const BookCard: React.FC<BookCardProps> = ({
             alt={book.title}
             className="w-full h-full object-cover"
             loading="lazy"
+            onError={handleImageError}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">

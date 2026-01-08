@@ -18,6 +18,7 @@ import { CharactersWorld } from '@/components/studio/config/CharactersWorld';
 import { BibliographySettings } from '@/components/studio/config/BibliographySettings';
 import { ImageSettings } from '@/components/studio/config/ImageSettings';
 import { AdvancedSettings } from '@/components/studio/config/AdvancedSettings';
+import { ReferenceBooks } from '@/components/studio/config/ReferenceBooks';
 import { OutlineEditor } from '@/components/studio/OutlineEditor';
 import { ReferenceUpload } from '@/components/studio/ReferenceUpload';
 import { SmartPrompt } from '@/components/studio/SmartPrompt';
@@ -25,32 +26,15 @@ import { ProFeatureGate, ProButton } from '@/components/pro/ProFeatureGate';
 import { autoPopulateFromBook } from '@/lib/utils/auto-populate';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { UpgradeBanner } from '@/components/pro/UpgradeBanner';
+import { 
+  OutlineGenerationModal, 
+  BookGenerationModal,
+  type GenerationProgress,
+  type OutlineProgress 
+} from '@/components/studio/GenerationModal';
 import { Lock, Crown, Sparkles } from 'lucide-react';
 
 type UserTier = 'free' | 'pro';
-
-// Progress state for incremental generation
-interface GenerationProgress {
-  phase: 'idle' | 'creating' | 'generating' | 'cover' | 'completed' | 'error';
-  bookId?: number;
-  chaptersCompleted: number;
-  totalChapters: number;
-  progress: number;
-  message: string;
-  // Enhanced progress tracking
-  currentBatch?: number[];
-  batchDuration?: string;
-  totalWords?: number;
-  isParallel?: boolean;
-  modelUsed?: string;
-}
-
-// Outline generation progress state
-interface OutlineProgress {
-  phase: 'idle' | 'analyzing' | 'structuring' | 'detailing' | 'completed' | 'error';
-  progress: number;
-  message: string;
-}
 
 // Generation type to track what's being generated
 type GenerationType = 'none' | 'outline' | 'book';
@@ -63,6 +47,7 @@ type ConfigTab =
   | 'characters' 
   | 'images'
   | 'bibliography'
+  | 'references'
   | 'advanced';
 
 function StudioPageContent() {
@@ -107,7 +92,25 @@ function StudioPageContent() {
   const [generationType, setGenerationType] = useState<GenerationType>('none');
   const [showNoOutlineConfirm, setShowNoOutlineConfirm] = useState(false);
   const [useStreaming, setUseStreaming] = useState(true); // Use streaming by default for real-time updates
+  
+  // Stable modal visibility state - prevents flickering during re-renders
+  const [showBookModal, setShowBookModal] = useState(false);
+  const [showOutlineModal, setShowOutlineModal] = useState(false);
+  
   const abortControllerRef = useRef<AbortController | null>(null);
+  
+  // Use refs to track progress values for use in callbacks (prevents stale closures)
+  const generationProgressRef = useRef(generationProgress);
+  const outlineProgressRef = useRef(outlineProgress);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    generationProgressRef.current = generationProgress;
+  }, [generationProgress]);
+  
+  useEffect(() => {
+    outlineProgressRef.current = outlineProgress;
+  }, [outlineProgress]);
   
   // Check if user can generate (Pro users only)
   const canGenerate = isProUser;
@@ -119,6 +122,7 @@ function StudioPageContent() {
     { id: 'style' as ConfigTab, label: 'Style', icon: '✍️' },
     { id: 'characters' as ConfigTab, label: 'Characters', icon: '🌍' },
     { id: 'images' as ConfigTab, label: 'Book Images', icon: '🖼️' },
+    { id: 'references' as ConfigTab, label: 'Reference Books', icon: '🔍' },
     { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: '📚' },
     { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
   ];
@@ -156,6 +160,7 @@ function StudioPageContent() {
 
     setIsGenerating(true);
     setGenerationType('book');
+    setShowBookModal(true); // Show modal immediately with stable state
     abortControllerRef.current = new AbortController();
 
     // Initialize progress
@@ -314,8 +319,17 @@ function StudioPageContent() {
       setIsGenerating(false);
       setGenerationType('none');
       abortControllerRef.current = null;
+      // Delay hiding modal to show final state
+      setTimeout(() => {
+        const finalPhase = generationProgressRef.current.phase;
+        if (finalPhase === 'completed' || finalPhase === 'error') {
+          // Keep modal visible for completed/error states until user action or navigation
+        } else {
+          setShowBookModal(false);
+        }
+      }, 500);
     }
-  }, [outline, config, router, generationProgress.chaptersCompleted, generationProgress.totalChapters]);
+  }, [outline, config, router]);
 
   // Cancel generation
   const handleCancelGeneration = useCallback(() => {
@@ -364,6 +378,7 @@ function StudioPageContent() {
 
     setIsGenerating(true);
     setGenerationType('book');
+    setShowBookModal(true); // Show modal immediately with stable state
     abortControllerRef.current = new AbortController();
 
     setGenerationProgress({
@@ -428,7 +443,7 @@ function StudioPageContent() {
                   isParallel: data.parallel,
                   modelUsed: data.model,
                 }));
-              } else if (data.bookId && !generationProgress.bookId) {
+              } else if (data.bookId && !generationProgressRef.current.bookId) {
                 setGenerationProgress(prev => ({
                   ...prev,
                   bookId: data.bookId,
@@ -515,7 +530,7 @@ function StudioPageContent() {
         message: `Error: ${errorMessage}`,
       }));
 
-      if (generationProgress.bookId) {
+      if (generationProgressRef.current.bookId) {
         const retry = confirm(
           `Generation encountered an error: ${errorMessage}\n\n` +
           `Progress has been saved. Would you like to retry?`
@@ -531,8 +546,17 @@ function StudioPageContent() {
       setIsGenerating(false);
       setGenerationType('none');
       abortControllerRef.current = null;
+      // Delay hiding modal to show final state
+      setTimeout(() => {
+        const finalPhase = generationProgressRef.current.phase;
+        if (finalPhase === 'completed' || finalPhase === 'error') {
+          // Keep modal visible for completed/error states until user action or navigation
+        } else {
+          setShowBookModal(false);
+        }
+      }, 500);
     }
-  }, [outline, config, router, generationProgress.bookId]);
+  }, [outline, config, router, refreshBooks]);
 
   // Handle generate book click - check for outline first
   const handleGenerateBookClick = useCallback(() => {
@@ -581,6 +605,7 @@ function StudioPageContent() {
 
     setIsGenerating(true);
     setGenerationType('outline');
+    setShowOutlineModal(true); // Show modal immediately with stable state
     
     // Start outline progress animation
     setOutlineProgress({
@@ -665,6 +690,18 @@ function StudioPageContent() {
     } finally {
       setIsGenerating(false);
       setGenerationType('none');
+      // Delay hiding modal to show completion/error state
+      setTimeout(() => {
+        const finalPhase = outlineProgressRef.current.phase;
+        if (finalPhase === 'completed') {
+          // Modal will be hidden after viewMode change
+          setShowOutlineModal(false);
+        } else if (finalPhase === 'error') {
+          setShowOutlineModal(false);
+        } else {
+          setShowOutlineModal(false);
+        }
+      }, 1600); // Match the timeout for switching to outline view
     }
   };
 
@@ -744,7 +781,7 @@ function StudioPageContent() {
                     disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating || isTierLoading}
                     className="min-w-[140px]"
                   >
-                    Generate Outline
+                    {outline ? 'Regenerate Outline' : 'Generate Outline'}
                   </Button>
                   <Button
                     variant="primary"
@@ -764,7 +801,7 @@ function StudioPageContent() {
                     className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
                   >
                     <Lock className="w-4 h-4" />
-                    Generate Outline
+                    {outline ? 'Regenerate Outline' : 'Generate Outline'}
                     <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
                   </button>
                   <button
@@ -1026,6 +1063,7 @@ function StudioPageContent() {
                   {activeTab === 'style' && <StylePreferences />}
                   {activeTab === 'characters' && <CharactersWorld />}
                   {activeTab === 'images' && <ImageSettings />}
+                  {activeTab === 'references' && <ReferenceBooks />}
                   {activeTab === 'bibliography' && <BibliographySettings />}
                   {activeTab === 'advanced' && <AdvancedSettings />}
                 </>
@@ -1046,7 +1084,7 @@ function StudioPageContent() {
                 disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
                 className="shadow-lg min-w-[140px]"
               >
-                Generate Outline
+                {outline ? 'Regenerate Outline' : 'Generate Outline'}
               </Button>
               <Button
                 variant="primary"
@@ -1137,286 +1175,19 @@ function StudioPageContent() {
         </div>
       )}
 
-      {/* Outline Generation Progress Modal */}
-      {generationType === 'outline' && outlineProgress.phase !== 'idle' && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="relative w-24 h-24 mx-auto mb-4">
-                {/* Animated rings */}
-                <div className="absolute inset-0 rounded-full border-4 border-yellow-200 dark:border-yellow-900 animate-ping opacity-20"></div>
-                <div className="absolute inset-2 rounded-full border-4 border-yellow-300 dark:border-yellow-800 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
-                <div className="absolute inset-4 rounded-full border-4 border-yellow-400 dark:border-yellow-700 animate-ping opacity-40" style={{ animationDelay: '0.4s' }}></div>
-                {/* Center icon */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-4xl animate-bounce">
-                    {outlineProgress.phase === 'analyzing' && '🔍'}
-                    {outlineProgress.phase === 'structuring' && '📐'}
-                    {outlineProgress.phase === 'detailing' && '✏️'}
-                    {outlineProgress.phase === 'completed' && '✅'}
-                    {outlineProgress.phase === 'error' && '❌'}
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                {outlineProgress.phase === 'analyzing' && 'Analyzing Configuration'}
-                {outlineProgress.phase === 'structuring' && 'Structuring Chapters'}
-                {outlineProgress.phase === 'detailing' && 'Adding Details'}
-                {outlineProgress.phase === 'completed' && 'Outline Complete!'}
-                {outlineProgress.phase === 'error' && 'Generation Failed'}
-              </h3>
-            </div>
+      {/* Outline Generation Progress Modal - Stable component to prevent flickering */}
+      <OutlineGenerationModal
+        isVisible={showOutlineModal && outlineProgress.phase !== 'idle'}
+        progress={outlineProgress}
+      />
 
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Progress</span>
-                <span>{Math.round(outlineProgress.progress)}%</span>
-              </div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ease-out rounded-full ${
-                    outlineProgress.phase === 'error' 
-                      ? 'bg-red-500' 
-                      : outlineProgress.phase === 'completed'
-                        ? 'bg-green-500'
-                        : 'bg-gradient-to-r from-yellow-400 to-yellow-500'
-                  }`}
-                  style={{ width: `${outlineProgress.progress}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Status Steps */}
-            <div className="space-y-2 mb-6">
-              <div className={`flex items-center gap-3 ${outlineProgress.phase === 'analyzing' || outlineProgress.progress >= 30 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  outlineProgress.progress >= 30 ? 'bg-green-500 text-white' : 
-                  outlineProgress.phase === 'analyzing' ? 'bg-yellow-400 text-black animate-pulse' : 
-                  'bg-gray-200 dark:bg-gray-700'
-                }`}>
-                  {outlineProgress.progress >= 30 ? '✓' : '1'}
-                </span>
-                <span>Analyze book configuration</span>
-              </div>
-              <div className={`flex items-center gap-3 ${outlineProgress.phase === 'structuring' || outlineProgress.progress >= 65 ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  outlineProgress.progress >= 65 ? 'bg-green-500 text-white' : 
-                  outlineProgress.phase === 'structuring' ? 'bg-yellow-400 text-black animate-pulse' : 
-                  'bg-gray-200 dark:bg-gray-700'
-                }`}>
-                  {outlineProgress.progress >= 65 ? '✓' : '2'}
-                </span>
-                <span>Structure chapter flow</span>
-              </div>
-              <div className={`flex items-center gap-3 ${outlineProgress.phase === 'detailing' || outlineProgress.phase === 'completed' ? 'text-gray-900 dark:text-white' : 'text-gray-400'}`}>
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                  outlineProgress.phase === 'completed' ? 'bg-green-500 text-white' : 
-                  outlineProgress.phase === 'detailing' ? 'bg-yellow-400 text-black animate-pulse' : 
-                  'bg-gray-200 dark:bg-gray-700'
-                }`}>
-                  {outlineProgress.phase === 'completed' ? '✓' : '3'}
-                </span>
-                <span>Generate chapter details</span>
-              </div>
-            </div>
-
-            {/* Message */}
-            <p className="text-center text-gray-600 dark:text-gray-400 text-sm">
-              {outlineProgress.message}
-            </p>
-
-            {/* Completed Message */}
-            {outlineProgress.phase === 'completed' && (
-              <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg text-center">
-                <p className="text-green-700 dark:text-green-400 font-medium">
-                  ✨ Your outline is ready! Switching to outline view...
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Book Generation Progress Modal */}
-      {generationType === 'book' && generationProgress.phase !== 'idle' && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-lg w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="relative w-24 h-24 mx-auto mb-4">
-                {/* Animated rings for generating state */}
-                {(generationProgress.phase === 'creating' || generationProgress.phase === 'generating' || generationProgress.phase === 'cover') && (
-                  <>
-                    <div className="absolute inset-0 rounded-full border-4 border-yellow-200 dark:border-yellow-900 animate-ping opacity-20"></div>
-                    <div className="absolute inset-2 rounded-full border-4 border-yellow-300 dark:border-yellow-800 animate-ping opacity-30" style={{ animationDelay: '0.2s' }}></div>
-                  </>
-                )}
-                {/* Center icon */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className={`text-4xl ${generationProgress.phase !== 'completed' && generationProgress.phase !== 'error' ? 'animate-bounce' : ''}`}>
-                    {generationProgress.phase === 'creating' && '📚'}
-                    {generationProgress.phase === 'generating' && '✍️'}
-                    {generationProgress.phase === 'cover' && '🎨'}
-                    {generationProgress.phase === 'completed' && '✅'}
-                    {generationProgress.phase === 'error' && '⚠️'}
-                  </span>
-                </div>
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                {generationProgress.phase === 'creating' && 'Creating Book...'}
-                {generationProgress.phase === 'generating' && 'Writing Chapters...'}
-                {generationProgress.phase === 'cover' && 'Designing Cover...'}
-                {generationProgress.phase === 'completed' && 'Book Complete!'}
-                {generationProgress.phase === 'error' && 'Generation Error'}
-              </h3>
-              {/* Mode indicator */}
-              {generationProgress.isParallel !== undefined && (
-                <div className="mt-2 flex items-center justify-center gap-2">
-                  <span className={`px-2 py-0.5 text-xs rounded-full ${
-                    generationProgress.isParallel 
-                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
-                      : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
-                  }`}>
-                    {generationProgress.isParallel ? '⚡ Parallel Mode' : '📝 Sequential Mode'}
-                  </span>
-                  {generationProgress.modelUsed && (
-                    <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">
-                      {generationProgress.modelUsed.split('/').pop()}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-                <span>Progress</span>
-                <span>{generationProgress.progress}%</span>
-              </div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className={`h-full transition-all duration-500 ease-out rounded-full ${
-                    generationProgress.phase === 'error'
-                      ? 'bg-red-500'
-                      : generationProgress.phase === 'completed'
-                        ? 'bg-green-500'
-                        : 'bg-gradient-to-r from-yellow-400 to-yellow-500'
-                  }`}
-                  style={{ width: `${generationProgress.progress}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Chapter Progress */}
-            {generationProgress.totalChapters > 0 && (
-              <div className="mb-4">
-                <div className="flex items-center justify-center gap-6 mb-3">
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-                      {generationProgress.chaptersCompleted}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">written</div>
-                  </div>
-                  <div className="text-2xl text-gray-300 dark:text-gray-600">/</div>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-gray-400 dark:text-gray-500">
-                      {generationProgress.totalChapters}
-                    </div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">total</div>
-                  </div>
-                  {generationProgress.totalWords && generationProgress.totalWords > 0 && (
-                    <>
-                      <div className="text-2xl text-gray-300 dark:text-gray-600">|</div>
-                      <div className="text-center">
-                        <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                          {generationProgress.totalWords.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400">words</div>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {/* Chapter progress dots with current batch highlighting */}
-                <div className="flex justify-center gap-1 flex-wrap">
-                  {Array.from({ length: generationProgress.totalChapters }).map((_, i) => {
-                    const chapterNum = i + 1;
-                    const isInCurrentBatch = generationProgress.currentBatch?.includes(chapterNum);
-                    return (
-                      <div
-                        key={i}
-                        className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                          i < generationProgress.chaptersCompleted
-                            ? 'bg-green-500'
-                            : isInCurrentBatch
-                              ? 'bg-yellow-400 animate-pulse ring-2 ring-yellow-300'
-                              : 'bg-gray-200 dark:bg-gray-700'
-                        }`}
-                        title={`Chapter ${chapterNum}${isInCurrentBatch ? ' (generating)' : ''}`}
-                      />
-                    );
-                  })}
-                </div>
-                {/* Batch duration info */}
-                {generationProgress.batchDuration && (
-                  <p className="text-center text-xs text-gray-500 dark:text-gray-500 mt-2">
-                    Last batch: {generationProgress.batchDuration}s
-                  </p>
-                )}
-              </div>
-            )}
-
-            {/* Message */}
-            <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
-              {generationProgress.message}
-            </p>
-
-            {/* Cancel Button */}
-            {generationProgress.phase !== 'completed' && generationProgress.phase !== 'error' && (
-              <div className="text-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCancelGeneration}
-                  className="text-gray-500 hover:text-red-500"
-                >
-                  Cancel Generation
-                </Button>
-                <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
-                  Progress is saved automatically. You can continue later.
-                </p>
-              </div>
-            )}
-
-            {/* Completed State */}
-            {generationProgress.phase === 'completed' && (
-              <div className="text-center">
-                <p className="text-green-600 dark:text-green-400 font-medium">
-                  Opening your book...
-                </p>
-              </div>
-            )}
-
-            {/* Error State with Book ID */}
-            {generationProgress.phase === 'error' && generationProgress.bookId && (
-              <div className="text-center">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                  Book ID: {generationProgress.bookId}
-                </p>
-                <Button
-                  variant="primary"
-                  size="md"
-                  onClick={handleGenerateBook}
-                >
-                  Continue Generation
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Book Generation Progress Modal - Stable component to prevent flickering */}
+      <BookGenerationModal
+        isVisible={showBookModal && generationProgress.phase !== 'idle'}
+        progress={generationProgress}
+        onCancel={handleCancelGeneration}
+        onContinue={handleGenerateBook}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { HamburgerMenu } from '@/components/ui/HamburgerMenu';
 import { InstallBanner } from '@/components/pwa/InstallBanner';
 import { InstallModal } from '@/components/pwa/InstallModal';
 import { NetworkStatusBanner } from '@/components/pwa/OfflineBanner';
+import { UpdatePrompt } from '@/components/pwa/UpdatePrompt';
 import { canInstallPWA } from '@/lib/utils/pwa-utils';
 
 interface PWALayoutProps {
@@ -30,6 +31,9 @@ export function PWALayout({ children }: PWALayoutProps) {
 
   return (
     <>
+      {/* Update Prompt - Shows when new version available */}
+      <UpdatePrompt />
+
       {/* Network Status Banner */}
       <NetworkStatusBanner />
 

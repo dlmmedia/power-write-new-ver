@@ -9,7 +9,21 @@ export interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
-// Service Worker Registration
+// Type for update callback
+export type UpdateCallback = (registration: ServiceWorkerRegistration) => void;
+
+// Global store for update callbacks
+let updateCallbacks: UpdateCallback[] = [];
+
+// Register callback for service worker updates
+export const onServiceWorkerUpdate = (callback: UpdateCallback) => {
+  updateCallbacks.push(callback);
+  return () => {
+    updateCallbacks = updateCallbacks.filter(cb => cb !== callback);
+  };
+};
+
+// Service Worker Registration with improved update handling
 export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration | null> => {
   if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
     console.log('Service Worker not supported');
@@ -19,42 +33,108 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
   try {
     const registration = await navigator.serviceWorker.register('/sw.js', {
       scope: '/',
+      updateViaCache: 'none', // Always check for updates, don't use HTTP cache
     });
 
-    console.log('Service Worker registered:', registration);
+    console.log('[PWA] Service Worker registered:', registration.scope);
 
-    // Check for updates
+    // Check if there's already a waiting worker
+    if (registration.waiting) {
+      console.log('[PWA] Service worker already waiting');
+      updateCallbacks.forEach(cb => cb(registration));
+    }
+
+    // Check for updates on registration
     registration.addEventListener('updatefound', () => {
       const newWorker = registration.installing;
+      console.log('[PWA] New service worker installing...');
+      
       if (newWorker) {
         newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New service worker available
-            console.log('New service worker available');
-            notifyUpdate();
+          console.log('[PWA] New worker state:', newWorker.state);
+          
+          if (newWorker.state === 'installed') {
+            if (navigator.serviceWorker.controller) {
+              // New service worker ready to activate
+              console.log('[PWA] New version available');
+              updateCallbacks.forEach(cb => cb(registration));
+            } else {
+              // First time install
+              console.log('[PWA] Content cached for offline use');
+            }
           }
         });
       }
     });
 
+    // Listen for controller change (new SW activated)
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      console.log('[PWA] Controller changed, reloading...');
+      window.location.reload();
+    });
+
+    // Listen for messages from service worker
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      console.log('[PWA] Message from SW:', event.data);
+      
+      if (event.data?.type === 'SW_ACTIVATED') {
+        console.log('[PWA] New service worker activated, version:', event.data.version);
+      }
+    });
+
+    // Check for updates immediately and periodically
+    registration.update();
+    
+    // Check for updates every 60 seconds
+    setInterval(() => {
+      console.log('[PWA] Checking for updates...');
+      registration.update();
+    }, 60 * 1000);
+
     return registration;
   } catch (error) {
-    console.error('Service Worker registration failed:', error);
+    console.error('[PWA] Service Worker registration failed:', error);
     return null;
   }
 };
 
-// Notify user of service worker update
-const notifyUpdate = () => {
-  if (typeof window === 'undefined') return;
+// Skip waiting and activate new service worker
+export const skipWaitingAndReload = async (): Promise<void> => {
+  const registration = await navigator.serviceWorker.getRegistration();
   
-  const shouldUpdate = confirm(
-    'A new version of PowerWrite is available. Reload to update?'
-  );
-
-  if (shouldUpdate) {
+  if (registration?.waiting) {
+    console.log('[PWA] Sending SKIP_WAITING message');
+    registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+  } else {
+    // No waiting worker, just reload
+    console.log('[PWA] No waiting worker, reloading directly');
     window.location.reload();
   }
+};
+
+// Force update - clear caches and reload
+export const forceUpdate = async (): Promise<void> => {
+  console.log('[PWA] Force update requested');
+  
+  const registration = await navigator.serviceWorker.getRegistration();
+  
+  if (registration?.active) {
+    registration.active.postMessage({ type: 'FORCE_UPDATE' });
+  }
+  
+  // Also clear caches from client side
+  if ('caches' in window) {
+    const cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map(name => caches.delete(name)));
+  }
+  
+  // Unregister and re-register service worker
+  if (registration) {
+    await registration.unregister();
+  }
+  
+  // Reload page
+  window.location.reload();
 };
 
 // Unregister service worker (for development/testing)
@@ -67,12 +147,12 @@ export const unregisterServiceWorker = async (): Promise<boolean> => {
     const registration = await navigator.serviceWorker.getRegistration();
     if (registration) {
       const success = await registration.unregister();
-      console.log('Service Worker unregistered:', success);
+      console.log('[PWA] Service Worker unregistered:', success);
       return success;
     }
     return false;
   } catch (error) {
-    console.error('Service Worker unregistration failed:', error);
+    console.error('[PWA] Service Worker unregistration failed:', error);
     return false;
   }
 };
@@ -239,10 +319,10 @@ export const clearAllCaches = async (): Promise<boolean> => {
   try {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map(name => caches.delete(name)));
-    console.log('All caches cleared');
+    console.log('[PWA] All caches cleared');
     return true;
   } catch (error) {
-    console.error('Failed to clear caches:', error);
+    console.error('[PWA] Failed to clear caches:', error);
     return false;
   }
 };
@@ -259,10 +339,10 @@ export const clearBookCaches = async (): Promise<boolean> => {
       name.includes('books') || name.includes('powerwrite-books')
     );
     await Promise.all(bookCacheNames.map(name => caches.delete(name)));
-    console.log('Book caches cleared');
+    console.log('[PWA] Book caches cleared');
     return true;
   } catch (error) {
-    console.error('Failed to clear book caches:', error);
+    console.error('[PWA] Failed to clear book caches:', error);
     return false;
   }
 };
@@ -292,7 +372,7 @@ export const getCacheSize = async (): Promise<number> => {
 
     return totalSize;
   } catch (error) {
-    console.error('Failed to calculate cache size:', error);
+    console.error('[PWA] Failed to calculate cache size:', error);
     return 0;
   }
 };
@@ -308,3 +388,27 @@ export const formatBytes = (bytes: number): string => {
   return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
 };
 
+// Get service worker status
+export const getServiceWorkerStatus = async (): Promise<{
+  registered: boolean;
+  active: boolean;
+  waiting: boolean;
+  installing: boolean;
+}> => {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    return { registered: false, active: false, waiting: false, installing: false };
+  }
+
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return {
+      registered: !!registration,
+      active: !!registration?.active,
+      waiting: !!registration?.waiting,
+      installing: !!registration?.installing,
+    };
+  } catch (error) {
+    console.error('[PWA] Failed to get SW status:', error);
+    return { registered: false, active: false, waiting: false, installing: false };
+  }
+};

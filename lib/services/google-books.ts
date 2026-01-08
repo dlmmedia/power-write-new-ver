@@ -243,16 +243,18 @@ export class GoogleBooksService {
     const currentYear = new Date().getFullYear();
     const lastYear = currentYear - 1;
     
-    // Enhanced queries with better targeting for popular, newer books
+    // Enhanced queries targeting popular books with good covers
+    // Using well-known author names and popular titles to get quality results
     const queries = genre
       ? [
-          { query: `subject:${genre}`, maxResults: 40, startIndex: 0 },
-          { query: `subject:${genre}`, maxResults: 40, startIndex: 40 },
+          { query: `subject:${genre} bestseller`, maxResults: 40, startIndex: 0 },
+          { query: `subject:${genre} award winner`, maxResults: 40, startIndex: 0 },
         ]
       : [
-          { query: `bestseller fiction ${currentYear}`, maxResults: 40, startIndex: 0 },
+          { query: `New York Times bestseller fiction ${currentYear}`, maxResults: 40, startIndex: 0 },
           { query: `bestseller nonfiction ${currentYear}`, maxResults: 40, startIndex: 0 },
-          { query: `popular books ${lastYear}`, maxResults: 40, startIndex: 0 },
+          { query: `award winning books ${lastYear}`, maxResults: 40, startIndex: 0 },
+          { query: `popular novels`, maxResults: 40, startIndex: 0 },
         ];
     
     try {
@@ -298,17 +300,18 @@ export class GoogleBooksService {
     
     const currentYear = new Date().getFullYear();
     const lastYear = currentYear - 1;
-    const twoYearsAgo = currentYear - 2;
     
+    // Target new releases from major publishers with good cover images
     const queries = genre
       ? [
-          { query: `subject:${genre}+inpublisher:${currentYear}`, maxResults: 40, startIndex: 0 },
-          { query: `subject:${genre}+inpublisher:${lastYear}`, maxResults: 40, startIndex: 0 },
+          { query: `subject:${genre} ${currentYear}`, maxResults: 40, startIndex: 0 },
+          { query: `subject:${genre} ${lastYear} new`, maxResults: 40, startIndex: 0 },
         ]
       : [
-          { query: `new release ${currentYear} fiction`, maxResults: 40, startIndex: 0 },
-          { query: `new release ${currentYear} nonfiction`, maxResults: 40, startIndex: 0 },
-          { query: `recent books ${lastYear}`, maxResults: 40, startIndex: 0 },
+          { query: `new release fiction ${currentYear}`, maxResults: 40, startIndex: 0 },
+          { query: `new release nonfiction ${currentYear}`, maxResults: 40, startIndex: 0 },
+          { query: `debut novel ${currentYear}`, maxResults: 40, startIndex: 0 },
+          { query: `anticipated books ${lastYear}`, maxResults: 40, startIndex: 0 },
         ];
     
     try {
@@ -350,10 +353,12 @@ export class GoogleBooksService {
     
     const currentYear = new Date().getFullYear();
     
+    // Use more specific queries that target popular, well-covered books
     const queries = [
-      { query: `subject:${genre}`, maxResults: 40, startIndex: 0 },
-      { query: `subject:${genre}`, maxResults: 40, startIndex: 40 },
-      { query: `${genre} popular ${currentYear}`, maxResults: 40, startIndex: 0 },
+      { query: `subject:${genre} bestseller`, maxResults: 40, startIndex: 0 },
+      { query: `subject:${genre} popular`, maxResults: 40, startIndex: 0 },
+      { query: `${genre} award winning`, maxResults: 40, startIndex: 0 },
+      { query: `best ${genre} books ${currentYear}`, maxResults: 40, startIndex: 0 },
     ];
     
     try {

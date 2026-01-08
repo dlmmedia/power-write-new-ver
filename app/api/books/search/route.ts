@@ -30,6 +30,35 @@ const CATEGORY_TO_GENRE_MAP: Record<string, string> = {
   'true-crime': 'true crime',
 };
 
+/**
+ * Filter books to only include those with valid, high-quality images
+ * Prioritizes books with ratings as they're more likely to have real cover images
+ */
+function filterBooksWithQualityImages(books: BookResult[]): BookResult[] {
+  return books.filter(book => {
+    // Must have image links
+    if (!book.imageLinks) return false;
+    
+    // Must have at least a thumbnail
+    const hasValidImage = book.imageLinks.thumbnail || 
+                          book.imageLinks.small || 
+                          book.imageLinks.medium || 
+                          book.imageLinks.large;
+    if (!hasValidImage) return false;
+    
+    // Check that the image URL looks valid (not a placeholder)
+    const imageUrl = book.imageLinks.thumbnail || book.imageLinks.small || '';
+    if (imageUrl.includes('no_cover') || imageUrl.includes('placeholder')) return false;
+    
+    return true;
+  }).sort((a, b) => {
+    // Prioritize books with ratings (more likely to have valid covers)
+    const aScore = (a.ratingsCount || 0) + (a.averageRating ? 100 : 0);
+    const bScore = (b.ratingsCount || 0) + (b.averageRating ? 100 : 0);
+    return bScore - aScore;
+  });
+}
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -108,17 +137,18 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    const results = uniqueResults;
+    // Apply quality image filtering to ensure only books with valid covers are returned
+    const booksWithQualityImages = filterBooksWithQualityImages(uniqueResults);
 
-    console.log(`[API] Returning ${results.length} books`);
-    if (results.length > 0) {
-      console.log('[API] First book:', results[0].title);
-      console.log('[API] First book image:', results[0].imageLinks);  
+    console.log(`[API] Returning ${booksWithQualityImages.length} books (filtered from ${uniqueResults.length})`);
+    if (booksWithQualityImages.length > 0) {
+      console.log('[API] First book:', booksWithQualityImages[0].title);
+      console.log('[API] First book image:', booksWithQualityImages[0].imageLinks);  
     } else {
       console.log('[API] ⚠️  No books to return!');
     }
 
-    return NextResponse.json({ books: results });
+    return NextResponse.json({ books: booksWithQualityImages });
   } catch (error) {
     console.error('[API] ERROR in book search API:', error);
     return NextResponse.json(
