@@ -150,8 +150,8 @@ const FloatingSoundPanel: React.FC<{
                 currentSound === sound.id && isEnabled
                   ? `${themeConfig.accentColor}20`
                   : `${themeConfig.textColor}08`,
-              ringColor: themeConfig.accentColor,
-            }}
+              '--tw-ring-color': themeConfig.accentColor,
+            } as React.CSSProperties}
           >
             <span className="text-2xl">{sound.icon}</span>
             <span
