@@ -101,7 +101,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log(`[Upload] Successfully parsed: ${parsedBook.chapters.length} chapters, ${parsedBook.totalWordCount} words`);
-    console.log(`[Upload] Detection method: ${parsedBook.detectionMethod}`);
+    console.log(`[Upload] Detection method: ${parsedBook.detectionMethod}, confidence: ${parsedBook.confidence} (score: ${parsedBook.confidenceScore})`);
 
     // Return parsed data for review (don't include raw content to save bandwidth)
     return NextResponse.json({
@@ -121,6 +121,8 @@ export async function POST(request: NextRequest) {
         fileName: parsedBook.fileName,
         fileSize: parsedBook.fileSize,
         detectionMethod: parsedBook.detectionMethod,
+        confidence: parsedBook.confidence,
+        confidenceScore: parsedBook.confidenceScore,
       },
     });
   } catch (error) {

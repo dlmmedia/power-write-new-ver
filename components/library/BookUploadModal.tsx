@@ -14,6 +14,10 @@ import {
   File,
   ChevronRight,
   Settings2,
+  AlertTriangle,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 
 // Types for parsed content
@@ -34,6 +38,8 @@ interface ParsedBookData {
   fileName: string;
   fileSize: number;
   detectionMethod: string;
+  confidence?: 'high' | 'medium' | 'low';
+  confidenceScore?: number;
 }
 
 interface BookUploadModalProps {
@@ -56,6 +62,7 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [parsedData, setParsedData] = useState<ParsedBookData | null>(null);
+  const [expandedChapter, setExpandedChapter] = useState<number | null>(null);
   
   // Editable metadata
   const [bookTitle, setBookTitle] = useState('');
@@ -78,6 +85,7 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
     setBookGenre('');
     setBookDescription('');
     setShowChapterEditor(false);
+    setExpandedChapter(null);
   }, []);
 
   // Handle chapter updates from editor
@@ -89,6 +97,29 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
         chapters: newChapters,
         chapterCount: newChapters.length,
         totalWordCount: newWordCount,
+      });
+    }
+  }, [parsedData]);
+
+  // Convert to single chapter (undo bad chapter detection)
+  const handleTreatAsSingleChapter = useCallback(() => {
+    if (parsedData) {
+      // Combine all chapter content into one
+      const combinedContent = parsedData.chapters.map(ch => ch.content).join('\n\n');
+      const totalWords = parsedData.chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
+      
+      setParsedData({
+        ...parsedData,
+        chapters: [{
+          number: 1,
+          title: 'Full Content',
+          content: combinedContent,
+          wordCount: totalWords,
+        }],
+        chapterCount: 1,
+        detectionMethod: 'single_chapter',
+        confidence: 'high',
+        confidenceScore: 100,
       });
     }
   }, [parsedData]);
@@ -236,6 +267,47 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
     }
   };
 
+  // Get first few lines of chapter content for preview
+  const getChapterPreview = (content: string, maxChars: number = 200): string => {
+    const lines = content.split('\n').filter(l => l.trim());
+    let preview = '';
+    for (const line of lines) {
+      if (preview.length + line.length > maxChars) {
+        break;
+      }
+      preview += (preview ? ' ' : '') + line.trim();
+    }
+    return preview || content.substring(0, maxChars);
+  };
+
+  // Get confidence display info
+  const getConfidenceInfo = (confidence?: string, score?: number) => {
+    switch (confidence) {
+      case 'high':
+        return {
+          label: 'High Confidence',
+          color: 'text-green-600 dark:text-green-400',
+          bgColor: 'bg-green-100 dark:bg-green-900/30',
+          description: 'Chapters were detected with high confidence.',
+        };
+      case 'medium':
+        return {
+          label: 'Medium Confidence',
+          color: 'text-yellow-600 dark:text-yellow-400',
+          bgColor: 'bg-yellow-100 dark:bg-yellow-900/30',
+          description: 'Please review the detected chapters. Some may need adjustment.',
+        };
+      case 'low':
+      default:
+        return {
+          label: 'Low Confidence',
+          color: 'text-orange-600 dark:text-orange-400',
+          bgColor: 'bg-orange-100 dark:bg-orange-900/30',
+          description: 'Chapter detection was uncertain. Consider using "Edit Chapters" to split manually.',
+        };
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -278,7 +350,7 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
           </div>
 
           {/* Content */}
-          <div className="p-6">
+          <div className="p-6 max-h-[70vh] overflow-y-auto">
             {/* Error Display */}
             {error && (
               <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl flex items-start gap-3">
@@ -379,18 +451,52 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
             {/* Step 2: Review */}
             {step === 'review' && parsedData && (
               <div className="space-y-6">
-                {/* Success Banner */}
-                <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
-                      Successfully parsed!
-                    </p>
-                    <p className="text-sm text-green-600 dark:text-green-300 mt-1">
-                      Found {parsedData.chapterCount} chapter{parsedData.chapterCount !== 1 ? 's' : ''} with {parsedData.totalWordCount.toLocaleString()} words
-                    </p>
+                {/* Success Banner with Confidence */}
+                {parsedData.confidence === 'high' || parsedData.chapterCount === 1 ? (
+                  <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl flex items-start gap-3">
+                    <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                        Successfully parsed!
+                      </p>
+                      <p className="text-sm text-green-600 dark:text-green-300 mt-1">
+                        Found {parsedData.chapterCount} chapter{parsedData.chapterCount !== 1 ? 's' : ''} with {parsedData.totalWordCount.toLocaleString()} words
+                      </p>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className={`p-4 ${getConfidenceInfo(parsedData.confidence).bgColor} border border-current/20 rounded-xl`}>
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className={`w-5 h-5 ${getConfidenceInfo(parsedData.confidence).color} flex-shrink-0 mt-0.5`} />
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className={`text-sm font-medium ${getConfidenceInfo(parsedData.confidence).color}`}>
+                            {getConfidenceInfo(parsedData.confidence).label}
+                          </p>
+                          {parsedData.confidenceScore !== undefined && (
+                            <span className={`text-xs ${getConfidenceInfo(parsedData.confidence).color} opacity-70`}>
+                              Score: {parsedData.confidenceScore}/100
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                          Found {parsedData.chapterCount} chapter{parsedData.chapterCount !== 1 ? 's' : ''} with {parsedData.totalWordCount.toLocaleString()} words
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-500 mt-2">
+                          {getConfidenceInfo(parsedData.confidence).description}
+                        </p>
+                        {parsedData.chapterCount > 1 && (
+                          <button
+                            onClick={handleTreatAsSingleChapter}
+                            className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 underline"
+                          >
+                            Treat as single chapter instead
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Book Metadata Form */}
                 <div className="space-y-4">
@@ -451,7 +557,7 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                      Detected Chapters ({parsedData.chapterCount})
+                      {parsedData.chapterCount === 1 ? 'Content' : `Detected Chapters (${parsedData.chapterCount})`}
                     </h3>
                     <button
                       onClick={() => setShowChapterEditor(!showChapterEditor)}
@@ -470,32 +576,76 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
                     />
                   ) : (
                     <>
-                      <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl">
+                      <div className="max-h-64 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl">
                         {parsedData.chapters.map((chapter, index) => (
                           <div
                             key={index}
-                            className={`flex items-center justify-between px-4 py-3 ${
+                            className={`${
                               index !== parsedData.chapters.length - 1 
                                 ? 'border-b border-gray-100 dark:border-gray-800' 
                                 : ''
                             }`}
                           >
-                            <div className="flex items-center gap-3 min-w-0">
-                              <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-lg">
-                                {chapter.number}
-                              </span>
-                              <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                                {chapter.title}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
-                              {chapter.wordCount.toLocaleString()} words
-                            </span>
+                            {/* Chapter Header */}
+                            <button
+                              onClick={() => setExpandedChapter(expandedChapter === index ? null : index)}
+                              className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
+                            >
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-sm font-medium rounded-lg">
+                                  {chapter.number}
+                                </span>
+                                <div className="text-left min-w-0">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white block truncate">
+                                    {chapter.title}
+                                  </span>
+                                  {expandedChapter !== index && (
+                                    <span className="text-xs text-gray-400 dark:text-gray-500 block truncate mt-0.5">
+                                      {getChapterPreview(chapter.content, 100)}...
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {chapter.wordCount.toLocaleString()} words
+                                </span>
+                                {expandedChapter === index ? (
+                                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                                )}
+                              </div>
+                            </button>
+                            
+                            {/* Expanded Preview */}
+                            {expandedChapter === index && (
+                              <div className="px-4 pb-4">
+                                <div className="ml-11 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <BookOpen className="w-3.5 h-3.5 text-gray-400" />
+                                    <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                      Content Preview
+                                    </span>
+                                  </div>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400 whitespace-pre-wrap line-clamp-6">
+                                    {chapter.content.substring(0, 500)}
+                                    {chapter.content.length > 500 && '...'}
+                                  </p>
+                                  {chapter.content.length > 500 && (
+                                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                      Showing first 500 characters of {chapter.content.length.toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                         Detection method: {parsedData.detectionMethod.replace(/_/g, ' ')}
+                        {parsedData.confidence && ` • Confidence: ${parsedData.confidence}`}
                       </p>
                     </>
                   )}
@@ -536,6 +686,7 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
                       setParsedData(null);
                       setSelectedFile(null);
                       setError(null);
+                      setExpandedChapter(null);
                     }}
                   >
                     Back

@@ -11,6 +11,9 @@ import { FlipBookCover } from '@/components/library/FlipBookCover';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import { useUserTier } from '@/contexts/UserTierContext';
 import { useBooks } from '@/contexts/BooksContext';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import { motion } from 'framer-motion';
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import type { BibliographyConfig, Reference } from '@/lib/types/bibliography';
 
 // Loading skeleton components for dynamic imports
@@ -729,14 +732,19 @@ export default function BookDetailPage() {
   const hasAudio = book.chapters?.some(ch => ch.audioUrl) || false;
   const chaptersWithAudio = book.chapters?.filter(ch => ch.audioUrl).length || 0;
 
-  // Function to open the reader at a specific chapter
+  // Function to open the immersive reader at a specific chapter
   const openReaderAtChapter = (chapterIndex: number) => {
-    setInitialChapterIndex(chapterIndex);
-    setIsReading(true);
+    // Navigate to immersive reader with chapter parameter
+    router.push(`/library/${bookId}/read?chapter=${chapterIndex}`);
   };
 
-  // Function to start reading from the beginning
+  // Function to start immersive reading from the beginning
   const startReading = () => {
+    router.push(`/library/${bookId}/read`);
+  };
+
+  // Function to open legacy reader (for fallback)
+  const openLegacyReader = () => {
     setInitialChapterIndex(0);
     setIsReading(true);
   };
@@ -856,24 +864,90 @@ export default function BookDetailPage() {
               <div className="relative">
                 {/* Pro users always see enabled export button - API handles ownership check */}
                 {isProUser ? (
-                  <Button 
-                    variant="outline" 
-                    onClick={() => setShowExportMenu(!showExportMenu)}
-                    disabled={isExporting}
-                    className="flex items-center gap-2"
-                  >
-                    {isExporting ? (
-                      <>
-                        <span className="animate-spin mr-2">⏳</span>
-                        Exporting...
-                      </>
-                    ) : (
-                      <>
-                        <Download className="w-4 h-4" />
-                        Export
-                      </>
-                    )}
-                  </Button>
+                  <DropdownMenu.Root open={showExportMenu} onOpenChange={setShowExportMenu}>
+                    <DropdownMenu.Trigger asChild>
+                      <Button 
+                        variant="outline" 
+                        disabled={isExporting}
+                        className="flex items-center gap-2"
+                      >
+                        {isExporting ? (
+                          <>
+                            <span className="animate-spin mr-2">⏳</span>
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4" />
+                            Export
+                          </>
+                        )}
+                      </Button>
+                    </DropdownMenu.Trigger>
+                    
+                    <DropdownMenu.Portal>
+                      <DropdownMenu.Content 
+                        className="min-w-[220px] bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl py-1 z-50 animate-in fade-in-0 zoom-in-95 data-[side=bottom]:slide-in-from-top-2"
+                        sideOffset={5}
+                        align="end"
+                      >
+                        <DropdownMenu.Label className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Export As
+                        </DropdownMenu.Label>
+                        <DropdownMenu.Separator className="h-px bg-gray-200 dark:border-gray-700 my-1" />
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => handleExport('pdf')}
+                        >
+                          <FileText className="w-4 h-4 text-red-500" />
+                          PDF Document
+                        </DropdownMenu.Item>
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => handleExport('docx')}
+                        >
+                          <FileText className="w-4 h-4 text-blue-500" />
+                          Word (DOCX)
+                        </DropdownMenu.Item>
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => handleExport('epub')}
+                        >
+                          <Book className="w-4 h-4 text-orange-500" />
+                          EPUB (Kindle/KDP)
+                        </DropdownMenu.Item>
+                        
+                        <DropdownMenu.Separator className="h-px bg-gray-200 dark:border-gray-700 my-1" />
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => handleExport('html')}
+                        >
+                          <code className="w-4 h-4 flex items-center justify-center font-bold text-green-500">&lt;/&gt;</code>
+                          HTML
+                        </DropdownMenu.Item>
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => handleExport('md')}
+                        >
+                          <FileText className="w-4 h-4 text-gray-500" />
+                          Markdown
+                        </DropdownMenu.Item>
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => handleExport('txt')}
+                        >
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          Plain Text
+                        </DropdownMenu.Item>
+                      </DropdownMenu.Content>
+                    </DropdownMenu.Portal>
+                  </DropdownMenu.Root>
                 ) : isTierLoading ? (
                   // Show loading state while checking tier
                   <Button 
@@ -894,66 +968,6 @@ export default function BookDetailPage() {
                     Export
                     <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
                   </button>
-                )}
-                
-                {showExportMenu && (
-                  <>
-                    {/* Backdrop to close menu */}
-                    <div 
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowExportMenu(false)}
-                    />
-                    
-                    {/* Export menu */}
-                    <div className="absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl py-1 w-56 z-20">
-                      <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-200 dark:border-gray-700">
-                        Export As
-                      </div>
-                      <button
-                        onClick={() => handleExport('pdf')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-2"
-                      >
-                        <FileText className="w-4 h-4 text-red-500" />
-                        PDF Document
-                      </button>
-                      <button
-                        onClick={() => handleExport('docx')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-2"
-                      >
-                        <FileText className="w-4 h-4 text-blue-500" />
-                        Word (DOCX)
-                      </button>
-                      <button
-                        onClick={() => handleExport('epub')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-2"
-                      >
-                        <Book className="w-4 h-4 text-orange-500" />
-                        EPUB (Kindle/KDP)
-                      </button>
-                      <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
-                      <button
-                        onClick={() => handleExport('html')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-2"
-                      >
-                        <code className="w-4 h-4 flex items-center justify-center font-bold text-green-500">&lt;/&gt;</code>
-                        HTML
-                      </button>
-                      <button
-                        onClick={() => handleExport('md')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-2"
-                      >
-                        <FileText className="w-4 h-4 text-gray-500" />
-                        Markdown
-                      </button>
-                      <button
-                        onClick={() => handleExport('txt')}
-                        className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white flex items-center gap-2"
-                      >
-                        <FileText className="w-4 h-4 text-gray-400" />
-                        Plain Text
-                      </button>
-                    </div>
-                  </>
                 )}
               </div>
             </div>
@@ -977,28 +991,43 @@ export default function BookDetailPage() {
         <div className="mt-6">
           {activeTab === 'overview' && (
             <div className="space-y-6">
-              {/* Hero Section with Book Info */}
-              <div className="bg-gradient-to-br from-yellow-400/10 to-yellow-600/5 dark:from-yellow-400/5 dark:to-yellow-600/10 rounded-xl border border-yellow-400/20 dark:border-yellow-600/30 p-8">
-                <div className="flex flex-col lg:flex-row gap-8">
-                  {/* Book Cover - Flip Card */}
-                  <FlipBookCover
-                    title={book.title}
-                    author={book.author}
-                    coverUrl={book.coverUrl}
-                    backCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
-                    genre={book.genre}
-                    subgenre={book.subgenre}
-                    wordCount={book.metadata.wordCount}
-                    chapters={book.metadata.chapters}
-                    description={book.metadata.description}
-                    status={book.status}
-                    createdAt={book.createdAt}
-                  />
+              {/* Hero Section with Book Info - Modern Design */}
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="relative overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 shadow-sm"
+              >
+                {/* Subtle decorative accent */}
+                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500" />
+                
+                <div className="p-6 md:p-8">
+                  <div className="flex flex-col lg:flex-row gap-8">
+                    {/* Book Cover - Flip Card with hover effect */}
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      transition={{ duration: 0.3 }}
+                      className="flex-shrink-0"
+                    >
+                      <FlipBookCover
+                        title={book.title}
+                        author={book.author}
+                        coverUrl={book.coverUrl}
+                        backCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
+                        genre={book.genre}
+                        subgenre={book.subgenre}
+                        wordCount={book.metadata.wordCount}
+                        chapters={book.metadata.chapters}
+                        description={book.metadata.description}
+                        status={book.status}
+                        createdAt={book.createdAt}
+                      />
+                    </motion.div>
 
-                  {/* Book Details */}
-                  <div className="flex-1 space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
+                    {/* Book Details */}
+                    <div className="flex-1 space-y-5">
+                      {/* Title & Author */}
+                      <div>
                         {/* Editable Title */}
                         {isEditingTitle ? (
                           <div className="flex items-center gap-2 mb-2">
@@ -1006,7 +1035,7 @@ export default function BookDetailPage() {
                               type="text"
                               value={editedTitle}
                               onChange={(e) => setEditedTitle(e.target.value)}
-                              className="flex-1 text-3xl md:text-4xl font-bold px-3 py-1 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                              className="flex-1 text-2xl md:text-3xl font-bold px-3 py-1.5 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
                               style={{ fontFamily: 'var(--font-header)' }}
                               placeholder="Enter book title"
                               autoFocus
@@ -1039,8 +1068,15 @@ export default function BookDetailPage() {
                             </button>
                           </div>
                         ) : (
-                          <div className="group flex items-center gap-2 mb-2">
-                            <h2 className="text-4xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{book.title}</h2>
+                          <motion.div 
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.1 }}
+                            className="group flex items-center gap-2 mb-1"
+                          >
+                            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: 'var(--font-header)' }}>
+                              {book.title}
+                            </h2>
                             <button
                               onClick={() => {
                                 setEditedTitle(book.title);
@@ -1051,18 +1087,18 @@ export default function BookDetailPage() {
                             >
                               <Edit3 className="w-4 h-4" />
                             </button>
-                          </div>
+                          </motion.div>
                         )}
                         
                         {/* Editable Author */}
                         {isEditingAuthor ? (
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xl text-gray-600 dark:text-gray-400">by</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-lg text-gray-600 dark:text-gray-400">by</span>
                             <input
                               type="text"
                               value={editedAuthor}
                               onChange={(e) => setEditedAuthor(e.target.value)}
-                              className="flex-1 text-xl px-3 py-1 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                              className="flex-1 text-lg px-3 py-1 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                               placeholder="Enter author name"
                               autoFocus
                               onKeyDown={(e) => {
@@ -1094,249 +1130,158 @@ export default function BookDetailPage() {
                             </button>
                           </div>
                         ) : (
-                          <div className="group flex items-center gap-2 mb-1">
-                            <p className="text-xl text-gray-600 dark:text-gray-400">by {book.author}</p>
+                          <motion.div 
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.15 }}
+                            className="group flex items-center gap-2"
+                          >
+                            <p className="text-lg text-gray-600 dark:text-gray-400">by {book.author}</p>
                             <button
                               onClick={() => {
                                 setEditedAuthor(book.author);
                                 setIsEditingAuthor(true);
                               }}
-                              className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              className="p-1 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
                               title="Edit author"
                             >
-                              <Edit3 className="w-4 h-4" />
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
-                          </div>
+                          </motion.div>
                         )}
                         
-                        <div className="flex items-center gap-3 mt-3">
-                          <span className="text-sm text-gray-500 dark:text-gray-400">
-                            Created {new Date(book.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        <motion.p 
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ delay: 0.2 }}
+                          className="text-sm text-gray-500 dark:text-gray-500 mt-2"
+                        >
+                          Created {new Date(book.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                        </motion.p>
+                      </div>
+
+                      {/* Compact Stats Pills */}
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.25 }}
+                        className="flex flex-wrap gap-2"
+                      >
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
+                          <BookOpen className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400" />
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <AnimatedNumber value={book.metadata.chapters} />
                           </span>
+                          <span className="text-xs text-gray-500">chapters</span>
                         </div>
-                      </div>
-                    </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
+                          <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            <AnimatedNumber value={book.metadata.wordCount} format="locale" />
+                          </span>
+                          <span className="text-xs text-gray-500">words</span>
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
+                          <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            ~<AnimatedNumber value={Math.ceil(book.metadata.wordCount / 200)} />
+                          </span>
+                          <span className="text-xs text-gray-500">min read</span>
+                        </div>
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 rounded-full border border-yellow-200 dark:border-yellow-800/50">
+                          <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">{book.genre}</span>
+                        </div>
+                      </motion.div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{book.metadata.chapters}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Chapters</div>
-                      </div>
-                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-                          {book.metadata.wordCount.toLocaleString()}
-                        </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Words</div>
-                      </div>
-                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">{book.genre}</div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Genre</div>
-                      </div>
-                      <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
-                        <div className="text-3xl font-bold text-yellow-600 dark:text-yellow-400">
-                          ~{Math.ceil(book.metadata.wordCount / 200)}
-                        </div>
-                        <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">Min Read</div>
-                      </div>
-                    </div>
-
-                    {/* Editable Synopsis */}
-                    <div className="mt-6 p-4 bg-white/30 dark:bg-black/10 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <div className="group flex items-center justify-between mb-2">
-                        <h4 className="font-semibold text-sm text-gray-700 dark:text-gray-300">Synopsis</h4>
-                        {!isEditingSynopsis && (
-                          <button
-                            onClick={() => {
-                              setEditedSynopsis(book.metadata.description || '');
-                              setIsEditingSynopsis(true);
-                            }}
-                            className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
-                            title="Edit synopsis"
-                          >
-                            <Edit3 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                      {isEditingSynopsis ? (
-                        <div className="space-y-2">
-                          <textarea
-                            value={editedSynopsis}
-                            onChange={(e) => setEditedSynopsis(e.target.value)}
-                            className="w-full px-3 py-2 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-y min-h-[100px]"
-                            placeholder="Enter book synopsis..."
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Escape') {
-                                setIsEditingSynopsis(false);
-                                setEditedSynopsis(book.metadata.description || '');
-                              }
-                            }}
-                          />
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={handleSaveSynopsis}
-                              disabled={isSavingSynopsis}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-                            >
-                              {isSavingSynopsis ? <span className="animate-spin">⏳</span> : <Save className="w-4 h-4" />}
-                              Save
-                            </button>
+                      {/* Synopsis - Collapsible style */}
+                      <motion.div 
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 }}
+                        className="pt-4 border-t border-gray-200 dark:border-gray-800"
+                      >
+                        <div className="group flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Synopsis</h4>
+                          {!isEditingSynopsis && (
                             <button
                               onClick={() => {
-                                setIsEditingSynopsis(false);
                                 setEditedSynopsis(book.metadata.description || '');
+                                setIsEditingSynopsis(true);
                               }}
-                              disabled={isSavingSynopsis}
-                              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium transition-colors"
+                              className="p-1 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              title="Edit synopsis"
                             >
-                              <X className="w-4 h-4" />
-                              Cancel
+                              <Edit3 className="w-3.5 h-3.5" />
                             </button>
-                          </div>
+                          )}
                         </div>
-                      ) : (
-                        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                          {book.metadata.description || <span className="text-gray-400 italic">Click edit to add a synopsis...</span>}
-                        </p>
+                        {isEditingSynopsis ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editedSynopsis}
+                              onChange={(e) => setEditedSynopsis(e.target.value)}
+                              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-y min-h-[80px] text-sm"
+                              placeholder="Enter book synopsis..."
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setIsEditingSynopsis(false);
+                                  setEditedSynopsis(book.metadata.description || '');
+                                }
+                              }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={handleSaveSynopsis}
+                                disabled={isSavingSynopsis}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
+                              >
+                                {isSavingSynopsis ? <span className="animate-spin">⏳</span> : <Save className="w-3.5 h-3.5" />}
+                                Save
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setIsEditingSynopsis(false);
+                                  setEditedSynopsis(book.metadata.description || '');
+                                }}
+                                disabled={isSavingSynopsis}
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3">
+                            {book.metadata.description || <span className="italic text-gray-400">Click edit to add a synopsis...</span>}
+                          </p>
+                        )}
+                      </motion.div>
+
+                      {/* Primary CTA */}
+                      {book.chapters && book.chapters.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.35 }}
+                          className="pt-4"
+                        >
+                          <Button 
+                            variant="primary" 
+                            size="lg" 
+                            onClick={startReading} 
+                            className="w-full sm:w-auto flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20"
+                          >
+                            <Book className="w-5 h-5" />
+                            Start Reading
+                          </Button>
+                        </motion.div>
                       )}
                     </div>
-
-                    {book.chapters && book.chapters.length > 0 && (
-                      <div className="flex flex-wrap gap-3 mt-6">
-                        <Button variant="primary" size="lg" onClick={startReading} className="flex-1 flex items-center justify-center gap-2">
-                          <Book className="w-5 h-5" />
-                          Start Reading
-                        </Button>
-                        {hasAudio && (
-                          <Button 
-                            variant="outline" 
-                            size="lg" 
-                            onClick={() => setShowAudiobookPlayer(true)} 
-                            className="flex items-center gap-2 border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                          >
-                            <Headphones className="w-5 h-5" />
-                            Listen ({chaptersWithAudio} ch)
-                          </Button>
-                        )}
-                        {isProUser ? (
-                          <Button variant="outline" size="lg" onClick={() => setIsEditing(true)} className="flex items-center gap-2">
-                            <Edit3 className="w-5 h-5" />
-                            Edit
-                          </Button>
-                        ) : (
-                          <button
-                            onClick={() => triggerUpgradeModal('edit-book')}
-                            className="flex items-center gap-2 px-6 py-3 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg font-medium hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
-                          >
-                            <Lock className="w-5 h-5" />
-                            Edit
-                            <span className="text-xs bg-purple-200 dark:bg-purple-800 px-1.5 py-0.5 rounded">PRO</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
                   </div>
                 </div>
-              </div>
-
-              {/* Progress Card */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-xl p-8 mb-8">
-                {/* Decorative background elements */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-yellow-400/5 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
-                <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500/5 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2"></div>
-
-                <div className="relative z-10">
-                  <h3 className="text-2xl font-bold mb-8 flex items-center gap-3" style={{ fontFamily: 'var(--font-nav)' }}>
-                    <div className="bg-yellow-400/20 p-2 rounded-lg">
-                      <Activity className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                    </div>
-                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
-                      Writing Progress
-                    </span>
-                  </h3>
-                  
-                  <div className="mb-8 bg-white/50 dark:bg-black/20 rounded-xl p-6 border border-gray-200/50 dark:border-gray-700/50 backdrop-blur-sm">
-                    <div className="flex justify-between text-sm mb-4">
-                      <span className="text-gray-600 dark:text-gray-400 font-semibold tracking-wide uppercase text-xs">Overall Completion</span>
-                      <span className="font-bold text-gray-900 dark:text-white font-mono">
-                        {book.metadata.wordCount.toLocaleString()} <span className="text-gray-400 font-normal">/</span> {book.metadata.targetWordCount.toLocaleString()} <span className="text-gray-400 font-normal">words</span>
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-5 shadow-inner overflow-hidden border border-gray-300 dark:border-gray-600">
-                      <div
-                        className="bg-gradient-to-r from-yellow-400 via-orange-500 to-yellow-500 h-full rounded-full transition-all duration-1000 ease-out shadow-lg relative"
-                        style={{ width: `${Math.min(progress, 100)}%` }}
-                      >
-                        <div className="absolute inset-0 bg-[linear-gradient(45deg,rgba(255,255,255,0.2)_25%,transparent_25%,transparent_50%,rgba(255,255,255,0.2)_50%,rgba(255,255,255,0.2)_75%,transparent_75%,transparent)] bg-[length:1rem_1rem] animate-[progress-stripes_1s_linear_infinite]"></div>
-                        <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between mt-3 items-center">
-                      <div className="flex items-center gap-2">
-                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{progress.toFixed(1)}%</span>
-                        <span className="text-xs text-green-500 font-medium bg-green-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
-                           <CheckCircle2 className="w-3 h-3" /> On Track
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">
-                        {(book.metadata.targetWordCount - book.metadata.wordCount).toLocaleString()} words to go
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-300">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
-                          <Book className="w-5 h-5" />
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Chapters</div>
-                      </div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">{book.metadata.chapters}</div>
-                      <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total Planned</div>
-                    </div>
-
-                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-green-400 dark:hover:border-green-500 hover:shadow-lg hover:shadow-green-500/10 transition-all duration-300">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
-                          <PenTool className="w-5 h-5" />
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Generated</div>
-                      </div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                        {book.chapters?.filter((c) => c.content && c.content.length > 100).length || 0}
-                      </div>
-                      <div className="text-xs text-green-600 dark:text-green-400 font-medium">Chapters Done</div>
-                    </div>
-
-                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-300">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
-                          <BarChart2 className="w-5 h-5" />
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Avg Length</div>
-                      </div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                        {Math.round(book.metadata.wordCount / (book.metadata.chapters || 1)).toLocaleString()}
-                      </div>
-                      <div className="text-xs text-purple-600 dark:text-purple-400 font-medium">Words / Chapter</div>
-                    </div>
-
-                    <div className="group bg-white dark:bg-gray-800/50 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-orange-400 dark:hover:border-orange-500 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-300">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg text-orange-600 dark:text-orange-400 group-hover:scale-110 transition-transform">
-                          <Clock className="w-5 h-5" />
-                        </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Read Time</div>
-                      </div>
-                      <div className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                        ~{Math.ceil(book.metadata.wordCount / 200)}
-                      </div>
-                      <div className="text-xs text-orange-600 dark:text-orange-400 font-medium">Minutes</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              </motion.div>
 
               {/* Recent Chapters Preview */}
               {book.chapters && book.chapters.length > 0 && (

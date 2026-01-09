@@ -27,6 +27,7 @@ import {
   Globe,
   Upload
 } from 'lucide-react';
+import { StatCard, AudioStatCard } from '@/components/ui/AnimatedNumber';
 import { BookUploadModal } from '@/components/library/BookUploadModal';
 
 function LibraryPageContent() {
@@ -248,6 +249,17 @@ function LibraryPageContent() {
             </div>
 
             <div className="flex items-center gap-3">
+              {/* Showcase Button */}
+              <Link href="/showcase">
+                <Button 
+                  variant="outline" 
+                  className="flex items-center gap-2"
+                >
+                  <Globe className="w-4 h-4" />
+                  Showcase
+                </Button>
+              </Link>
+              
               {/* Upload Book Button */}
               <Button 
                 variant="outline" 
@@ -304,6 +316,15 @@ function LibraryPageContent() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {/* Showcase Button - Mobile */}
+                <Link
+                  href="/showcase"
+                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                  title="Showcase"
+                >
+                  <Globe className="w-5 h-5" />
+                </Link>
+                
                 {/* Upload Book Button - Mobile */}
                 <button
                   onClick={() => setShowUploadModal(true)}
@@ -392,74 +413,55 @@ function LibraryPageContent() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-4 mb-8">
-          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-yellow-400 dark:hover:border-yellow-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-yellow-100 dark:bg-yellow-900/30 p-2 rounded-lg text-yellow-600 dark:text-yellow-400 group-hover:scale-110 transition-transform">
-                <Library className="w-5 h-5" />
-              </div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Books</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">{books.length}</div>
-          </div>
+        {/* Stats - Compact animated cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
+          <StatCard
+            icon={<Library className="w-4 h-4" />}
+            label="Books"
+            value={books.length}
+            accentColor="yellow"
+            delay={0}
+          />
+          
+          <StatCard
+            icon={<CheckCircle2 className="w-4 h-4" />}
+            label="Completed"
+            value={books.filter((b) => b.status === 'completed').length}
+            accentColor="green"
+            delay={0.05}
+          />
+          
+          <StatCard
+            icon={<Type className="w-4 h-4" />}
+            label="Words"
+            value={books.reduce((sum, b) => sum + (b.metadata?.wordCount || 0), 0)}
+            format="locale"
+            accentColor="blue"
+            delay={0.1}
+          />
+          
+          <StatCard
+            icon={<Layers className="w-4 h-4" />}
+            label="Chapters"
+            value={books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)}
+            accentColor="purple"
+            delay={0.15}
+          />
 
-          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-green-400 dark:hover:border-green-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Completed</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">
-              {books.filter((b) => b.status === 'completed').length}
-            </div>
-          </div>
-
-          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-blue-400 dark:hover:border-blue-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform">
-                <Type className="w-5 h-5" />
-              </div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Words</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">
-              {books.reduce((sum, b) => sum + (b.metadata?.wordCount || 0), 0).toLocaleString()}
-            </div>
-          </div>
-
-          <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-purple-400 dark:hover:border-purple-500">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="bg-purple-100 dark:bg-purple-900/30 p-2 rounded-lg text-purple-600 dark:text-purple-400 group-hover:scale-110 transition-transform">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Chapters</div>
-            </div>
-            <div className="text-3xl font-bold text-gray-900 dark:text-white">
-              {books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)}
-            </div>
-          </div>
-
-          {/* Audio Stats */}
+          {/* Audio Stats - Only show if there's audio */}
           {(() => {
             const totalChaptersWithAudio = books.reduce((sum, b) => sum + (b.audioStats?.chaptersWithAudio || 0), 0);
             const totalAudioDuration = books.reduce((sum, b) => sum + (b.audioStats?.totalDuration || 0), 0);
             if (totalChaptersWithAudio === 0) return null;
             return (
-              <div className="group bg-white dark:bg-gray-900 rounded-xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all hover:border-green-400 dark:hover:border-green-500">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg text-green-600 dark:text-green-400 group-hover:scale-110 transition-transform">
-                    <Headphones className="w-5 h-5" />
-                  </div>
-                  <div className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Audio</div>
-                </div>
-                <div className="text-3xl font-bold text-gray-900 dark:text-white">
-                  {totalChaptersWithAudio}
-                </div>
-                <div className="text-xs text-gray-500 mt-1">
-                  {formatDuration(totalAudioDuration)} total
-                </div>
-              </div>
+              <AudioStatCard
+                icon={<Headphones className="w-4 h-4" />}
+                label="Audio"
+                value={totalChaptersWithAudio}
+                subtitle={`${formatDuration(totalAudioDuration)} total`}
+                accentColor="green"
+                delay={0.2}
+              />
             );
           })()}
         </div>
