@@ -186,24 +186,6 @@ export default function ShowcaseBookDetailPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              {book.chapters && book.chapters.length > 0 && (
-                <>
-                  <Button variant="primary" onClick={startReading} className="flex items-center gap-2">
-                    <Book className="w-4 h-4" />
-                    Read Book
-                  </Button>
-                  {hasAudio && (
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowAudiobookPlayer(true)} 
-                      className="flex items-center gap-2 border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                    >
-                      <Headphones className="w-4 h-4" />
-                      Listen
-                    </Button>
-                  )}
-                </>
-              )}
             </div>
           </div>
         </div>

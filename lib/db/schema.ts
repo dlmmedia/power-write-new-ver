@@ -61,6 +61,7 @@ export const generatedBooks = pgTable("generated_books", {
   pdfUrl: text("pdf_url"), // URL to generated PDF
   audioUrl: text("audio_url"), // URL to generated audiobook
   status: varchar("status").default("draft"), // draft, generating, completed, failed
+  productionStatus: varchar("production_status").default("draft"), // draft, in-progress, content-complete, audio-pending, published
   generationType: varchar("generation_type"), // outline, full_book, summary
   customInstructions: text("custom_instructions"),
   isPublic: boolean("is_public").default(false),

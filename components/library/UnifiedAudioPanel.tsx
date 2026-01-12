@@ -32,7 +32,7 @@ interface Chapter {
 
 interface AudioPreferences {
   provider: 'openai' | 'gemini';
-  voice: string;
+  voice: string | null;
   speed: number;
   quality: 'standard' | 'hd';
 }
@@ -49,7 +49,7 @@ interface UnifiedAudioPanelProps {
 // Default preferences
 const defaultPreferences: AudioPreferences = {
   provider: 'openai',
-  voice: 'nova',
+  voice: null,
   speed: 1.0,
   quality: 'hd',
 };
@@ -118,6 +118,11 @@ export function UnifiedAudioPanel({
 
   // Generate audio for a single chapter
   const generateChapterAudio = async (chapter: Chapter) => {
+    if (!preferences.voice) {
+      alert('Please select a voice first');
+      setShowSettings(true);
+      return;
+    }
     setGeneratingChapters(prev => new Set(prev).add(chapter.number));
     
     try {
@@ -155,6 +160,11 @@ export function UnifiedAudioPanel({
 
   // Generate all missing audio
   const generateAllMissing = async () => {
+    if (!preferences.voice) {
+      alert('Please select a voice first');
+      setShowSettings(true);
+      return;
+    }
     const missingChapters = chapters.filter(ch => !audioUrls[ch.number]);
     if (missingChapters.length === 0) return;
 
@@ -232,7 +242,7 @@ export function UnifiedAudioPanel({
               variant="primary"
               size="sm"
               onClick={generateAllMissing}
-              disabled={generatingAll}
+              disabled={generatingAll || !preferences.voice}
               className="flex items-center gap-1.5"
             >
               {generatingAll ? (
@@ -276,10 +286,14 @@ export function UnifiedAudioPanel({
             <div className="relative">
               <button
                 onClick={() => setShowSettings(!showSettings)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-medium text-gray-900 dark:text-white hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                className={`flex items-center gap-2 px-3 py-1.5 border rounded-lg text-sm font-medium transition-colors ${
+                  !preferences.voice 
+                    ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 animate-pulse'
+                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
               >
                 <Volume2 className="w-4 h-4 text-purple-500" />
-                <span>{currentVoice?.name || preferences.voice}</span>
+                <span>{currentVoice?.name || 'Select Voice'}</span>
                 <ChevronDown className={`w-4 h-4 transition-transform ${showSettings ? 'rotate-180' : ''}`} />
               </button>
               
@@ -295,7 +309,7 @@ export function UnifiedAudioPanel({
                           onClick={() => {
                             handlePreferencesChange({ 
                               provider, 
-                              voice: voiceOptions[provider][0].id 
+                              voice: null 
                             });
                           }}
                           className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -435,7 +449,7 @@ export function UnifiedAudioPanel({
                     </button>
                     <button
                       onClick={() => generateChapterAudio(chapter)}
-                      disabled={isGenerating}
+                      disabled={isGenerating || !preferences.voice}
                       className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors disabled:opacity-50"
                       title="Regenerate"
                     >
@@ -452,7 +466,7 @@ export function UnifiedAudioPanel({
                 ) : (
                   <button
                     onClick={() => generateChapterAudio(chapter)}
-                    disabled={isGenerating}
+                    disabled={isGenerating || !preferences.voice}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded-lg transition-colors disabled:opacity-50"
                   >
                     {isGenerating ? (

@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
           genre: book.genre || 'General Fiction',
           subgenre: '',
           status: book.status || 'in-progress',
+          productionStatus: book.productionStatus || 'draft',
           coverUrl: book.coverUrl || undefined,
           createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
           isOwner: book.userId === clerkUserId,

@@ -108,6 +108,7 @@ export async function GET(
       genre: bookWithChapters.genre,
       subgenre: '',
       status: bookWithChapters.status,
+      productionStatus: bookWithChapters.productionStatus || 'draft',
       coverUrl: bookWithChapters.coverUrl || undefined, // Include cover URL
       backCoverUrl: metadata.backCoverUrl || undefined, // Include back cover URL from metadata
       isPublic: bookWithChapters.isPublic || false, // Include public showcase status

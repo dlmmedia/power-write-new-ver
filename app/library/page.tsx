@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { StatCard, AudioStatCard } from '@/components/ui/AnimatedNumber';
 import { BookUploadModal } from '@/components/library/BookUploadModal';
+import { ProductionStatus } from '@/lib/types/generation';
 
 function LibraryPageContent() {
   const router = useRouter();
@@ -54,6 +55,7 @@ function LibraryPageContent() {
   // Local UI state only
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<ProductionStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
@@ -201,7 +203,8 @@ function LibraryPageContent() {
       const matchesSearch = book.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
                            book.author.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesGenre = filterGenre === 'all' || book.genre === filterGenre;
-      return matchesSearch && matchesGenre;
+      const matchesStatus = filterStatus === 'all' || (book.productionStatus || 'draft') === filterStatus;
+      return matchesSearch && matchesGenre && matchesStatus;
     })
     .sort((a, b) => {
       if (sortBy === 'title') return a.title.localeCompare(b.title);
@@ -399,6 +402,19 @@ function LibraryPageContent() {
                   {genre === 'all' ? 'All Genres' : genre}
                 </option>
               ))}
+            </select>
+
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value as ProductionStatus | 'all')}
+              className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+            >
+              <option value="all">All Status</option>
+              <option value="draft">Draft</option>
+              <option value="in-progress">In Progress</option>
+              <option value="content-complete">Content Complete</option>
+              <option value="audio-pending">Audio Pending</option>
+              <option value="published">Published</option>
             </select>
 
             <select
@@ -611,12 +627,44 @@ function LibraryPageContent() {
                   )}
                   {/* Status badge overlay */}
                   <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                    <Badge 
-                      variant={book.status === 'completed' ? 'success' : book.status === 'generating' ? 'warning' : 'default'}
-                      size="sm"
-                    >
-                      {book.status === 'generating' ? 'In Progress' : book.status}
-                    </Badge>
+                    {(() => {
+                      const status = book.productionStatus || 'draft';
+                      let badgeVariant: 'default' | 'success' | 'warning' | 'info' = 'default';
+                      let badgeText = 'Draft';
+                      
+                      switch (status) {
+                        case 'draft':
+                          badgeVariant = 'default';
+                          badgeText = 'Draft';
+                          break;
+                        case 'in-progress':
+                          badgeVariant = 'info';
+                          badgeText = 'In Progress';
+                          break;
+                        case 'content-complete':
+                          badgeVariant = 'success';
+                          badgeText = 'Content Complete';
+                          break;
+                        case 'audio-pending':
+                          badgeVariant = 'warning';
+                          badgeText = 'Audio Pending';
+                          break;
+                        case 'published':
+                          badgeVariant = 'success'; // or purple if we had it, but success works for now or custom className
+                          badgeText = 'Published';
+                          break;
+                      }
+                      
+                      return (
+                        <Badge 
+                          variant={badgeVariant}
+                          size="sm"
+                          className={status === 'published' ? 'bg-purple-500 text-white' : ''}
+                        >
+                          {badgeText}
+                        </Badge>
+                      );
+                    })()}
                     {/* Showcase badge */}
                     {book.isPublic && (
                       <Badge variant="default" size="sm" className="bg-yellow-400 text-black flex items-center gap-1">

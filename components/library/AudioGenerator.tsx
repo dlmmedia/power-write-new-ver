@@ -150,19 +150,15 @@ export function AudioGenerator({
   
   // Voice settings
   const [selectedProvider, setSelectedProvider] = useState<TTSProvider>('openai');
-  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
+  const [selectedVoice, setSelectedVoice] = useState<VoiceType | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
   const [selectedQuality, setSelectedQuality] = useState<'tts-1' | 'tts-1-hd'>('tts-1');
 
   // Reset voice when provider changes
   const handleProviderChange = (provider: TTSProvider) => {
     setSelectedProvider(provider);
-    // Set default voice for the new provider
-    if (provider === 'gemini') {
-      setSelectedVoice('Kore');
-    } else {
-      setSelectedVoice('nova');
-    }
+    // Reset selection when provider changes to force re-selection
+    setSelectedVoice(null);
   };
 
   // OpenAI voice definitions (9 supported voices)
@@ -838,7 +834,7 @@ export function AudioGenerator({
   };
 
   const canGenerate =
-    generationMode === 'full' || (generationMode === 'chapters' && selectedChapters.length > 0);
+    selectedVoice !== null && (generationMode === 'full' || (generationMode === 'chapters' && selectedChapters.length > 0));
 
   const chaptersWithAudio = chaptersData.filter(ch => ch.audioUrl).length;
   const totalChapters = chaptersData.length;
@@ -968,7 +964,7 @@ export function AudioGenerator({
             </h3>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Choose a professional voice that matches your content</p>
           </div>
-          {selectedVoiceInfo && (
+          {selectedVoiceInfo ? (
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
@@ -976,6 +972,14 @@ export function AudioGenerator({
             >
               <Check className="w-4 h-4 text-yellow-600" />
               <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">{selectedVoiceInfo.name}</span>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex items-center gap-2 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-full animate-pulse"
+            >
+              <span className="text-sm font-medium text-red-600 dark:text-red-400">Please select a voice</span>
             </motion.div>
           )}
         </div>
@@ -987,7 +991,7 @@ export function AudioGenerator({
             <motion.button
               onClick={() => {
                 setSelectedProvider('openai');
-                setSelectedVoice('nova'); // Reset to default OpenAI voice
+                setSelectedVoice(null); // Reset to null
               }}
               className={`px-4 py-2 text-sm font-medium transition-all ${
                 selectedProvider === 'openai'
@@ -1005,7 +1009,7 @@ export function AudioGenerator({
             <motion.button
               onClick={() => {
                 setSelectedProvider('gemini');
-                setSelectedVoice('Kore'); // Reset to default Gemini voice
+                setSelectedVoice(null); // Reset to null
               }}
               className={`px-4 py-2 text-sm font-medium transition-all ${
                 selectedProvider === 'gemini'

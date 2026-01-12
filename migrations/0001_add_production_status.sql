@@ -1,0 +1,1 @@
+ALTER TABLE "generated_books" ADD COLUMN "production_status" varchar DEFAULT 'draft';

@@ -89,7 +89,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
   const [isGeneratingAudio, setIsGeneratingAudio] = useState(false);
   const [showAudioPlayer, setShowAudioPlayer] = useState(false);
   const [showVoiceSelector, setShowVoiceSelector] = useState(false);
-  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
+  const [selectedVoice, setSelectedVoice] = useState<VoiceType | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
   const [showBibliography, setShowBibliography] = useState(false);
   
@@ -297,7 +297,11 @@ export const BookReader: React.FC<BookReaderProps> = ({
     setShowAudioPlayer(false);
   };
 
-  const handleGenerateChapterAudio = async (voice: VoiceType = selectedVoice) => {
+  const handleGenerateChapterAudio = async (voice: VoiceType | null = selectedVoice) => {
+    if (!voice) {
+      alert('Please select a voice first');
+      return;
+    }
     setIsGeneratingAudio(true);
     setShowVoiceSelector(false);
     
@@ -553,7 +557,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                     </div>
 
                     {/* Selected Voice Preview */}
-                    {selectedVoiceInfo && (
+                    {selectedVoiceInfo ? (
                       <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${selectedVoiceInfo.gradient} shadow-md`}>
@@ -570,6 +574,10 @@ export const BookReader: React.FC<BookReaderProps> = ({
                             <div className="text-xs text-gray-500 dark:text-gray-400">speed</div>
                           </div>
                         </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-red-50 dark:bg-red-900/20 text-center animate-pulse">
+                        <span className="text-sm font-bold text-red-600 dark:text-red-400">Please select a voice to generate audio</span>
                       </div>
                     )}
 
@@ -609,10 +617,15 @@ export const BookReader: React.FC<BookReaderProps> = ({
                       )}
                       <button
                         onClick={() => handleGenerateChapterAudio(selectedVoice)}
-                        className="w-full py-3.5 bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 text-black font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20 hover:shadow-yellow-500/30"
+                        disabled={!selectedVoice}
+                        className={`w-full py-3.5 text-black font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg ${
+                          !selectedVoice 
+                            ? 'bg-gray-300 cursor-not-allowed opacity-50' 
+                            : 'bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 shadow-yellow-500/20 hover:shadow-yellow-500/30'
+                        }`}
                       >
                         <span>🎙️</span>
-                        <span>{currentChapter.audioUrl ? 'Regenerate' : 'Generate'} with {selectedVoiceInfo?.name}</span>
+                        <span>{currentChapter.audioUrl ? 'Regenerate' : 'Generate'} {selectedVoiceInfo ? `with ${selectedVoiceInfo.name}` : ''}</span>
                       </button>
                     </div>
                   </div>

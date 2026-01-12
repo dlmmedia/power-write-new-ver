@@ -65,11 +65,14 @@ export interface GeneratedBook {
   docxUrl?: string;
   audioUrl?: string;
   status: BookStatus;
+  productionStatus?: ProductionStatus;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export type BookStatus = 'draft' | 'generating' | 'outline-ready' | 'chapters-generating' | 'completed' | 'failed';
+
+export type ProductionStatus = 'draft' | 'in-progress' | 'content-complete' | 'audio-pending' | 'published';
 
 export interface BookMetadata {
   wordCount: number;

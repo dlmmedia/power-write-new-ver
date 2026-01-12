@@ -36,8 +36,8 @@ export function MainNav() {
 
   const navLinks: NavLink[] = [
     { href: '/', label: 'Home', icon: <Home className="w-4 h-4" /> },
-    { href: '/studio', label: 'Create', icon: <PenTool className="w-4 h-4" />, requiresAuth: true },
     { href: '/library', label: 'My Library', icon: <Library className="w-4 h-4" />, requiresAuth: true },
+    { href: '/studio', label: 'Create', icon: <PenTool className="w-4 h-4" />, requiresAuth: true },
   ];
 
   const isActive = (href: string) => {

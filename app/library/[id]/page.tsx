@@ -187,6 +187,32 @@ export default function BookDetailPage() {
   const [isEditingSynopsis, setIsEditingSynopsis] = useState(false);
   const [editedSynopsis, setEditedSynopsis] = useState('');
   const [isSavingSynopsis, setIsSavingSynopsis] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const handleStatusChange = async (status: ProductionStatus) => {
+    if (isUpdatingStatus) return;
+    setIsUpdatingStatus(true);
+    try {
+      // Assuming we'll use the generic book update endpoint
+      const response = await fetch(`/api/books/${bookId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productionStatus: status }),
+      });
+      
+      if (response.ok) {
+        setBook(prev => prev ? ({ ...prev, productionStatus: status }) : null);
+        updateBookDetailInCache(bookId, { productionStatus: status });
+      } else {
+        alert('Failed to update status');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Error updating status');
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
 
   // Load book - try cache first for instant display, then fetch fresh
   useEffect(() => {
@@ -732,10 +758,14 @@ export default function BookDetailPage() {
   const hasAudio = book.chapters?.some(ch => ch.audioUrl) || false;
   const chaptersWithAudio = book.chapters?.filter(ch => ch.audioUrl).length || 0;
 
-  // Function to open the immersive reader at a specific chapter
-  const openReaderAtChapter = (chapterIndex: number) => {
-    // Navigate to immersive reader with chapter parameter
-    router.push(`/library/${bookId}/read?chapter=${chapterIndex}`);
+  // Function to open the editor at a specific chapter
+  const openEditorAtChapter = (chapterIndex: number) => {
+    if (!isProUser) {
+      triggerUpgradeModal('edit-book');
+      return;
+    }
+    setInitialChapterIndex(chapterIndex);
+    setIsEditing(true);
   };
 
   // Function to start immersive reading from the beginning
@@ -842,24 +872,6 @@ export default function BookDetailPage() {
                   <Sparkles className="w-3 h-3" />
                   Upgrade
                 </button>
-              )}
-              {book.chapters && book.chapters.length > 0 && (
-                <>
-                  <Button variant="primary" onClick={startReading} className="flex items-center gap-2">
-                    <Book className="w-4 h-4" />
-                    Read Book
-                  </Button>
-                  {hasAudio && (
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowAudiobookPlayer(true)} 
-                      className="flex items-center gap-2 border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                    >
-                      <Headphones className="w-4 h-4" />
-                      Listen
-                    </Button>
-                  )}
-                </>
               )}
               <div className="relative">
                 {/* Pro users always see enabled export button - API handles ownership check */}
@@ -1304,7 +1316,7 @@ export default function BookDetailPage() {
                         <div className="flex items-start justify-between mb-2">
                           <div 
                             className="flex items-center gap-3 flex-1 cursor-pointer"
-                            onClick={() => openReaderAtChapter(idx)}
+                            onClick={() => openEditorAtChapter(idx)}
                           >
                             <span className="text-yellow-600 dark:text-yellow-400 font-bold text-lg">Ch. {chapter.number}</span>
                             <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
@@ -1337,7 +1349,7 @@ export default function BookDetailPage() {
                         </div>
                         <div 
                           className="cursor-pointer"
-                          onClick={() => openReaderAtChapter(idx)}
+                          onClick={() => openEditorAtChapter(idx)}
                         >
                           <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                             {chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read
@@ -1435,13 +1447,13 @@ export default function BookDetailPage() {
                             </div>
                             <div 
                               className="bg-yellow-400 dark:bg-yellow-500 text-black font-bold rounded-full w-10 h-10 flex items-center justify-center text-sm cursor-pointer"
-                              onClick={() => openReaderAtChapter(idx)}
+                              onClick={() => openEditorAtChapter(idx)}
                             >
                               {chapter.number}
                             </div>
                             <div 
                               className="flex-1 cursor-pointer"
-                              onClick={() => openReaderAtChapter(idx)}
+                              onClick={() => openEditorAtChapter(idx)}
                             >
                               <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors">
                                 {chapter.title}
@@ -1459,7 +1471,7 @@ export default function BookDetailPage() {
                           {chapter.content && (
                             <div 
                               className="mt-3 pl-13 cursor-pointer"
-                              onClick={() => openReaderAtChapter(idx)}
+                              onClick={() => openEditorAtChapter(idx)}
                             >
                               <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed italic">
                                 "{chapter.content.substring(0, 250).trim()}..."
@@ -1469,7 +1481,7 @@ export default function BookDetailPage() {
                         </div>
                         <div 
                           className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                          onClick={() => openReaderAtChapter(idx)}
+                          onClick={() => openEditorAtChapter(idx)}
                         >
                           <div className="text-yellow-600 dark:text-yellow-400 text-2xl">→</div>
                         </div>
@@ -2046,7 +2058,7 @@ export default function BookDetailPage() {
             )
           )}
 
-          {activeTab === 'settings' && (
+          {activeTab === 'manage' && (
             <div className="space-y-6">
               {/* Public Showcase Section */}
               <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700 p-6">
@@ -2119,6 +2131,37 @@ export default function BookDetailPage() {
                 <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Information</h3>
                 
                 <div className="space-y-4">
+                  {/* Production Status Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Production Status
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={book.productionStatus || 'draft'}
+                        onChange={(e) => handleStatusChange(e.target.value as ProductionStatus)}
+                        disabled={isUpdatingStatus}
+                        className="w-full appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg py-2 pl-4 pr-10 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:opacity-50"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="in-progress">In Progress</option>
+                        <option value="content-complete">Content Complete</option>
+                        <option value="audio-pending">Audio Pending</option>
+                        <option value="published">Published</option>
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
+                        {isUpdatingStatus ? (
+                          <span className="animate-spin">⏳</span>
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Update the status to track your progress in the library.
+                    </p>
+                  </div>
+
                   {/* Title Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

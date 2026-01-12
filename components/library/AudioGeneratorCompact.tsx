@@ -118,7 +118,7 @@ export function AudioGeneratorCompact({
   
   // Voice settings
   const [selectedProvider, setSelectedProvider] = useState<TTSProvider>('openai');
-  const [selectedVoice, setSelectedVoice] = useState<VoiceType>('nova');
+  const [selectedVoice, setSelectedVoice] = useState<VoiceType | null>(null);
   const [selectedSpeed, setSelectedSpeed] = useState<number>(1.0);
   const [selectedQuality, setSelectedQuality] = useState<'tts-1' | 'tts-1-hd'>('tts-1');
 
@@ -445,7 +445,7 @@ export function AudioGeneratorCompact({
     return Math.ceil(words / 150);
   };
 
-  const canGenerate = generationMode === 'full' || (generationMode === 'chapters' && selectedChapters.length > 0);
+  const canGenerate = selectedVoice !== null && (generationMode === 'full' || (generationMode === 'chapters' && selectedChapters.length > 0));
   const chaptersWithAudio = chaptersData.filter(ch => ch.audioUrl).length;
   const totalChapters = chaptersData.length;
   const audioCompletionPercent = totalChapters > 0 ? (chaptersWithAudio / totalChapters) * 100 : 0;
@@ -514,10 +514,10 @@ export function AudioGeneratorCompact({
       {/* Voice & Settings Section */}
       <CollapsibleSection
         title="Voice & Settings"
-        subtitle={selectedVoiceInfo ? `${selectedVoiceInfo.name} • ${selectedSpeed}x • ${selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}` : 'Configure narrator'}
+        subtitle={selectedVoiceInfo ? `${selectedVoiceInfo.name} • ${selectedSpeed}x • ${selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}` : <span className="text-red-500 font-medium animate-pulse">Select a voice to continue</span>}
         icon={<div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center"><Mic className="w-4 h-4 text-white" /></div>}
-        badge={selectedVoiceInfo && <Badge variant="success" size="sm">{selectedVoiceInfo.name}</Badge>}
-        defaultOpen={false}
+        badge={selectedVoiceInfo ? <Badge variant="success" size="sm">{selectedVoiceInfo.name}</Badge> : <Badge variant="destructive" size="sm">Action Required</Badge>}
+        defaultOpen={!selectedVoice}
         variant="card"
       >
         {/* Provider Toggle */}
@@ -529,7 +529,7 @@ export function AudioGeneratorCompact({
                 key={provider}
                 onClick={() => {
                   setSelectedProvider(provider);
-                  setSelectedVoice(provider === 'gemini' ? 'Kore' : 'nova');
+                  setSelectedVoice(null);
                 }}
                 className={`px-3 py-1.5 text-sm font-medium transition-colors ${
                   selectedProvider === provider
