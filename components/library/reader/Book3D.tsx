@@ -160,14 +160,21 @@ export const Book3D: React.FC<Book3DProps> = ({
   // Estimate word offset from character index (average ~6 chars per word including space)
   const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
 
+  // Get page base offset for left page
+  const getLeftPageBaseOffset = useCallback(() => {
+    return leftPageContent.length > 0 ? estimateWordOffset(leftPageContent[0].startCharIndex) : 0;
+  }, [leftPageContent, estimateWordOffset]);
+
+  // Get page base offset for right page
+  const getRightPageBaseOffset = useCallback(() => {
+    return rightPageContent.length > 0 ? estimateWordOffset(rightPageContent[0].startCharIndex) : 0;
+  }, [rightPageContent, estimateWordOffset]);
+
   // Render paragraph content with enhanced audio highlighting
-  const renderContent = (chunks: TextChunk[]) => {
-    // Get the base word offset from the first chunk's character position
-    const getPageBaseOffset = () => chunks.length > 0 ? estimateWordOffset(chunks[0].startCharIndex) : 0;
-    
+  const renderLeftContent = () => {
     return (
       <AudioTextHighlighter
-        chunks={chunks}
+        chunks={leftPageContent}
         currentWordIndex={currentWordIndex}
         isAudioPlaying={isAudioPlaying || false}
         theme={theme}
@@ -175,7 +182,23 @@ export const Book3D: React.FC<Book3DProps> = ({
         lineHeight={fontConfig.lineHeight}
         textColor={themeConfig.textColor}
         fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
-        getPageBaseOffset={getPageBaseOffset}
+        getPageBaseOffset={getLeftPageBaseOffset}
+      />
+    );
+  };
+
+  const renderRightContent = () => {
+    return (
+      <AudioTextHighlighter
+        chunks={rightPageContent}
+        currentWordIndex={currentWordIndex}
+        isAudioPlaying={isAudioPlaying || false}
+        theme={theme}
+        fontSize={fontConfig.className}
+        lineHeight={fontConfig.lineHeight}
+        textColor={themeConfig.textColor}
+        fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
+        getPageBaseOffset={getRightPageBaseOffset}
       />
     );
   };
@@ -347,7 +370,7 @@ export const Book3D: React.FC<Book3DProps> = ({
                 {/* Page content */}
                 <div className="h-full overflow-hidden">
                   {leftPageContent.length > 0 ? (
-                    renderContent(leftPageContent)
+                    renderLeftContent()
                   ) : (
                     <div
                       className="h-full flex items-center justify-center"
@@ -452,7 +475,7 @@ export const Book3D: React.FC<Book3DProps> = ({
                 {/* Page content */}
                 <div className="h-full overflow-hidden">
                   {rightPageContent.length > 0 ? (
-                    renderContent(rightPageContent)
+                    renderRightContent()
                   ) : (
                     <div
                       className="h-full flex items-center justify-center"

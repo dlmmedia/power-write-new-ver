@@ -60,9 +60,9 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
     );
   }, [chunkWordData, currentWordIndex, isAudioPlaying]);
 
-  // Scroll active word into view smoothly (only when needed)
+  // Scroll active word into view smoothly (only when playing, not when paused)
   useEffect(() => {
-    if (activeWordRef.current && isAudioPlaying) {
+    if (activeWordRef.current && isAudioPlaying && currentWordIndex >= 0) {
       // Use a gentle scroll that doesn't disrupt reading
       const element = activeWordRef.current;
       const rect = element.getBoundingClientRect();
@@ -100,6 +100,7 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
       let background = 'transparent';
       let color = 'inherit';
       
+      // Highlight when audio is playing and we have a valid word index
       if (isAudioPlaying && currentWordIndex >= 0) {
         const distance = Math.abs(wordIndex - currentWordIndex);
         const isCurrentWord = wordIndex === currentWordIndex;
@@ -123,7 +124,7 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
       return (
         <span
           key={i}
-          ref={wordIndex === currentWordIndex && isAudioPlaying ? activeWordRef : undefined}
+          ref={wordIndex === currentWordIndex ? activeWordRef : undefined}
           className="audio-word"
           style={{
             background,
@@ -154,11 +155,10 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
               letterSpacing: '0.01em',
               position: 'relative',
               // Active paragraph gets subtle left border - using box-shadow to avoid layout shift
-              // All styling uses box-shadow and background only - NO padding/margin changes
               boxShadow: isActiveChunk && isAudioPlaying 
                 ? `inset 4px 0 0 ${themeConfig.accentColor}60`
                 : 'none',
-              backgroundColor: isActiveChunk && isAudioPlaying 
+              backgroundColor: isActiveChunk && isAudioPlaying
                 ? `${themeConfig.accentColor}05` 
                 : 'transparent',
               transition: 'background-color 0.3s ease, box-shadow 0.3s ease',

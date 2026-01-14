@@ -388,12 +388,31 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const hasTimestamps = !!audioTimestamps && audioTimestamps.length > 0;
 
   // Compute current word index from audio time
+  // This finds which word in the timestamps array corresponds to the current audio position
   const currentWordIndex = useMemo(() => {
-    if (!isAudioPlaying || !audioTimestamps || audioTimestamps.length === 0) return -1;
-    return audioTimestamps.findIndex(
+    if (!audioTimestamps || audioTimestamps.length === 0) return -1;
+    
+    // Find the word that contains the current time
+    const index = audioTimestamps.findIndex(
       t => currentAudioTime >= t.start && currentAudioTime <= t.end
     );
-  }, [isAudioPlaying, audioTimestamps, currentAudioTime]);
+    
+    // If found, return it
+    if (index !== -1) return index;
+    
+    // If not found but we have audio time > 0, find the closest word
+    // This handles gaps between words and seeking
+    if (currentAudioTime > 0) {
+      // Find all timestamps that start before current time
+      for (let i = audioTimestamps.length - 1; i >= 0; i--) {
+        if (audioTimestamps[i].start <= currentAudioTime) {
+          return i;
+        }
+      }
+    }
+    
+    return -1;
+  }, [audioTimestamps, currentAudioTime]);
 
   // Clear local timestamps when chapter changes
   useEffect(() => {
@@ -506,43 +525,6 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
     }
   }, [playbackRate]);
 
-  // Auto page turn based on audio timestamps
-  useEffect(() => {
-    if (!isAudioPlaying || !isSyncEnabled || !audioTimestamps || audioTimestamps.length === 0) return;
-
-    // Find which word is currently being spoken
-    const activeTimestamp = audioTimestamps.find(
-      t => currentAudioTime >= t.start && currentAudioTime <= t.end
-    );
-
-    if (!activeTimestamp) return;
-
-    // Find character position of active word
-    // We estimate this based on index in timestamps array
-    const activeIndex = audioTimestamps.findIndex(
-      t => currentAudioTime >= t.start && currentAudioTime <= t.end
-    );
-
-    // Calculate approximate character position (rough estimate)
-    // Each word is ~6 chars on average plus space
-    const estimatedCharPos = activeIndex * 7;
-
-    // Check if this position is beyond the current page's content
-    const currentPageChunks = [...leftPage, ...rightPage];
-    if (currentPageChunks.length === 0) return;
-
-    const lastChunk = currentPageChunks[currentPageChunks.length - 1];
-    const pageEndChar = lastChunk?.endCharIndex || 0;
-
-    // If estimated position is beyond page end and we can go next, turn page
-    if (estimatedCharPos > pageEndChar && (currentPage + 2 < totalPagesInChapter || currentChapter < chapters.length - 1)) {
-      // Don't turn page while flipping animation is in progress
-      if (!isFlipping) {
-        goToNextPage();
-      }
-    }
-  }, [currentAudioTime, isAudioPlaying, isSyncEnabled, audioTimestamps, leftPage, rightPage, currentPage, totalPagesInChapter, currentChapter, chapters.length, isFlipping]);
-
   // Play/Pause toggle
   const handlePlayPause = useCallback(() => {
     if (!audioRef.current) return;
@@ -556,11 +538,12 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
     }
   }, [isAudioPlaying]);
 
-  // Seek audio
+  // Seek audio - triggers page navigation via the audio sync effect
   const handleSeek = useCallback((time: number) => {
     if (!audioRef.current) return;
     audioRef.current.currentTime = time;
     setCurrentAudioTime(time);
+    // The useEffect for auto page turn will handle navigating to the correct page
   }, []);
 
   // Navigation functions
@@ -647,6 +630,111 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
     },
     [chapters.length]
   );
+
+  // Helper function to estimate character position from word index
+  const estimateCharPosFromWordIndex = useCallback((wordIndex: number) => {
+    // Average word length is ~6 chars + 1 space = 7 chars
+    return wordIndex * 7;
+  }, []);
+
+  // Helper function to find which page contains a given character position
+  const findPageForCharPos = useCallback((charPos: number) => {
+    const pages = chapterPages[currentChapter]?.pages || [];
+    for (let i = 0; i < pages.length; i++) {
+      const chunks = pages[i];
+      if (chunks.length === 0) continue;
+      
+      const firstChunk = chunks[0];
+      const lastChunk = chunks[chunks.length - 1];
+      
+      // Check if charPos falls within this page's range
+      if (charPos >= firstChunk.startCharIndex && charPos <= lastChunk.endCharIndex) {
+        // Return the page index adjusted for spread view (always even)
+        return i % 2 === 0 ? i : i - 1;
+      }
+    }
+    // If not found, return -1
+    return -1;
+  }, [chapterPages, currentChapter]);
+
+  // Track last navigation to prevent rapid page flipping
+  const lastNavTimeRef = useRef<number>(0);
+  const pendingNavRef = useRef<number | null>(null);
+
+  // Direct page jump function (for seeking multiple pages at once)
+  const jumpToPage = useCallback((targetPage: number) => {
+    if (isFlipping) return;
+    if (targetPage === currentPage) return;
+    if (targetPage < 0 || targetPage >= totalPagesInChapter) return;
+    
+    const now = Date.now();
+    // Debounce to prevent rapid navigation
+    if (now - lastNavTimeRef.current < 100) {
+      // Queue this navigation
+      pendingNavRef.current = targetPage;
+      return;
+    }
+    
+    lastNavTimeRef.current = now;
+    pendingNavRef.current = null;
+    
+    // Determine direction and animate
+    const direction = targetPage > currentPage ? 'forward' : 'backward';
+    setFlipDirection(direction);
+    setIsFlipping(true);
+    playPageTurn();
+    
+    setTimeout(() => {
+      setCurrentPage(targetPage);
+      setIsFlipping(false);
+    }, 300); // Slightly faster for seeking
+  }, [currentPage, totalPagesInChapter, isFlipping, playPageTurn]);
+
+  // Handle pending navigation after flip completes
+  useEffect(() => {
+    if (!isFlipping && pendingNavRef.current !== null) {
+      const pending = pendingNavRef.current;
+      pendingNavRef.current = null;
+      jumpToPage(pending);
+    }
+  }, [isFlipping, jumpToPage]);
+
+  // Auto page turn and seek-to-correct-page based on audio timestamps
+  // This works for both continuous playback and seeking
+  useEffect(() => {
+    if (!isSyncEnabled || !audioTimestamps || audioTimestamps.length === 0) return;
+    if (currentWordIndex < 0) return;
+    
+    // Calculate estimated character position for current word
+    const estimatedCharPos = estimateCharPosFromWordIndex(currentWordIndex);
+    
+    // Check current page boundaries
+    const currentPageChunks = [...leftPage, ...rightPage];
+    if (currentPageChunks.length === 0) return;
+    
+    const firstChunk = currentPageChunks[0];
+    const lastChunk = currentPageChunks[currentPageChunks.length - 1];
+    const pageStartChar = firstChunk?.startCharIndex || 0;
+    const pageEndChar = lastChunk?.endCharIndex || 0;
+    
+    // Check if current word is on this page (with some buffer for edge cases)
+    const isWordOnCurrentPage = estimatedCharPos >= pageStartChar - 50 && estimatedCharPos <= pageEndChar + 50;
+    
+    if (!isWordOnCurrentPage && !isFlipping) {
+      // Word is not on current page - we need to navigate
+      const targetPage = findPageForCharPos(estimatedCharPos);
+      
+      if (targetPage !== -1 && targetPage !== currentPage) {
+        // Jump directly to the target page (more efficient for seeking)
+        jumpToPage(targetPage);
+      } else if (targetPage === -1) {
+        // Word position is beyond all pages - advance one page
+        if (estimatedCharPos > pageEndChar && (currentPage + 2 < totalPagesInChapter || currentChapter < chapters.length - 1)) {
+          goToNextPage();
+        }
+      }
+    }
+  }, [currentWordIndex, isSyncEnabled, audioTimestamps, leftPage, rightPage, currentPage, totalPagesInChapter, currentChapter, chapters.length, isFlipping, estimateCharPosFromWordIndex, findPageForCharPos, jumpToPage, goToNextPage]);
 
   // Keyboard navigation
   useEffect(() => {

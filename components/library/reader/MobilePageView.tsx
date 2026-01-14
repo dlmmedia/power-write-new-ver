@@ -61,14 +61,16 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
   // Estimate word offset from character index (average ~6 chars per word including space)
   const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
 
+  // Get page base offset - memoized to prevent unnecessary re-renders
+  const getPageBaseOffset = useCallback(() => {
+    return content.length > 0 ? estimateWordOffset(content[0].startCharIndex) : 0;
+  }, [content, estimateWordOffset]);
+
   // Render paragraph content with enhanced audio highlighting
-  const renderContent = (chunks: TextChunk[]) => {
-    // Get the base word offset from the first chunk's character position
-    const getPageBaseOffset = () => chunks.length > 0 ? estimateWordOffset(chunks[0].startCharIndex) : 0;
-    
+  const renderContent = () => {
     return (
       <AudioTextHighlighter
-        chunks={chunks}
+        chunks={content}
         currentWordIndex={currentWordIndex}
         isAudioPlaying={isAudioPlaying || false}
         theme={theme}
@@ -134,7 +136,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
             style={{ top: pageNumber <= 1 ? '80px' : 0 }}
           >
             {content.length > 0 ? (
-              renderContent(content)
+              renderContent()
             ) : (
               <div 
                 className="h-full flex items-center justify-center"
