@@ -10,6 +10,7 @@ export interface BookListItem {
   author: string;
   genre: string;
   status: string;
+  productionStatus?: string;
   coverUrl?: string;
   createdAt: string;
   outline?: any;

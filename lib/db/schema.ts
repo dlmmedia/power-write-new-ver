@@ -82,6 +82,7 @@ export const bookChapters = pgTable("book_chapters", {
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"), // Duration in seconds
   audioMetadata: jsonb("audio_metadata"), // { voice, speed, model, generatedAt, fileSize }
+  audioTimestamps: jsonb("audio_timestamps"), // Array of { word: string, start: number, end: number }
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

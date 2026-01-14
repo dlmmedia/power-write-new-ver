@@ -10,6 +10,7 @@ import { ThemeSelector } from './ThemeSelector';
 import { AmbientSoundManager, usePageTurnSound, useAmbientAudio } from './AmbientSoundManager';
 import { TableOfContents } from './TableOfContents';
 import { paginateBook, getSpreadPages } from './PageContent';
+import { AudioTextHighlighter } from './AudioTextHighlighter';
 import {
   ImmersiveReaderProps,
   ReadingTheme,
@@ -18,6 +19,8 @@ import {
   READING_THEMES,
   AMBIENT_SOUNDS,
   ReadingState,
+  AudioTimestamp,
+  TextChunk,
 } from './types';
 
 // Reader mode type
@@ -233,13 +236,17 @@ const FloatingSoundPanel: React.FC<{
 
 // Traditional Reader View Component
 const TraditionalReaderView: React.FC<{
-  content: string[];
+  content: TextChunk[];
   pageNumber: number;
   totalPages: number;
   chapterTitle: string;
   theme: ReadingTheme;
   fontSize: FontSize;
-}> = ({ content, pageNumber, totalPages, chapterTitle, theme, fontSize }) => {
+  audioTimestamps?: AudioTimestamp[] | null;
+  currentAudioTime?: number;
+  isAudioPlaying?: boolean;
+  currentWordIndex?: number;
+}> = ({ content, pageNumber, totalPages, chapterTitle, theme, fontSize, audioTimestamps, currentAudioTime, isAudioPlaying, currentWordIndex = -1 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = {
     sm: { size: 'text-base', leading: 'leading-relaxed' },
@@ -248,6 +255,14 @@ const TraditionalReaderView: React.FC<{
     xl: { size: 'text-2xl', leading: 'leading-loose' },
   };
   const config = fontConfig[fontSize];
+
+  // Estimate word offset from character index (average ~6 chars per word including space)
+  const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
+
+  // Get the base word offset from the first chunk's character position
+  const getPageBaseOffset = useCallback(() => {
+    return content.length > 0 ? estimateWordOffset(content[0].startCharIndex) : 0;
+  }, [content, estimateWordOffset]);
 
   return (
     <motion.div
@@ -270,21 +285,19 @@ const TraditionalReaderView: React.FC<{
         </div>
       )}
 
-      {/* Content */}
-      <div className="space-y-6">
-        {content.map((paragraph, index) => (
-          <p
-            key={index}
-            className={`${config.size} ${config.leading} text-justify`}
-            style={{
-              color: themeConfig.textColor,
-              fontFamily: '"EB Garamond", "Crimson Pro", Georgia, serif',
-              textIndent: index > 0 ? '2.5em' : '0',
-            }}
-          >
-            {paragraph}
-          </p>
-        ))}
+      {/* Content with enhanced audio highlighting */}
+      <div className="space-y-0">
+        <AudioTextHighlighter
+          chunks={content}
+          currentWordIndex={currentWordIndex}
+          isAudioPlaying={isAudioPlaying || false}
+          theme={theme}
+          fontSize={config.size}
+          lineHeight={config.leading}
+          textColor={themeConfig.textColor}
+          fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
+          getPageBaseOffset={getPageBaseOffset}
+        />
       </div>
 
       {/* Page indicator */}
@@ -329,6 +342,16 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const [showTOC, setShowTOC] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
+  // Audio playback state
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [currentAudioTime, setCurrentAudioTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [isSyncEnabled, setIsSyncEnabled] = useState(true);
+  const [isGeneratingTimestamps, setIsGeneratingTimestamps] = useState(false);
+  const [localTimestamps, setLocalTimestamps] = useState<AudioTimestamp[] | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
   // Use ambient audio hook
   useAmbientAudio(ambientSound, ambientVolume, ambientEnabled);
 
@@ -357,6 +380,59 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   // Current chapter data
   const currentChapterData = chapters[currentChapter];
   const themeConfig = READING_THEMES[theme];
+
+  // Get audio timestamps for current chapter (use local if just generated)
+  const audioTimestamps = localTimestamps || currentChapterData?.audioTimestamps || null;
+  const audioUrl = currentChapterData?.audioUrl || null;
+  const hasAudio = !!audioUrl;
+  const hasTimestamps = !!audioTimestamps && audioTimestamps.length > 0;
+
+  // Compute current word index from audio time
+  const currentWordIndex = useMemo(() => {
+    if (!isAudioPlaying || !audioTimestamps || audioTimestamps.length === 0) return -1;
+    return audioTimestamps.findIndex(
+      t => currentAudioTime >= t.start && currentAudioTime <= t.end
+    );
+  }, [isAudioPlaying, audioTimestamps, currentAudioTime]);
+
+  // Clear local timestamps when chapter changes
+  useEffect(() => {
+    setLocalTimestamps(null);
+  }, [currentChapter]);
+
+  // Function to generate timestamps for current chapter
+  const generateTimestamps = useCallback(async () => {
+    if (!currentChapterData?.id || !audioUrl || isGeneratingTimestamps) return;
+    
+    setIsGeneratingTimestamps(true);
+    console.log(`[ImmersiveReader] Generating timestamps for chapter ${currentChapterData.id}...`);
+    
+    try {
+      const response = await fetch('/api/generate/audio/alignment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapterId: currentChapterData.id }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to generate timestamps');
+      }
+      
+      const data = await response.json();
+      console.log(`[ImmersiveReader] Generated ${data.count} timestamps`);
+      
+      // Use timestamps returned directly from the API
+      if (data.audioTimestamps) {
+        setLocalTimestamps(data.audioTimestamps);
+      }
+    } catch (error) {
+      console.error('[ImmersiveReader] Failed to generate timestamps:', error);
+      alert('Failed to generate audio sync. Please try again.');
+    } finally {
+      setIsGeneratingTimestamps(false);
+    }
+  }, [currentChapterData?.id, audioUrl, isGeneratingTimestamps]);
 
   // Load saved state on mount - instant load without artificial delay
   const hasLoadedRef = useRef(false);
@@ -392,6 +468,101 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
     });
   }, [bookId, currentChapter, currentPage, theme, fontSize, ambientSound, ambientVolume, soundEffectsEnabled, readerMode]);
 
+  // Audio element setup
+  useEffect(() => {
+    if (!audioUrl) {
+      setIsAudioPlaying(false);
+      return;
+    }
+
+    const audio = new Audio(audioUrl);
+    audioRef.current = audio;
+    audio.playbackRate = playbackRate;
+
+    audio.addEventListener('loadedmetadata', () => {
+      setAudioDuration(audio.duration);
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      setCurrentAudioTime(audio.currentTime);
+    });
+
+    audio.addEventListener('ended', () => {
+      setIsAudioPlaying(false);
+      setCurrentAudioTime(0);
+    });
+
+    return () => {
+      audio.pause();
+      audio.src = '';
+      audioRef.current = null;
+    };
+  }, [audioUrl]);
+
+  // Update playback rate when it changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
+  // Auto page turn based on audio timestamps
+  useEffect(() => {
+    if (!isAudioPlaying || !isSyncEnabled || !audioTimestamps || audioTimestamps.length === 0) return;
+
+    // Find which word is currently being spoken
+    const activeTimestamp = audioTimestamps.find(
+      t => currentAudioTime >= t.start && currentAudioTime <= t.end
+    );
+
+    if (!activeTimestamp) return;
+
+    // Find character position of active word
+    // We estimate this based on index in timestamps array
+    const activeIndex = audioTimestamps.findIndex(
+      t => currentAudioTime >= t.start && currentAudioTime <= t.end
+    );
+
+    // Calculate approximate character position (rough estimate)
+    // Each word is ~6 chars on average plus space
+    const estimatedCharPos = activeIndex * 7;
+
+    // Check if this position is beyond the current page's content
+    const currentPageChunks = [...leftPage, ...rightPage];
+    if (currentPageChunks.length === 0) return;
+
+    const lastChunk = currentPageChunks[currentPageChunks.length - 1];
+    const pageEndChar = lastChunk?.endCharIndex || 0;
+
+    // If estimated position is beyond page end and we can go next, turn page
+    if (estimatedCharPos > pageEndChar && (currentPage + 2 < totalPagesInChapter || currentChapter < chapters.length - 1)) {
+      // Don't turn page while flipping animation is in progress
+      if (!isFlipping) {
+        goToNextPage();
+      }
+    }
+  }, [currentAudioTime, isAudioPlaying, isSyncEnabled, audioTimestamps, leftPage, rightPage, currentPage, totalPagesInChapter, currentChapter, chapters.length, isFlipping]);
+
+  // Play/Pause toggle
+  const handlePlayPause = useCallback(() => {
+    if (!audioRef.current) return;
+
+    if (isAudioPlaying) {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsAudioPlaying(true);
+    }
+  }, [isAudioPlaying]);
+
+  // Seek audio
+  const handleSeek = useCallback((time: number) => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = time;
+    setCurrentAudioTime(time);
+  }, []);
+
   // Navigation functions
   const goToNextPage = useCallback(() => {
     if (isFlipping) return;
@@ -416,6 +587,12 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         setCurrentChapter(currentChapter + 1);
         setCurrentPage(0);
         setIsFlipping(false);
+        // Stop audio when changing chapters
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsAudioPlaying(false);
+          setCurrentAudioTime(0);
+        }
       }, 450);
     }
   }, [currentPage, totalPagesInChapter, currentChapter, chapters.length, isFlipping, playPageTurn]);
@@ -445,6 +622,12 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         setCurrentChapter(currentChapter - 1);
         setCurrentPage(lastPage);
         setIsFlipping(false);
+        // Stop audio when changing chapters
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsAudioPlaying(false);
+          setCurrentAudioTime(0);
+        }
       }, 450);
     }
   }, [currentPage, currentChapter, isFlipping, chapterPages, playPageTurn]);
@@ -452,6 +635,12 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const goToChapter = useCallback(
     (index: number) => {
       if (index >= 0 && index < chapters.length) {
+        // Stop current audio
+        if (audioRef.current) {
+          audioRef.current.pause();
+          setIsAudioPlaying(false);
+          setCurrentAudioTime(0);
+        }
         setCurrentChapter(index);
         setCurrentPage(0);
       }
@@ -466,7 +655,6 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
 
       switch (e.key) {
         case 'ArrowRight':
-        case ' ':
         case 'PageDown':
           e.preventDefault();
           goToNextPage();
@@ -475,6 +663,14 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         case 'PageUp':
           e.preventDefault();
           goToPrevPage();
+          break;
+        case ' ':
+          e.preventDefault();
+          if (hasAudio) {
+            handlePlayPause();
+          } else {
+            goToNextPage();
+          }
           break;
         case 'Escape':
           if (isFullscreen) {
@@ -499,12 +695,16 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         case 'M':
           setReaderMode((prev) => (prev === '3d' ? 'traditional' : '3d'));
           break;
+        case 'p':
+        case 'P':
+          if (hasAudio) handlePlayPause();
+          break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToNextPage, goToPrevPage, showThemeSelector, showSoundPanel, showTOC, isFullscreen, onClose]);
+  }, [goToNextPage, goToPrevPage, showThemeSelector, showSoundPanel, showTOC, isFullscreen, onClose, hasAudio, handlePlayPause]);
 
   // Fullscreen handling
   const toggleFullscreen = useCallback(() => {
@@ -691,6 +891,10 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                 canGoPrev={canGoPrev}
                 isFlipping={isFlipping}
                 flipDirection={flipDirection}
+                audioTimestamps={audioTimestamps}
+                currentAudioTime={currentAudioTime}
+                isAudioPlaying={isAudioPlaying}
+                currentWordIndex={currentWordIndex}
               />
             ) : readerMode === '3d' ? (
               <Book3D
@@ -709,6 +913,10 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                   if (direction === 'next') goToNextPage();
                   else goToPrevPage();
                 }}
+                audioTimestamps={audioTimestamps || undefined}
+                currentAudioTime={currentAudioTime}
+                isAudioPlaying={isAudioPlaying}
+                currentWordIndex={currentWordIndex}
               />
             ) : (
               <TraditionalReaderView
@@ -718,6 +926,10 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                 chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
                 theme={theme}
                 fontSize={fontSize}
+                audioTimestamps={audioTimestamps}
+                currentAudioTime={currentAudioTime}
+                isAudioPlaying={isAudioPlaying}
+                currentWordIndex={currentWordIndex}
               />
             )}
           </motion.div>
@@ -758,6 +970,21 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         canGoNext={canGoNext}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
+        // Audio controls
+        audioUrl={audioUrl}
+        isPlaying={isAudioPlaying}
+        onPlayPause={handlePlayPause}
+        playbackRate={playbackRate}
+        onPlaybackRateChange={setPlaybackRate}
+        audioProgress={audioDuration > 0 ? currentAudioTime / audioDuration : 0}
+        onSeek={(progress) => handleSeek(progress * audioDuration)}
+        isSyncEnabled={isSyncEnabled}
+        onToggleSync={() => setIsSyncEnabled(prev => !prev)}
+        hasAudio={hasAudio}
+        // Timestamp sync controls
+        hasTimestamps={hasTimestamps}
+        isGeneratingTimestamps={isGeneratingTimestamps}
+        onGenerateTimestamps={generateTimestamps}
       />
 
       {/* Theme Selector Modal */}
@@ -826,6 +1053,11 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
               <kbd className="px-1.5 py-0.5 rounded bg-current/10">←</kbd>{' '}
               <kbd className="px-1.5 py-0.5 rounded bg-current/10">→</kbd> Navigate
             </span>
+            {hasAudio && (
+              <span>
+                <kbd className="px-1.5 py-0.5 rounded bg-current/10">P</kbd> Play/Pause
+              </span>
+            )}
             <span>
               <kbd className="px-1.5 py-0.5 rounded bg-current/10">S</kbd> Sounds
             </span>

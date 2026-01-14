@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { motion, AnimatePresence, PanInfo } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ReadingTheme, FontSize, READING_THEMES, FONT_SIZE_CONFIG } from './types';
+import { ReadingTheme, FontSize, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
+import { AudioTextHighlighter } from './AudioTextHighlighter';
 
 interface MobilePageViewProps {
-  content: string[];
+  content: TextChunk[];
   pageNumber: number;
   totalPages: number;
   chapterTitle: string;
@@ -19,6 +20,10 @@ interface MobilePageViewProps {
   canGoPrev: boolean;
   isFlipping: boolean;
   flipDirection: 'forward' | 'backward';
+  audioTimestamps?: AudioTimestamp[] | null;
+  currentAudioTime?: number;
+  isAudioPlaying?: boolean;
+  currentWordIndex?: number;
 }
 
 export const MobilePageView: React.FC<MobilePageViewProps> = ({
@@ -35,6 +40,10 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
   canGoPrev,
   isFlipping,
   flipDirection,
+  audioTimestamps,
+  currentAudioTime,
+  isAudioPlaying,
+  currentWordIndex = -1,
 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = FONT_SIZE_CONFIG[fontSize];
@@ -49,21 +58,27 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
     }
   };
 
-  // Render paragraph content
-  const renderContent = (paragraphs: string[]) => {
-    return paragraphs.map((paragraph, index) => (
-      <p
-        key={index}
-        className={`mb-4 ${fontConfig.className} ${fontConfig.lineHeight} book-text reader-selection`}
-        style={{
-          color: themeConfig.textColor,
-          fontFamily: '"EB Garamond", "Crimson Pro", Georgia, serif',
-          textIndent: index > 0 ? '1.5em' : '0',
-        }}
-      >
-        {paragraph}
-      </p>
-    ));
+  // Estimate word offset from character index (average ~6 chars per word including space)
+  const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
+
+  // Render paragraph content with enhanced audio highlighting
+  const renderContent = (chunks: TextChunk[]) => {
+    // Get the base word offset from the first chunk's character position
+    const getPageBaseOffset = () => chunks.length > 0 ? estimateWordOffset(chunks[0].startCharIndex) : 0;
+    
+    return (
+      <AudioTextHighlighter
+        chunks={chunks}
+        currentWordIndex={currentWordIndex}
+        isAudioPlaying={isAudioPlaying || false}
+        theme={theme}
+        fontSize={fontConfig.className}
+        lineHeight={fontConfig.lineHeight}
+        textColor={themeConfig.textColor}
+        fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
+        getPageBaseOffset={getPageBaseOffset}
+      />
+    );
   };
 
   return (

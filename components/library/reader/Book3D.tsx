@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { Book3DProps, READING_THEMES, FONT_SIZE_CONFIG } from './types';
+import { Book3DProps, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
+import { AudioTextHighlighter } from './AudioTextHighlighter';
 
 // Enhanced page flip component for realistic book-like animation
 const PageFlip: React.FC<{
@@ -118,6 +119,10 @@ export const Book3D: React.FC<Book3DProps> = ({
   flipDirection,
   onFlipComplete,
   onPageClick,
+  audioTimestamps,
+  currentAudioTime,
+  isAudioPlaying,
+  currentWordIndex = -1,
 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = FONT_SIZE_CONFIG[fontSize];
@@ -152,23 +157,27 @@ export const Book3D: React.FC<Book3DProps> = ({
   const rotateY = isHovering ? (mousePosition.x - 0.5) * -4 : 0;
   const rotateX = isHovering ? (mousePosition.y - 0.5) * 3 : 0;
 
-  // Render paragraph content with proper formatting
-  const renderContent = (paragraphs: string[]) => {
-    return paragraphs.map((paragraph, index) => (
-      <p
-        key={index}
-        className={`mb-5 text-justify ${fontConfig.className} ${fontConfig.lineHeight}`}
-        style={{
-          color: themeConfig.textColor,
-          fontFamily: '"EB Garamond", "Crimson Pro", Georgia, serif',
-          textIndent: index > 0 ? '2.5em' : '0',
-          hyphens: 'auto',
-          letterSpacing: '0.01em',
-        }}
-      >
-        {paragraph}
-      </p>
-    ));
+  // Estimate word offset from character index (average ~6 chars per word including space)
+  const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
+
+  // Render paragraph content with enhanced audio highlighting
+  const renderContent = (chunks: TextChunk[]) => {
+    // Get the base word offset from the first chunk's character position
+    const getPageBaseOffset = () => chunks.length > 0 ? estimateWordOffset(chunks[0].startCharIndex) : 0;
+    
+    return (
+      <AudioTextHighlighter
+        chunks={chunks}
+        currentWordIndex={currentWordIndex}
+        isAudioPlaying={isAudioPlaying || false}
+        theme={theme}
+        fontSize={fontConfig.className}
+        lineHeight={fontConfig.lineHeight}
+        textColor={themeConfig.textColor}
+        fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
+        getPageBaseOffset={getPageBaseOffset}
+      />
+    );
   };
 
   // Book dimensions - significantly larger

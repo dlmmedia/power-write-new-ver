@@ -15,6 +15,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { motion } from 'framer-motion';
 import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import type { BibliographyConfig, Reference } from '@/lib/types/bibliography';
+import type { ProductionStatus } from '@/lib/types/generation';
 
 // Loading skeleton components for dynamic imports
 const LoadingSkeleton = () => (
@@ -121,6 +122,7 @@ interface BookDetail {
   genre: string;
   subgenre: string;
   status: string;
+  productionStatus?: string;
   createdAt: string;
   coverUrl?: string; // Add cover URL to interface
   backCoverUrl?: string; // Add back cover URL to interface
@@ -190,7 +192,7 @@ export default function BookDetailPage() {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const handleStatusChange = async (status: ProductionStatus) => {
-    if (isUpdatingStatus) return;
+    if (isUpdatingStatus || !bookId) return;
     setIsUpdatingStatus(true);
     try {
       // Assuming we'll use the generic book update endpoint

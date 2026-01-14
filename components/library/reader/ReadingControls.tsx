@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   List, 
   Palette, 
@@ -13,7 +13,11 @@ import {
   Maximize2,
   Minimize2,
   BookOpen,
-  Settings2
+  Settings2,
+  Play,
+  Pause,
+  Headphones,
+  RefreshCw
 } from 'lucide-react';
 import { 
   ReadingControlsProps, 
@@ -32,6 +36,9 @@ interface ExtendedReadingControlsProps extends ReadingControlsProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
 }
+
+// Playback rate options
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   currentPage,
@@ -57,15 +64,34 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   canGoNext,
   isFullscreen,
   onToggleFullscreen,
+  // Audio props
+  audioUrl,
+  isPlaying,
+  onPlayPause,
+  playbackRate,
+  onPlaybackRateChange,
+  audioProgress,
+  onSeek,
+  isSyncEnabled,
+  onToggleSync,
+  hasAudio,
+  // Timestamp sync props
+  hasTimestamps,
+  isGeneratingTimestamps,
+  onGenerateTimestamps,
 }) => {
   const themeConfig = READING_THEMES[theme];
   const [showSettingsHint, setShowSettingsHint] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
   // Calculate overall progress
   const progressPercent = totalPages > 0 ? (currentPage / totalPages) * 100 : 0;
   
   // Get current ambient sound info
   const currentSoundInfo = AMBIENT_SOUNDS.find(s => s.id === ambientSound);
+
+  // Format playback rate for display
+  const formatRate = (rate: number) => rate === 1 ? '1x' : `${rate}x`;
 
   return (
     <motion.div
@@ -143,11 +169,148 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
             </button>
           </div>
 
-          {/* Center section - Current position */}
+          {/* Center section - Current position + Audio controls */}
           <div 
-            className="flex flex-col items-center"
+            className="flex flex-col items-center gap-2"
             style={{ color: themeConfig.textColor }}
           >
+            {/* Audio controls - Only show if chapter has audio */}
+            {hasAudio && (
+              <div className="flex items-center gap-3">
+                {/* Play/Pause button */}
+                <motion.button
+                  onClick={onPlayPause}
+                  className="flex items-center justify-center w-10 h-10 rounded-full transition-all"
+                  style={{
+                    background: isPlaying ? themeConfig.accentColor : `${themeConfig.accentColor}20`,
+                    color: isPlaying ? '#fff' : themeConfig.accentColor,
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  title={isPlaying ? 'Pause (P)' : 'Play (P)'}
+                >
+                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                </motion.button>
+
+                {/* Audio progress bar */}
+                <div className="hidden sm:flex items-center gap-2 w-32">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={audioProgress}
+                    onChange={(e) => onSeek(parseFloat(e.target.value))}
+                    className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, ${themeConfig.accentColor} 0%, ${themeConfig.accentColor} ${audioProgress * 100}%, ${themeConfig.textColor}20 ${audioProgress * 100}%, ${themeConfig.textColor}20 100%)`,
+                    }}
+                    title="Seek"
+                  />
+                </div>
+
+                {/* Playback speed */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: `${themeConfig.textColor}10`,
+                      color: themeConfig.textColor,
+                    }}
+                    title="Playback speed"
+                  >
+                    {formatRate(playbackRate)}
+                  </button>
+
+                  <AnimatePresence>
+                    {showSpeedMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 rounded-xl shadow-lg"
+                        style={{
+                          background: themeConfig.pageBackground,
+                          border: `1px solid ${themeConfig.accentColor}20`,
+                        }}
+                      >
+                        <div className="flex flex-col gap-1">
+                          {PLAYBACK_RATES.map((rate) => (
+                            <button
+                              key={rate}
+                              onClick={() => {
+                                onPlaybackRateChange(rate);
+                                setShowSpeedMenu(false);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                playbackRate === rate ? 'ring-1' : ''
+                              }`}
+                              style={{
+                                background: playbackRate === rate 
+                                  ? `${themeConfig.accentColor}20` 
+                                  : 'transparent',
+                                color: themeConfig.textColor,
+                                '--tw-ring-color': themeConfig.accentColor,
+                              } as React.CSSProperties}
+                            >
+                              {formatRate(rate)}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Sync toggle / Generate timestamps button */}
+                {isGeneratingTimestamps ? (
+                  <div
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{
+                      background: `${themeConfig.accentColor}20`,
+                      color: themeConfig.accentColor,
+                    }}
+                  >
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Syncing...</span>
+                  </div>
+                ) : hasTimestamps ? (
+                  <button
+                    onClick={onToggleSync}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: isSyncEnabled 
+                        ? `${themeConfig.accentColor}20` 
+                        : `${themeConfig.textColor}10`,
+                      color: isSyncEnabled 
+                        ? themeConfig.accentColor 
+                        : themeConfig.textColor,
+                    }}
+                    title={isSyncEnabled ? 'Text sync enabled - click to disable' : 'Text sync disabled - click to enable'}
+                  >
+                    <RefreshCw className={`w-3 h-3 ${isSyncEnabled ? 'animate-pulse' : ''}`} />
+                    <span className="hidden sm:inline">Sync</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={onGenerateTimestamps}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105"
+                    style={{
+                      background: `${themeConfig.accentColor}30`,
+                      color: themeConfig.accentColor,
+                      border: `1px dashed ${themeConfig.accentColor}50`,
+                    }}
+                    title="Generate timestamps to sync text with audio"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span className="hidden sm:inline">Sync Text</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Page info */}
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 opacity-60" />
               <span className="text-sm font-medium">
@@ -157,12 +320,18 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
               </span>
             </div>
             <div 
-              className="text-xs mt-1"
+              className="text-xs"
               style={{ color: `${themeConfig.textColor}70` }}
             >
               Page {currentPage} of {totalPages}
               <span className="mx-2">•</span>
               {Math.round(progressPercent)}% complete
+              {hasAudio && (
+                <>
+                  <span className="mx-2">•</span>
+                  <Headphones className="w-3 h-3 inline-block" /> Audio available
+                </>
+              )}
             </div>
           </div>
 

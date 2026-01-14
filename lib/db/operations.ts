@@ -400,10 +400,11 @@ export async function duplicateBook(
 
   const originalChapters = await getBookChapters(bookId);
   if (originalChapters.length > 0) {
-    const newChapters: InsertBookChapter[] = originalChapters.map(({ id, bookId: _, createdAt, updatedAt, audioMetadata, ...chapterData }) => ({
+    const newChapters: InsertBookChapter[] = originalChapters.map(({ id, bookId: _, createdAt, updatedAt, audioMetadata, audioTimestamps, ...chapterData }) => ({
       ...chapterData,
       bookId: newBook.id,
       audioMetadata: audioMetadata as InsertBookChapter['audioMetadata'],
+      audioTimestamps: audioTimestamps as InsertBookChapter['audioTimestamps'],
     }));
     await createMultipleChapters(newChapters);
   }

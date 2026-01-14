@@ -514,9 +514,9 @@ export function AudioGeneratorCompact({
       {/* Voice & Settings Section */}
       <CollapsibleSection
         title="Voice & Settings"
-        subtitle={selectedVoiceInfo ? `${selectedVoiceInfo.name} • ${selectedSpeed}x • ${selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}` : <span className="text-red-500 font-medium animate-pulse">Select a voice to continue</span>}
+        subtitle={selectedVoiceInfo ? `${selectedVoiceInfo.name} • ${selectedSpeed}x • ${selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}` : 'Select a voice to continue'}
         icon={<div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center"><Mic className="w-4 h-4 text-white" /></div>}
-        badge={selectedVoiceInfo ? <Badge variant="success" size="sm">{selectedVoiceInfo.name}</Badge> : <Badge variant="destructive" size="sm">Action Required</Badge>}
+        badge={selectedVoiceInfo ? <Badge variant="success" size="sm">{selectedVoiceInfo.name}</Badge> : <Badge variant="error" size="sm">Action Required</Badge>}
         defaultOpen={!selectedVoice}
         variant="card"
       >
