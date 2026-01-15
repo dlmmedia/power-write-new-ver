@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadingTheme, FontSize, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
 import { AudioTextHighlighter } from './AudioTextHighlighter';
@@ -50,6 +50,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = FONT_SIZE_CONFIG[fontSize];
+  const prefersReducedMotion = useReducedMotion();
 
   // Handle swipe gestures
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
@@ -132,7 +133,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
         )}
 
         {/* Content area */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             key={pageNumber}
             initial={{ 
@@ -144,7 +145,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
               opacity: 0, 
               x: flipDirection === 'forward' ? -50 : 50 
             }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: 'easeOut' }}
             className="absolute inset-0 p-6 overflow-y-auto reader-scrollbar"
             style={{ top: pageNumber <= 1 ? '80px' : 0 }}
           >

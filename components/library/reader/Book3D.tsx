@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Book3DProps, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
@@ -14,8 +14,9 @@ const PageFlip: React.FC<{
   pageBackground: string;
   shadowColor: string;
   onComplete?: () => void;
-  children?: React.ReactNode;
-}> = ({ isFlipping, direction, pageBackground, shadowColor, onComplete, children }) => {
+  frontContent?: React.ReactNode;
+  backContent?: React.ReactNode;
+}> = ({ isFlipping, direction, pageBackground, shadowColor, onComplete, frontContent, backContent }) => {
   const flipProgress = useSpring(0, {
     stiffness: 100,
     damping: 20,
@@ -42,6 +43,7 @@ const PageFlip: React.FC<{
           style={{
             transformStyle: 'preserve-3d',
             transformOrigin: direction === 'forward' ? 'left center' : 'right center',
+            scale: pageScale,
           }}
           initial={{ rotateY: 0 }}
           animate={{ rotateY: direction === 'forward' ? 180 : -180 }}
@@ -73,7 +75,8 @@ const PageFlip: React.FC<{
                   : 'linear-gradient(270deg, transparent 60%, rgba(0,0,0,0.2) 90%, rgba(0,0,0,0.3) 100%)',
               }}
             />
-            {children}
+            {/* Flip front content */}
+            {frontContent}
           </div>
 
           {/* Back of page (slightly different color to simulate paper thickness) */}
@@ -99,6 +102,8 @@ const PageFlip: React.FC<{
                 )`,
               }}
             />
+            {/* Flip back content */}
+            {backContent}
           </div>
         </motion.div>
       )}
@@ -119,6 +124,8 @@ export const Book3D: React.FC<Book3DProps> = ({
   flipDirection,
   onFlipComplete,
   onPageClick,
+  flipFrontContent,
+  flipBackContent,
   chapterWordStarts,
   audioTimestamps,
   currentAudioTime,
@@ -127,36 +134,6 @@ export const Book3D: React.FC<Book3DProps> = ({
 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = FONT_SIZE_CONFIG[fontSize];
-  const bookRef = useRef<HTMLDivElement>(null);
-  const [isHovering, setIsHovering] = useState(false);
-  const [hoverSide, setHoverSide] = useState<'left' | 'right' | null>(null);
-  const [mousePosition, setMousePosition] = useState({ x: 0.5, y: 0.5 });
-
-  // Enhanced mouse tracking for 3D effect
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!bookRef.current) return;
-    const rect = bookRef.current.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width;
-    const y = (e.clientY - rect.top) / rect.height;
-    const centerX = rect.width / 2;
-
-    setMousePosition({ x, y });
-    setHoverSide(e.clientX - rect.left < centerX ? 'left' : 'right');
-  }, []);
-
-  const handleMouseLeave = () => {
-    setIsHovering(false);
-    setHoverSide(null);
-    setMousePosition({ x: 0.5, y: 0.5 });
-  };
-
-  const handleMouseEnter = () => {
-    setIsHovering(true);
-  };
-
-  // Calculate 3D rotation based on mouse position
-  const rotateY = isHovering ? (mousePosition.x - 0.5) * -4 : 0;
-  const rotateX = isHovering ? (mousePosition.y - 0.5) * 3 : 0;
 
   const wordIndexAtCharPos = useCallback((charPos: number) => {
     const starts = chapterWordStarts;
@@ -196,6 +173,7 @@ export const Book3D: React.FC<Book3DProps> = ({
         textColor={themeConfig.textColor}
         fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
         getPageBaseOffset={getLeftPageBaseOffset}
+        enableAutoScroll={false}
       />
     );
   };
@@ -212,9 +190,48 @@ export const Book3D: React.FC<Book3DProps> = ({
         textColor={themeConfig.textColor}
         fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
         getPageBaseOffset={getRightPageBaseOffset}
+        enableAutoScroll={false}
       />
     );
   };
+
+  // Render lightweight static content for the turning sheet (avoid audio highlight + avoid extra work)
+  const renderFlipStaticContent = useCallback((chunks: TextChunk[], side: 'left' | 'right') => {
+    const paddingClass = side === 'left' ? 'p-10 pr-12' : 'p-10 pl-12';
+    return (
+      <div className={`absolute inset-0 overflow-hidden ${paddingClass}`}>
+        <div className="h-full overflow-hidden">
+          {chunks.length > 0 ? (
+            chunks.map((chunk, index) => (
+              <p
+                key={index}
+                className={`mb-5 text-justify ${fontConfig.className} ${fontConfig.lineHeight}`}
+                style={{
+                  color: themeConfig.textColor,
+                  fontFamily: '"EB Garamond", "Crimson Pro", Georgia, serif',
+                  textIndent: chunk.isParagraphStart ? '2.5em' : '0',
+                  hyphens: 'auto',
+                  WebkitHyphens: 'auto',
+                  wordBreak: 'break-word',
+                  letterSpacing: '0.01em',
+                  opacity: 0.98,
+                }}
+              >
+                {chunk.text}
+              </p>
+            ))
+          ) : (
+            <div
+              className="h-full flex items-center justify-center"
+              style={{ color: `${themeConfig.textColor}40` }}
+            >
+              <span className="text-4xl">📖</span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }, [fontConfig.className, fontConfig.lineHeight, themeConfig.textColor]);
 
   // Book dimensions - significantly larger
   const bookWidth = 500; // Increased from 380
@@ -237,27 +254,17 @@ export const Book3D: React.FC<Book3DProps> = ({
 
       {/* Main book container */}
       <motion.div
-        ref={bookRef}
         className="relative"
-        onMouseMove={handleMouseMove}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
         initial={{ scale: 0.85, opacity: 0, y: 60 }}
-        animate={{
-          scale: 1,
-          opacity: 1,
-          y: 0,
-          rotateY,
-          rotateX,
-        }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
         transition={{
           duration: 0.7,
           ease: [0.25, 0.46, 0.45, 0.94],
-          rotateY: { duration: 0.15, ease: 'easeOut' },
-          rotateX: { duration: 0.15, ease: 'easeOut' },
         }}
         style={{
           transformStyle: 'preserve-3d',
+          rotateY: 0,
+          rotateX: 0,
         }}
       >
         {/* Book structure */}
@@ -315,9 +322,8 @@ export const Book3D: React.FC<Book3DProps> = ({
 
           {/* Left page */}
           <motion.div
-            className="relative cursor-pointer group"
+            className="relative cursor-pointer"
             onClick={() => leftPageNumber > 0 && onPageClick('prev')}
-            whileHover={{ scale: leftPageNumber > 0 ? 1.003 : 1 }}
             style={{
               width: bookWidth,
               height: bookHeight,
@@ -402,24 +408,6 @@ export const Book3D: React.FC<Book3DProps> = ({
                   {leftPageNumber > 0 && leftPageNumber}
                 </div>
               </div>
-
-              {/* Hover indicator for navigation */}
-              {leftPageNumber > 0 && (
-                <div className="absolute inset-0 flex items-center justify-start pl-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                  <motion.div
-                    className="p-4 rounded-full backdrop-blur-sm"
-                    style={{
-                      background: `${themeConfig.accentColor}15`,
-                      color: themeConfig.accentColor,
-                      boxShadow: `0 4px 20px ${themeConfig.shadowColor}`,
-                    }}
-                    animate={{ x: [0, -8, 0] }}
-                    transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-                  >
-                    <ChevronLeft className="w-7 h-7" />
-                  </motion.div>
-                </div>
-              )}
             </div>
 
             {/* Page flip animation for backward */}
@@ -430,14 +418,23 @@ export const Book3D: React.FC<Book3DProps> = ({
               pageBackground={themeConfig.pageBackground}
               shadowColor={themeConfig.shadowColor}
               onComplete={onFlipComplete}
+              frontContent={
+                flipDirection === 'backward' && flipFrontContent
+                  ? renderFlipStaticContent(flipFrontContent, 'left')
+                  : undefined
+              }
+              backContent={
+                flipDirection === 'backward' && flipBackContent
+                  ? renderFlipStaticContent(flipBackContent, 'right')
+                  : undefined
+              }
             />
           </motion.div>
 
           {/* Right page */}
           <motion.div
-            className="relative cursor-pointer group"
+            className="relative cursor-pointer"
             onClick={() => rightPageNumber < totalPages && onPageClick('next')}
-            whileHover={{ scale: rightPageNumber < totalPages ? 1.003 : 1 }}
             style={{
               width: bookWidth,
               height: bookHeight,
@@ -507,24 +504,6 @@ export const Book3D: React.FC<Book3DProps> = ({
                   {rightPageNumber <= totalPages && rightPageNumber}
                 </div>
               </div>
-
-              {/* Hover indicator for navigation */}
-              {rightPageNumber < totalPages && (
-                <div className="absolute inset-0 flex items-center justify-end pr-6 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                  <motion.div
-                    className="p-4 rounded-full backdrop-blur-sm"
-                    style={{
-                      background: `${themeConfig.accentColor}15`,
-                      color: themeConfig.accentColor,
-                      boxShadow: `0 4px 20px ${themeConfig.shadowColor}`,
-                    }}
-                    animate={{ x: [0, 8, 0] }}
-                    transition={{ repeat: Infinity, duration: 1.8, ease: 'easeInOut' }}
-                  >
-                    <ChevronRight className="w-7 h-7" />
-                  </motion.div>
-                </div>
-              )}
             </div>
 
             {/* Page flip animation for forward */}
@@ -535,6 +514,16 @@ export const Book3D: React.FC<Book3DProps> = ({
               pageBackground={themeConfig.pageBackground}
               shadowColor={themeConfig.shadowColor}
               onComplete={onFlipComplete}
+              frontContent={
+                flipDirection === 'forward' && flipFrontContent
+                  ? renderFlipStaticContent(flipFrontContent, 'right')
+                  : undefined
+              }
+              backContent={
+                flipDirection === 'forward' && flipBackContent
+                  ? renderFlipStaticContent(flipBackContent, 'left')
+                  : undefined
+              }
             />
           </motion.div>
 

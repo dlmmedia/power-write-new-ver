@@ -18,6 +18,7 @@ import {
   AmbientSoundType,
   READING_THEMES,
   AMBIENT_SOUNDS,
+  FONT_SIZE_CONFIG,
   ReadingState,
   AudioTimestamp,
   TextChunk,
@@ -304,15 +305,9 @@ const TraditionalReaderView: React.FC<{
   isAudioPlaying?: boolean;
   currentWordIndex?: number;
   chapterWordStarts?: number[];
-}> = ({ content, pageNumber, totalPages, chapterTitle, theme, fontSize, audioTimestamps, currentAudioTime, isAudioPlaying, currentWordIndex = -1 }) => {
+}> = ({ content, pageNumber, totalPages, chapterTitle, theme, fontSize, audioTimestamps, currentAudioTime, isAudioPlaying, currentWordIndex = -1, chapterWordStarts }) => {
   const themeConfig = READING_THEMES[theme];
-  const fontConfig = {
-    sm: { size: 'text-base', leading: 'leading-relaxed' },
-    base: { size: 'text-lg', leading: 'leading-relaxed' },
-    lg: { size: 'text-xl', leading: 'leading-loose' },
-    xl: { size: 'text-2xl', leading: 'leading-loose' },
-  };
-  const config = fontConfig[fontSize];
+  const config = FONT_SIZE_CONFIG[fontSize];
 
   // Get the base word offset from the first chunk's character position
   const getPageBaseOffset = useCallback(() => {
@@ -326,11 +321,7 @@ const TraditionalReaderView: React.FC<{
   }, [content, chapterWordStarts]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="w-full max-w-3xl mx-auto px-8"
-    >
+    <div className="w-full max-w-3xl mx-auto px-8">
       {/* Chapter header */}
       {pageNumber <= 2 && (
         <div
@@ -353,11 +344,12 @@ const TraditionalReaderView: React.FC<{
           currentWordIndex={currentWordIndex}
           isAudioPlaying={isAudioPlaying || false}
           theme={theme}
-          fontSize={config.size}
-          lineHeight={config.leading}
+          fontSize={config.className}
+          lineHeight={config.lineHeight}
           textColor={themeConfig.textColor}
           fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
           getPageBaseOffset={getPageBaseOffset}
+          enableAutoScroll={false}
         />
       </div>
 
@@ -368,7 +360,7 @@ const TraditionalReaderView: React.FC<{
       >
         Page {pageNumber} of {totalPages}
       </div>
-    </motion.div>
+    </div>
   );
 };
 
@@ -402,6 +394,10 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const [showSoundPanel, setShowSoundPanel] = useState(false);
   const [showTOC, setShowTOC] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  // Flip animation state (3D mode only)
+  const flipTargetRef = useRef<{ chapter: number; page: number; stopAudio: boolean } | null>(null);
+  const [flipFrontContent, setFlipFrontContent] = useState<TextChunk[] | null>(null);
+  const [flipBackContent, setFlipBackContent] = useState<TextChunk[] | null>(null);
 
   // Audio playback state
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
@@ -421,6 +417,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
 
   // Mobile detection
   const isMobile = useIsMobile();
+  const is3DActive = !isMobile && readerMode === '3d';
 
   // Paginate book content - using useMemo for instant calculation (no loading delay)
   const { chapterPages, totalBookPages, chapterStartPages } = useMemo(() => {
@@ -639,6 +636,29 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
     // The useEffect for auto page turn will handle navigating to the correct page
   }, []);
 
+  // Commit a pending 3D flip (called by Book3D when the flip animation completes)
+  const commit3DFlip = useCallback(() => {
+    const target = flipTargetRef.current;
+    flipTargetRef.current = null;
+    setFlipFrontContent(null);
+    setFlipBackContent(null);
+
+    if (!target) {
+      setIsFlipping(false);
+      return;
+    }
+
+    setCurrentChapter(target.chapter);
+    setCurrentPage(target.page);
+    setIsFlipping(false);
+
+    if (target.stopAudio && audioRef.current) {
+      audioRef.current.pause();
+      setIsAudioPlaying(false);
+      setCurrentAudioTime(0);
+    }
+  }, []);
+
   // Navigation functions
   const goToNextPage = useCallback(() => {
     if (isFlipping) return;
@@ -649,29 +669,47 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
       setFlipDirection('forward');
       setIsFlipping(true);
       playPageTurn();
-
-      setTimeout(() => {
+      if (is3DActive) {
+        const nextSpread = getSpreadPages(chapterPages, currentChapter, newPage);
+        setFlipFrontContent(rightPage);
+        setFlipBackContent(nextSpread.leftPage);
+        flipTargetRef.current = { chapter: currentChapter, page: newPage, stopAudio: false };
+        // Safety fallback: ensure we never get stuck flipping if an animation event is missed.
+        window.setTimeout(() => {
+          if (flipTargetRef.current) commit3DFlip();
+        }, 900);
+      } else {
+        // Non-3D: update immediately and let the view animate via keyed transitions.
         setCurrentPage(newPage);
-        setIsFlipping(false);
-      }, 450); // Faster flip
+        window.setTimeout(() => setIsFlipping(false), 260);
+      }
     } else if (currentChapter < chapters.length - 1) {
       setFlipDirection('forward');
       setIsFlipping(true);
       playPageTurn();
-
-      setTimeout(() => {
+      if (is3DActive) {
+        const nextChapter = currentChapter + 1;
+        const nextSpread = getSpreadPages(chapterPages, nextChapter, 0);
+        setFlipFrontContent(rightPage);
+        setFlipBackContent(nextSpread.leftPage);
+        flipTargetRef.current = { chapter: nextChapter, page: 0, stopAudio: true };
+        window.setTimeout(() => {
+          if (flipTargetRef.current) commit3DFlip();
+        }, 900);
+      } else {
+        // Non-3D: update immediately and let the view animate via keyed transitions.
         setCurrentChapter(currentChapter + 1);
         setCurrentPage(0);
-        setIsFlipping(false);
+        window.setTimeout(() => setIsFlipping(false), 260);
         // Stop audio when changing chapters
         if (audioRef.current) {
           audioRef.current.pause();
           setIsAudioPlaying(false);
           setCurrentAudioTime(0);
         }
-      }, 450);
+      }
     }
-  }, [currentPage, totalPagesInChapter, currentChapter, chapters.length, isFlipping, playPageTurn]);
+  }, [isFlipping, currentPage, totalPagesInChapter, is3DActive, playPageTurn, chapterPages, currentChapter, chapters.length, rightPage, commit3DFlip]);
 
   const goToPrevPage = useCallback(() => {
     if (isFlipping) return;
@@ -682,31 +720,49 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
       setFlipDirection('backward');
       setIsFlipping(true);
       playPageTurn();
-
-      setTimeout(() => {
+      if (is3DActive) {
+        const prevSpread = getSpreadPages(chapterPages, currentChapter, newPage);
+        setFlipFrontContent(leftPage);
+        setFlipBackContent(prevSpread.rightPage);
+        flipTargetRef.current = { chapter: currentChapter, page: newPage, stopAudio: false };
+        window.setTimeout(() => {
+          if (flipTargetRef.current) commit3DFlip();
+        }, 900);
+      } else {
+        // Non-3D: update immediately and let the view animate via keyed transitions.
         setCurrentPage(newPage);
-        setIsFlipping(false);
-      }, 450);
+        window.setTimeout(() => setIsFlipping(false), 260);
+      }
     } else if (currentChapter > 0) {
       setFlipDirection('backward');
       setIsFlipping(true);
       playPageTurn();
+      const prevChapterPages = chapterPages[currentChapter - 1]?.totalPages || 0;
+      const lastPage = prevChapterPages > 1 ? (prevChapterPages - 1) - ((prevChapterPages - 1) % 2) : 0;
 
-      setTimeout(() => {
-        const prevChapterPages = chapterPages[currentChapter - 1]?.totalPages || 0;
-        const lastPage = prevChapterPages > 1 ? (prevChapterPages - 1) - ((prevChapterPages - 1) % 2) : 0;
+      if (is3DActive) {
+        const prevChapter = currentChapter - 1;
+        const prevSpread = getSpreadPages(chapterPages, prevChapter, lastPage);
+        setFlipFrontContent(leftPage);
+        setFlipBackContent(prevSpread.rightPage);
+        flipTargetRef.current = { chapter: prevChapter, page: lastPage, stopAudio: true };
+        window.setTimeout(() => {
+          if (flipTargetRef.current) commit3DFlip();
+        }, 900);
+      } else {
+        // Non-3D: update immediately and let the view animate via keyed transitions.
         setCurrentChapter(currentChapter - 1);
         setCurrentPage(lastPage);
-        setIsFlipping(false);
+        window.setTimeout(() => setIsFlipping(false), 260);
         // Stop audio when changing chapters
         if (audioRef.current) {
           audioRef.current.pause();
           setIsAudioPlaying(false);
           setCurrentAudioTime(0);
         }
-      }, 450);
+      }
     }
-  }, [currentPage, currentChapter, isFlipping, chapterPages, playPageTurn]);
+  }, [isFlipping, currentPage, is3DActive, playPageTurn, chapterPages, currentChapter, leftPage, commit3DFlip]);
 
   const goToChapter = useCallback(
     (index: number) => {
@@ -1057,74 +1113,100 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
 
       {/* Main book area */}
       <div className="absolute inset-0 flex items-center justify-center pt-20 pb-24 overflow-y-auto">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${currentChapter}-${currentPage}-${readerMode}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.2 }}
-          >
-            {isMobile ? (
-              <MobilePageView
-                content={rightPage.length > 0 ? rightPage : leftPage}
-                pageNumber={currentPage + 1}
-                totalPages={totalPagesInChapter}
-                chapterTitle={currentChapterData?.title || ''}
-                chapterNumber={currentChapterData?.number || 1}
-                theme={theme}
-                fontSize={fontSize}
-                onNextPage={goToNextPage}
-                onPrevPage={goToPrevPage}
-                canGoNext={canGoNext}
-                canGoPrev={canGoPrev}
-                isFlipping={isFlipping}
-                flipDirection={flipDirection}
-                chapterWordStarts={chapterWordStarts}
-                audioTimestamps={audioTimestamps}
-                currentAudioTime={currentAudioTime}
-                isAudioPlaying={effectiveIsHighlighting}
-                currentWordIndex={effectiveWordIndex}
-              />
-            ) : readerMode === '3d' ? (
-              <Book3D
-                leftPageContent={leftPage}
-                rightPageContent={rightPage}
-                leftPageNumber={leftPageNumber}
-                rightPageNumber={rightPageNumber}
-                totalPages={totalPagesInChapter}
-                chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
-                theme={theme}
-                fontSize={fontSize}
-                isFlipping={isFlipping}
-                flipDirection={flipDirection}
-                onFlipComplete={() => setIsFlipping(false)}
-                onPageClick={(direction) => {
-                  if (direction === 'next') goToNextPage();
-                  else goToPrevPage();
-                }}
-                chapterWordStarts={chapterWordStarts}
-                audioTimestamps={audioTimestamps || undefined}
-                currentAudioTime={currentAudioTime}
-                isAudioPlaying={effectiveIsHighlighting}
-                currentWordIndex={effectiveWordIndex}
-              />
-            ) : (
-              <TraditionalReaderView
-                content={[...leftPage, ...rightPage]}
-                pageNumber={leftPageNumber}
-                totalPages={totalPagesInChapter}
-                chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
-                theme={theme}
-                fontSize={fontSize}
-                audioTimestamps={audioTimestamps}
-                currentAudioTime={currentAudioTime}
-                isAudioPlaying={effectiveIsHighlighting}
-                currentWordIndex={effectiveWordIndex}
-                chapterWordStarts={chapterWordStarts}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
+        {isMobile ? (
+          <MobilePageView
+            content={rightPage.length > 0 ? rightPage : leftPage}
+            pageNumber={currentPage + 1}
+            totalPages={totalPagesInChapter}
+            chapterTitle={currentChapterData?.title || ''}
+            chapterNumber={currentChapterData?.number || 1}
+            theme={theme}
+            fontSize={fontSize}
+            onNextPage={goToNextPage}
+            onPrevPage={goToPrevPage}
+            canGoNext={canGoNext}
+            canGoPrev={canGoPrev}
+            isFlipping={isFlipping}
+            flipDirection={flipDirection}
+            chapterWordStarts={chapterWordStarts}
+            audioTimestamps={audioTimestamps}
+            currentAudioTime={currentAudioTime}
+            isAudioPlaying={effectiveIsHighlighting}
+            currentWordIndex={effectiveWordIndex}
+          />
+        ) : (
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              // Only transition between modes, not between pages. Page transitions are handled by the
+              // mode-specific components (3D page flip overlay / classic slide).
+              key={readerMode}
+              initial={{ opacity: 0, y: 8, scale: 0.995 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.995 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+            >
+              {readerMode === '3d' ? (
+                <Book3D
+                  leftPageContent={leftPage}
+                  rightPageContent={rightPage}
+                  leftPageNumber={leftPageNumber}
+                  rightPageNumber={rightPageNumber}
+                  totalPages={totalPagesInChapter}
+                  chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
+                  theme={theme}
+                  fontSize={fontSize}
+                  isFlipping={isFlipping}
+                  flipDirection={flipDirection}
+                  onFlipComplete={commit3DFlip}
+                  onPageClick={(direction) => {
+                    if (direction === 'next') goToNextPage();
+                    else goToPrevPage();
+                  }}
+                  flipFrontContent={flipFrontContent || undefined}
+                  flipBackContent={flipBackContent || undefined}
+                  chapterWordStarts={chapterWordStarts}
+                  audioTimestamps={audioTimestamps || undefined}
+                  currentAudioTime={currentAudioTime}
+                  isAudioPlaying={effectiveIsHighlighting}
+                  currentWordIndex={effectiveWordIndex}
+                />
+              ) : (
+                <div className="relative w-full min-h-[70vh]">
+                  <AnimatePresence initial={false} mode="popLayout">
+                    <motion.div
+                      key={`${currentChapter}-${currentPage}`}
+                      initial={{
+                        opacity: 0,
+                        x: flipDirection === 'forward' ? 36 : -36,
+                      }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{
+                        opacity: 0,
+                        x: flipDirection === 'forward' ? -36 : 36,
+                      }}
+                      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                      className="w-full"
+                    >
+                      <TraditionalReaderView
+                        content={[...leftPage, ...rightPage]}
+                        pageNumber={leftPageNumber}
+                        totalPages={totalPagesInChapter}
+                        chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
+                        theme={theme}
+                        fontSize={fontSize}
+                        audioTimestamps={audioTimestamps}
+                        currentAudioTime={currentAudioTime}
+                        isAudioPlaying={effectiveIsHighlighting}
+                        currentWordIndex={effectiveWordIndex}
+                        chapterWordStarts={chapterWordStarts}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </div>
 
       {/* Minimal floating navigation */}
@@ -1154,6 +1236,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         onAmbientVolumeChange={setAmbientVolume}
         onSoundEffectsToggle={() => setSoundEffectsEnabled((prev) => !prev)}
         onOpenTOC={() => setShowTOC(true)}
+        onOpenSettings={() => setShowThemeSelector(true)}
         onClose={() => onClose?.()}
         onPrevPage={goToPrevPage}
         onNextPage={goToNextPage}

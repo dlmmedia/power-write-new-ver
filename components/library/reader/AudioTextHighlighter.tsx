@@ -14,6 +14,11 @@ interface AudioTextHighlighterProps {
   fontFamily?: string;
   // Callback to get base word offset for this page
   getPageBaseOffset: () => number;
+  /**
+   * If true, the component will gently scroll the active word into view while audio is playing.
+   * Disable this in paginated/3D views to avoid page jitter.
+   */
+  enableAutoScroll?: boolean;
 }
 
 // Helper to count words in a chunk
@@ -29,6 +34,7 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
   textColor,
   fontFamily = '"EB Garamond", "Crimson Pro", Georgia, serif',
   getPageBaseOffset,
+  enableAutoScroll = true,
 }) => {
   const themeConfig = READING_THEMES[theme];
   const activeWordRef = useRef<HTMLSpanElement>(null);
@@ -62,6 +68,7 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
 
   // Scroll active word into view smoothly (only when playing, not when paused)
   useEffect(() => {
+    if (!enableAutoScroll) return;
     if (activeWordRef.current && isAudioPlaying && currentWordIndex >= 0) {
       // Use a gentle scroll that doesn't disrupt reading
       const element = activeWordRef.current;
@@ -76,7 +83,7 @@ export const AudioTextHighlighter: React.FC<AudioTextHighlighterProps> = ({
         });
       }
     }
-  }, [currentWordIndex, isAudioPlaying]);
+  }, [currentWordIndex, isAudioPlaying, enableAutoScroll]);
   
   // Render a single chunk with word highlighting - NO LAYOUT SHIFTS
   // IMPORTANT: Always wrap ALL words in spans to prevent DOM structure changes

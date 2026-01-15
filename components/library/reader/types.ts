@@ -1,7 +1,7 @@
 // Types for the Immersive 3D Book Reader
 
 export type ReadingTheme = 'day' | 'night' | 'sepia' | 'focus';
-export type FontSize = 'sm' | 'base' | 'lg' | 'xl';
+export type FontSize = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | 'xxl';
 export type AmbientSoundType = 'fireplace' | 'rain' | 'library' | null;
 
 export interface ThemeConfig {
@@ -139,6 +139,15 @@ export interface Book3DProps {
   flipDirection: 'forward' | 'backward';
   onFlipComplete?: () => void;
   onPageClick: (direction: 'prev' | 'next') => void;
+  /**
+   * Optional content used ONLY during the flip animation overlay.
+   * - forward flip: front = current right page, back = next left page
+   * - backward flip: front = current left page, back = prev right page
+   *
+   * If omitted, the flip animation still plays but will not render page content on the turning sheet.
+   */
+  flipFrontContent?: TextChunk[];
+  flipBackContent?: TextChunk[];
   // Optional robust word->char mapping for the current chapter.
   // When provided, it enables accurate audio/text sync across page flips.
   chapterWordStarts?: number[];
@@ -176,6 +185,7 @@ export interface ReadingControlsProps {
   onAmbientVolumeChange: (volume: number) => void;
   onSoundEffectsToggle: () => void;
   onOpenTOC: () => void;
+  onOpenSettings?: () => void;
   onClose: () => void;
   
   // Audio playback controls
@@ -232,10 +242,12 @@ export const FONT_SIZE_CONFIG: Record<FontSize, {
   lineHeight: string;
   linesPerPage: number;
 }> = {
+  xs: { className: 'text-sm', lineHeight: 'leading-relaxed', linesPerPage: 30 },
   sm: { className: 'text-base', lineHeight: 'leading-relaxed', linesPerPage: 28 },
   base: { className: 'text-lg', lineHeight: 'leading-relaxed', linesPerPage: 24 },
   lg: { className: 'text-xl', lineHeight: 'leading-loose', linesPerPage: 20 },
   xl: { className: 'text-2xl', lineHeight: 'leading-loose', linesPerPage: 16 },
+  xxl: { className: 'text-3xl', lineHeight: 'leading-snug', linesPerPage: 13 },
 };
 
 // Ambient sound configurations

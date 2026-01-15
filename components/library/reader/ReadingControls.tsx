@@ -40,6 +40,17 @@ interface ExtendedReadingControlsProps extends ReadingControlsProps {
 // Playback rate options
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
+// Font size steps (slider snaps to these)
+const FONT_STEPS: FontSize[] = ['xs', 'sm', 'base', 'lg', 'xl', 'xxl'];
+const FONT_LABEL: Record<FontSize, string> = {
+  xs: 'XS',
+  sm: 'S',
+  base: 'M',
+  lg: 'L',
+  xl: 'XL',
+  xxl: 'XXL',
+};
+
 export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   currentPage,
   totalPages,
@@ -57,6 +68,7 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   onAmbientVolumeChange,
   onSoundEffectsToggle,
   onOpenTOC,
+  onOpenSettings,
   onClose,
   onPrevPage,
   onNextPage,
@@ -92,6 +104,15 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
 
   // Format playback rate for display
   const formatRate = (rate: number) => rate === 1 ? '1x' : `${rate}x`;
+
+  // Font sizing
+  const fontIndex = Math.max(0, FONT_STEPS.indexOf(fontSize));
+  const canDecFont = fontIndex > 0;
+  const canIncFont = fontIndex < FONT_STEPS.length - 1;
+  const setFontIndex = (idx: number) => {
+    const nextIdx = Math.max(0, Math.min(FONT_STEPS.length - 1, idx));
+    onFontSizeChange(FONT_STEPS[nextIdx]);
+  };
 
   return (
     <motion.div
@@ -402,6 +423,107 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
               )}
             </button>
 
+            {/* Font size controls (presets + slider) */}
+            <div
+              className="hidden md:flex items-center gap-2 px-3 py-2.5 rounded-xl"
+              style={{
+                background: `${themeConfig.textColor}10`,
+                color: themeConfig.textColor,
+              }}
+              title={`Font size: ${FONT_LABEL[fontSize]}`}
+            >
+              <motion.button
+                onClick={() => setFontIndex(fontIndex - 1)}
+                disabled={!canDecFont}
+                className="px-2 py-1 rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                whileHover={canDecFont ? { scale: 1.06 } : undefined}
+                whileTap={canDecFont ? { scale: 0.96 } : undefined}
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                }}
+              >
+                A−
+              </motion.button>
+
+              <input
+                type="range"
+                min={0}
+                max={FONT_STEPS.length - 1}
+                step={1}
+                value={fontIndex}
+                onChange={(e) => setFontIndex(parseInt(e.target.value, 10))}
+                className="w-24 h-1.5 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${themeConfig.accentColor} 0%, ${themeConfig.accentColor} ${(fontIndex / (FONT_STEPS.length - 1)) * 100}%, ${themeConfig.textColor}20 ${(fontIndex / (FONT_STEPS.length - 1)) * 100}%, ${themeConfig.textColor}20 100%)`,
+                }}
+                aria-label="Font size"
+              />
+
+              <motion.button
+                onClick={() => setFontIndex(fontIndex + 1)}
+                disabled={!canIncFont}
+                className="px-2 py-1 rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                whileHover={canIncFont ? { scale: 1.06 } : undefined}
+                whileTap={canIncFont ? { scale: 0.96 } : undefined}
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                }}
+              >
+                A+
+              </motion.button>
+
+              <span className="text-[10px] font-semibold opacity-70 tabular-nums">
+                {FONT_LABEL[fontSize]}
+              </span>
+            </div>
+
+            {/* Mobile font controls (compact) */}
+            <div className="flex md:hidden items-center gap-1">
+              <motion.button
+                onClick={() => setFontIndex(fontIndex - 1)}
+                disabled={!canDecFont}
+                className="px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                  color: themeConfig.textColor,
+                }}
+                whileHover={canDecFont ? { scale: 1.06 } : undefined}
+                whileTap={canDecFont ? { scale: 0.96 } : undefined}
+                aria-label="Decrease font size"
+              >
+                A−
+              </motion.button>
+              <motion.button
+                onClick={() => setFontIndex(fontIndex + 1)}
+                disabled={!canIncFont}
+                className="px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                  color: themeConfig.textColor,
+                }}
+                whileHover={canIncFont ? { scale: 1.06 } : undefined}
+                whileTap={canIncFont ? { scale: 0.96 } : undefined}
+                aria-label="Increase font size"
+              >
+                A+
+              </motion.button>
+            </div>
+
+            {/* Reading settings (opens ThemeSelector) */}
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-2.5 rounded-xl transition-all hover:scale-105"
+                style={{
+                  background: `${themeConfig.accentColor}15`,
+                  color: themeConfig.accentColor,
+                }}
+                title="Reading settings (T)"
+              >
+                <Settings2 className="w-5 h-5" />
+              </button>
+            )}
+
             {/* Theme indicator */}
             <button
               onClick={() => onThemeChange(
@@ -472,7 +594,7 @@ export const MinimalControls: React.FC<{
       <motion.button
         onClick={onPrev}
         disabled={!canPrev}
-        className="fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-0 hover:opacity-100 transition-opacity disabled:hidden z-30"
+        className="fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-20 hover:opacity-100 transition-opacity duration-200 disabled:hidden z-30"
         style={{
           background: `${themeConfig.pageBackground}e0`,
           color: themeConfig.accentColor,
@@ -488,7 +610,7 @@ export const MinimalControls: React.FC<{
       <motion.button
         onClick={onNext}
         disabled={!canNext}
-        className="fixed right-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-0 hover:opacity-100 transition-opacity disabled:hidden z-30"
+        className="fixed right-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-20 hover:opacity-100 transition-opacity duration-200 disabled:hidden z-30"
         style={{
           background: `${themeConfig.pageBackground}e0`,
           color: themeConfig.accentColor,

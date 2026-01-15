@@ -20,10 +20,12 @@ export const ThemeSelector: React.FC<ExtendedThemeSelectorProps> = ({
 }) => {
   const themes = Object.entries(READING_THEMES) as [ReadingTheme, typeof READING_THEMES[ReadingTheme]][];
   const fontSizes: { size: FontSize; label: string }[] = [
+    { size: 'xs', label: 'XS' },
     { size: 'sm', label: 'Small' },
     { size: 'base', label: 'Medium' },
     { size: 'lg', label: 'Large' },
     { size: 'xl', label: 'Extra Large' },
+    { size: 'xxl', label: 'XXL' },
   ];
 
   return (

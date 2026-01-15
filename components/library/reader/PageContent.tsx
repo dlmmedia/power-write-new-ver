@@ -18,17 +18,21 @@ export function paginateContent(
 
   // Improved character width estimates for better pagination
   const avgCharWidth: Record<FontSize, number> = {
+    xs: 7,
     sm: 7.5,
     base: 8.5,
     lg: 10,
     xl: 11.5,
+    xxl: 13,
   };
 
   const lineHeight: Record<FontSize, number> = {
+    xs: 22,
     sm: 24,
     base: 28,
     lg: 34,
     xl: 42,
+    xxl: 50,
   };
 
   const charsPerLine = Math.floor(pageWidth / avgCharWidth[fontSize]);
