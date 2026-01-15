@@ -21,26 +21,77 @@ const TIER_LIMITS = {
 };
 
 /**
- * Get user's tier from the database
+ * Get the database user ID from Clerk user ID
+ * Handles case where Clerk ID doesn't match but email does
  */
-export async function getUserTier(userId: string): Promise<UserTier> {
+export async function getDbUserIdFromClerk(clerkUserId: string, email?: string): Promise<string | null> {
   return withRetry(async () => {
+    // First try by Clerk ID
+    const [userById] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, clerkUserId))
+      .limit(1);
+
+    if (userById) {
+      return userById.id;
+    }
+
+    // If email provided, try by email
+    if (email) {
+      const [userByEmail] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (userByEmail) {
+        return userByEmail.id;
+      }
+    }
+
+    return null;
+  }, DEFAULT_RETRY_CONFIG, 'getDbUserIdFromClerk');
+}
+
+/**
+ * Get user's tier from the database
+ * Accepts optional email to handle case where Clerk ID doesn't match but email does
+ */
+export async function getUserTier(userId: string, email?: string): Promise<UserTier> {
+  return withRetry(async () => {
+    // First try by user ID
     const [user] = await db
       .select({ plan: users.plan })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1);
 
-    if (!user) {
-      return 'free'; // Default to free for unknown users
+    if (user) {
+      // Map database plan values to tier
+      if (user.plan === 'pro' || user.plan === 'professional' || user.plan === 'enterprise') {
+        return 'pro';
+      }
+      return 'free';
     }
 
-    // Map database plan values to tier
-    if (user.plan === 'pro' || user.plan === 'professional' || user.plan === 'enterprise') {
-      return 'pro';
+    // If not found by ID and email provided, try by email
+    if (email) {
+      const [userByEmail] = await db
+        .select({ plan: users.plan })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1);
+
+      if (userByEmail) {
+        if (userByEmail.plan === 'pro' || userByEmail.plan === 'professional' || userByEmail.plan === 'enterprise') {
+          return 'pro';
+        }
+        return 'free';
+      }
     }
 
-    return 'free';
+    return 'free'; // Default to free for unknown users
   }, DEFAULT_RETRY_CONFIG, 'getUserTier');
 }
 
@@ -206,6 +257,7 @@ export async function getUserInfo(userId: string): Promise<{
 /**
  * Sync a Clerk user to the database
  * Creates user if they don't exist, updates if they do
+ * Handles the case where the same email exists with a different Clerk ID
  */
 export async function syncUserToDatabase(clerkUser: {
   id: string;
@@ -217,26 +269,27 @@ export async function syncUserToDatabase(clerkUser: {
   id: string;
   tier: UserTier;
   isNew: boolean;
+  dbUserId?: string; // The actual user ID in database (may differ from Clerk ID)
 }> {
   return withRetry(async () => {
     const email = clerkUser.emailAddresses[0]?.emailAddress || `${clerkUser.id}@clerk.user`;
 
-    // Check if user exists
-    const [existingUser] = await db
+    // Check if user exists by Clerk ID
+    const [existingUserById] = await db
       .select()
       .from(users)
       .where(eq(users.id, clerkUser.id))
       .limit(1);
 
-    if (existingUser) {
+    if (existingUserById) {
       // Update existing user (but preserve plan - don't overwrite it)
       await db
         .update(users)
         .set({
           email,
-          firstName: clerkUser.firstName || existingUser.firstName,
-          lastName: clerkUser.lastName || existingUser.lastName,
-          profileImageUrl: clerkUser.imageUrl || existingUser.profileImageUrl,
+          firstName: clerkUser.firstName || existingUserById.firstName,
+          lastName: clerkUser.lastName || existingUserById.lastName,
+          profileImageUrl: clerkUser.imageUrl || existingUserById.profileImageUrl,
           updatedAt: new Date(),
         })
         .where(eq(users.id, clerkUser.id));
@@ -248,13 +301,50 @@ export async function syncUserToDatabase(clerkUser: {
         .where(eq(users.id, clerkUser.id))
         .limit(1);
 
-      const currentPlan = freshUser?.plan || existingUser.plan;
+      const currentPlan = freshUser?.plan || existingUserById.plan;
       const tier = currentPlan === 'pro' || currentPlan === 'professional' || currentPlan === 'enterprise'
         ? 'pro'
         : 'free';
 
       return {
         id: clerkUser.id,
+        tier,
+        isNew: false,
+      };
+    }
+
+    // Check if a user with the same email already exists (different Clerk ID)
+    const [existingUserByEmail] = await db
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
+
+    if (existingUserByEmail) {
+      // User exists with this email but different Clerk ID
+      // Don't try to change the user ID (causes FK constraint issues)
+      // Just update the user's profile and return their existing tier
+      console.log(`[User Sync] Found existing user by email ${email} with ID ${existingUserByEmail.id}, Clerk ID is ${clerkUser.id}`);
+      
+      // Update profile info only (not the ID)
+      await db
+        .update(users)
+        .set({
+          firstName: clerkUser.firstName || existingUserByEmail.firstName,
+          lastName: clerkUser.lastName || existingUserByEmail.lastName,
+          profileImageUrl: clerkUser.imageUrl || existingUserByEmail.profileImageUrl,
+          updatedAt: new Date(),
+        })
+        .where(eq(users.email, email));
+
+      const tier = existingUserByEmail.plan === 'pro' || existingUserByEmail.plan === 'professional' || existingUserByEmail.plan === 'enterprise'
+        ? 'pro'
+        : 'free';
+
+      // Return the existing user's DB ID so other functions can use it
+      return {
+        id: clerkUser.id, // Clerk ID for auth purposes
+        dbUserId: existingUserByEmail.id, // Actual DB user ID for queries
         tier,
         isNew: false,
       };

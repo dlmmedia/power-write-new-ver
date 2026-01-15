@@ -4,7 +4,7 @@
 
 // Build timestamp for automatic cache busting on deployment
 // This gets updated during build process by scripts/update-sw-version.js
-const BUILD_TIME = '1768468191125';
+const BUILD_TIME = '1768478000204';
 const CACHE_VERSION = `v3-${BUILD_TIME}`;
 const CACHE_NAME = `powerwrite-${CACHE_VERSION}`;
 const BOOKS_CACHE_NAME = `powerwrite-books-${CACHE_VERSION}`;

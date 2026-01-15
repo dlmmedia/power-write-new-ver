@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { getUserTier, getAllBooks } from '@/lib/services/user-service';
-import { getBooksAudioStats } from '@/lib/db/operations';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { getUserTier, getAllBooks, getDbUserIdFromClerk } from '@/lib/services/user-service';
+import { getBooksAudioStats, getUserBooks } from '@/lib/db/operations';
 
 export const runtime = 'nodejs';
 
@@ -16,27 +16,54 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch tier and books in parallel for better performance
+    // Get the user's email from Clerk for fallback lookup
+    let userEmail: string | undefined;
+    try {
+      const clerkUser = await currentUser();
+      userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress;
+    } catch (e) {
+      console.warn('Could not get user email from Clerk:', e);
+    }
+
+    // Fetch tier first, then fetch appropriate books.
+    // IMPORTANT: Non-Pro users should only see their own books.
     let tier: 'free' | 'pro' = 'free';
     let userBooks: Awaited<ReturnType<typeof getAllBooks>> = [];
     
     try {
-      // Parallelize tier and books fetch for better performance
-      const [tierResult, booksResult] = await Promise.all([
-        getUserTier(clerkUserId).catch((err) => {
-          console.error('Error getting user tier:', err);
-          return 'free' as const;
-        }),
-        getAllBooks().catch((err) => {
-          console.error('Error fetching books from database:', err);
-          return [] as Awaited<ReturnType<typeof getAllBooks>>;
-        }),
-      ]);
-      
-      tier = tierResult;
-      userBooks = booksResult;
+      // Get tier using both Clerk ID and email for fallback
+      tier = await getUserTier(clerkUserId, userEmail).catch((err) => {
+        console.error('Error getting user tier:', err);
+        return 'free' as const;
+      });
+
+      // Get the actual database user ID (may differ from Clerk ID if using email fallback)
+      const dbUserId = await getDbUserIdFromClerk(clerkUserId, userEmail);
+      const effectiveUserId = dbUserId || clerkUserId;
+
+      userBooks =
+        tier === 'pro'
+          ? await getAllBooks().catch((err) => {
+              console.error('Error fetching all books from database:', err);
+              return [] as Awaited<ReturnType<typeof getAllBooks>>;
+            })
+          : await getUserBooks(effectiveUserId).catch((err) => {
+              console.error('Error fetching user books from database:', err);
+              return [] as Awaited<ReturnType<typeof getAllBooks>>;
+            });
     } catch (err) {
-      console.error('Error in parallel fetch:', err);
+      console.error('Error fetching tier/books:', err);
+    }
+
+    // Get the effective user ID for ownership checks
+    let effectiveUserId = clerkUserId;
+    try {
+      const dbUserId = await getDbUserIdFromClerk(clerkUserId, userEmail);
+      if (dbUserId) {
+        effectiveUserId = dbUserId;
+      }
+    } catch (e) {
+      // Use clerkUserId as fallback
     }
 
     // Get audio stats for all books
@@ -56,6 +83,8 @@ export async function GET(request: NextRequest) {
       try {
         const metadata = (book.metadata as any) || {};
         const audioStats = audioStatsMap.get(book.id);
+        // Check ownership against both Clerk ID and effective DB user ID
+        const isOwner = book.userId === clerkUserId || book.userId === effectiveUserId;
         const bookData: any = {
           id: book.id,
           title: book.title || 'Untitled',
@@ -66,7 +95,7 @@ export async function GET(request: NextRequest) {
           productionStatus: book.productionStatus || 'draft',
           coverUrl: book.coverUrl || undefined,
           createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
-          isOwner: book.userId === clerkUserId,
+          isOwner,
           isPublic: book.isPublic || false,
           metadata: {
             wordCount: metadata.wordCount || 0,
@@ -84,7 +113,7 @@ export async function GET(request: NextRequest) {
         
         // Include outline and config for books still being generated (needed for resume)
         // Only for books the user owns
-        if (book.status === 'generating' && book.userId === clerkUserId) {
+        if (book.status === 'generating' && isOwner) {
           bookData.outline = book.outline || null;
           bookData.config = book.config || null;
         }
@@ -93,6 +122,8 @@ export async function GET(request: NextRequest) {
       } catch (bookError) {
         // Log individual book errors but continue processing other books
         console.error(`Error formatting book ${book.id}:`, bookError);
+        // Check ownership against both Clerk ID and effective DB user ID
+        const isOwner = book.userId === clerkUserId || book.userId === effectiveUserId;
         // Return a minimal valid book object
         return {
           id: book.id,
@@ -103,7 +134,7 @@ export async function GET(request: NextRequest) {
           status: book.status || 'in-progress',
           coverUrl: undefined,
           createdAt: book.createdAt?.toISOString() || new Date().toISOString(),
-          isOwner: book.userId === clerkUserId,
+          isOwner,
           isPublic: book.isPublic || false,
           metadata: {
             wordCount: 0,

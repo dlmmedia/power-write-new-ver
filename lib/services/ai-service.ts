@@ -1234,7 +1234,8 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     description: string,
     style: string = 'vivid',
     imageModelId?: string,
-    customEnhancedPrompt?: string // New parameter for custom prompts from CoverService
+    customEnhancedPrompt?: string, // New parameter for custom prompts from CoverService
+    referenceImageUrl?: string // Optional reference image for style/composition guidance
   ): Promise<string> {
     try {
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -1256,10 +1257,22 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
 
       if (provider === 'dalle') {
         // Use DALL-E 3 via OpenAI
+        if (referenceImageUrl) {
+          console.warn('Reference image provided, but DALL-E generation currently ignores it (using prompt-only).');
+        }
         imageUrl = await this.generateWithDallE(title, author, genre, description, style, customEnhancedPrompt);
       } else {
         // Use Nano Banana / Nano Banana Pro via OpenRouter (Gemini image models)
-        imageUrl = await this.generateWithNanoBanana(title, author, genre, description, style, modelId, customEnhancedPrompt);
+        imageUrl = await this.generateWithNanoBanana(
+          title,
+          author,
+          genre,
+          description,
+          style,
+          modelId,
+          customEnhancedPrompt,
+          referenceImageUrl
+        );
       }
 
       // Upload to blob storage
@@ -1351,7 +1364,8 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     description: string,
     style: string,
     modelId: string,
-    customPrompt?: string
+    customPrompt?: string,
+    referenceImageUrl?: string
   ): Promise<string> {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY is required for Nano Banana Pro image generation. Set it in your environment variables.');
@@ -1364,6 +1378,14 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
     // - google/gemini-3-pro-image-preview (Nano Banana Pro)
     // - google/gemini-2.5-flash-image (Nano Banana)
     console.log(`Using ${modelId} via OpenRouter for image generation...`);
+
+    // OpenRouter supports multimodal user content for vision-capable models
+    const userContent: any = referenceImageUrl
+      ? [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: referenceImageUrl } },
+        ]
+      : prompt;
 
     // Use OpenRouter's chat completions API with image generation capability
     // Models with output_modalities: ["image", "text"] support this
@@ -1382,7 +1404,7 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
           messages: [
             {
               role: 'user',
-              content: prompt,
+              content: userContent,
             },
           ],
           // Request image output - required for image generation models

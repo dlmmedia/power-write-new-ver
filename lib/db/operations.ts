@@ -13,18 +13,21 @@ import {
   bibliographyReferences,
   bibliographyConfigs,
   citations,
+  videoExportJobs,
   InsertGeneratedBook,
   InsertBookChapter,
   InsertReferenceBook,
   InsertBibliographyReference,
   InsertBibliographyConfig,
   InsertCitation,
+  InsertVideoExportJob,
   GeneratedBook,
   BookChapter,
   ReferenceBook,
   BibliographyReference,
   BibliographyConfigDB,
   Citation,
+  VideoExportJob,
 } from './schema';
 import { eq, and, desc, like, inArray } from 'drizzle-orm';
 
@@ -663,4 +666,90 @@ export async function getPublicBookWithChapters(bookId: number | string) {
     chapters,
     bibliography,
   };
+}
+
+// ============ VIDEO EXPORT JOB OPERATIONS ============
+
+export async function createVideoExportJob(data: InsertVideoExportJob): Promise<VideoExportJob> {
+  return withRetry(async () => {
+    const [job] = await db.insert(videoExportJobs).values(data).returning();
+    return job;
+  }, EXTENDED_RETRY_CONFIG, 'createVideoExportJob');
+}
+
+export async function getVideoExportJob(id: number): Promise<VideoExportJob | null> {
+  return withRetry(async () => {
+    const [job] = await db
+      .select()
+      .from(videoExportJobs)
+      .where(eq(videoExportJobs.id, id))
+      .limit(1);
+    return job || null;
+  }, DEFAULT_RETRY_CONFIG, 'getVideoExportJob');
+}
+
+export async function updateVideoExportJob(
+  id: number,
+  data: Partial<Omit<VideoExportJob, 'id' | 'createdAt'>>
+): Promise<VideoExportJob | null> {
+  return withRetry(async () => {
+    const [job] = await db
+      .update(videoExportJobs)
+      .set(data)
+      .where(eq(videoExportJobs.id, id))
+      .returning();
+    return job || null;
+  }, EXTENDED_RETRY_CONFIG, 'updateVideoExportJob');
+}
+
+export async function getVideoExportJobsByBook(bookId: number): Promise<VideoExportJob[]> {
+  return withRetry(async () => {
+    return await db
+      .select()
+      .from(videoExportJobs)
+      .where(eq(videoExportJobs.bookId, bookId))
+      .orderBy(desc(videoExportJobs.createdAt));
+  }, DEFAULT_RETRY_CONFIG, 'getVideoExportJobsByBook');
+}
+
+export async function getVideoExportJobsByUser(userId: string): Promise<VideoExportJob[]> {
+  return withRetry(async () => {
+    return await db
+      .select()
+      .from(videoExportJobs)
+      .where(eq(videoExportJobs.userId, userId))
+      .orderBy(desc(videoExportJobs.createdAt));
+  }, DEFAULT_RETRY_CONFIG, 'getVideoExportJobsByUser');
+}
+
+export async function getPendingVideoExportJobs(): Promise<VideoExportJob[]> {
+  return withRetry(async () => {
+    return await db
+      .select()
+      .from(videoExportJobs)
+      .where(
+        inArray(videoExportJobs.status, ['pending', 'rendering', 'stitching'])
+      )
+      .orderBy(videoExportJobs.createdAt);
+  }, DEFAULT_RETRY_CONFIG, 'getPendingVideoExportJobs');
+}
+
+export async function cancelVideoExportJob(id: number): Promise<VideoExportJob | null> {
+  return withRetry(async () => {
+    const [job] = await db
+      .update(videoExportJobs)
+      .set({
+        status: 'cancelled',
+        completedAt: new Date(),
+      })
+      .where(eq(videoExportJobs.id, id))
+      .returning();
+    return job || null;
+  }, DEFAULT_RETRY_CONFIG, 'cancelVideoExportJob');
+}
+
+export async function deleteVideoExportJob(id: number): Promise<void> {
+  return withRetry(async () => {
+    await db.delete(videoExportJobs).where(eq(videoExportJobs.id, id));
+  }, DEFAULT_RETRY_CONFIG, 'deleteVideoExportJob');
 }

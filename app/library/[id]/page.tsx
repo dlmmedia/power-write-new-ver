@@ -64,6 +64,11 @@ const AudiobookPlayer = dynamic(
   { loading: () => <FullScreenLoadingSkeleton />, ssr: false }
 );
 
+const VideoExportModal = dynamic(
+  () => import('@/components/library/VideoExportModal').then(mod => ({ default: mod.VideoExportModal })),
+  { loading: () => null, ssr: false }
+);
+
 import { 
   BookOpen, 
   Clock, 
@@ -93,7 +98,8 @@ import {
   Eye,
   EyeOff,
   Save,
-  X
+  X,
+  Video,
 } from 'lucide-react';
 // AudiobookPlayer is dynamically imported above
 import type { AudiobookChapter } from '@/components/library/AudiobookPlayer';
@@ -144,7 +150,8 @@ interface BookDetail {
 export default function BookDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const bookId = params?.id ? Number(params.id) : null;
+  const rawId = (params as any)?.id;
+  const bookId = typeof rawId === 'string' ? parseInt(rawId, 10) : null;
   const { isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
   
   // Use centralized books context for caching
@@ -175,6 +182,7 @@ export default function BookDetailPage() {
   const [showAudiobookPlayer, setShowAudiobookPlayer] = useState(false);
   const [isReorderingChapters, setIsReorderingChapters] = useState(false);
   const [isTogglingShowcase, setIsTogglingShowcase] = useState(false);
+  const [showVideoExportModal, setShowVideoExportModal] = useState(false);
   
   // Title editing state
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -959,6 +967,17 @@ export default function BookDetailPage() {
                         >
                           <FileText className="w-4 h-4 text-gray-400" />
                           Plain Text
+                        </DropdownMenu.Item>
+                        
+                        <DropdownMenu.Separator className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
+                        
+                        <DropdownMenu.Item 
+                          className="w-full text-left px-4 py-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 focus:bg-gray-100 dark:focus:bg-gray-800 transition-colors text-sm text-gray-900 dark:text-white font-medium flex items-center gap-3 outline-none cursor-pointer"
+                          onSelect={() => setShowVideoExportModal(true)}
+                        >
+                          <Video className="w-4 h-4 text-purple-500" />
+                          Video (with Audio)
+                          <span className="ml-auto text-[10px] bg-gradient-to-r from-purple-500 to-pink-500 text-white px-1.5 py-0.5 rounded">NEW</span>
                         </DropdownMenu.Item>
                       </DropdownMenu.Content>
                     </DropdownMenu.Portal>
@@ -2122,6 +2141,22 @@ export default function BookDetailPage() {
             fetchBookDetail();
           }}
           isModal={true}
+        />
+      )}
+
+      {/* Video Export Modal */}
+      {showVideoExportModal && book.chapters && (
+        <VideoExportModal
+          isOpen={showVideoExportModal}
+          onClose={() => setShowVideoExportModal(false)}
+          bookId={book.id}
+          bookTitle={book.title}
+          chapters={book.chapters.map(ch => ({
+            id: ch.id,
+            chapterNumber: ch.number,
+            title: ch.title,
+            audioUrl: ch.audioUrl,
+          }))}
         />
       )}
     </div>
