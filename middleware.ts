@@ -5,10 +5,10 @@ import { NextResponse } from "next/server";
 const isPublicRoute = createRouteMatcher([
   "/",
   "/landing(.*)",
-  "/render(.*)", // Video export render pages (accessed by Puppeteer)
+  "/render/(.*)", // Video export render pages (accessed by Puppeteer)
   "/api/inngest(.*)", // Inngest webhooks
   "/api/books/search(.*)", // Book search is public
-  "/api/books/:id", // Book details for render page (GET only, handler checks ownership)
+  "/api/books/(\\d+)", // Book details for render page (numeric IDs only)
   "/api/proxy-image(.*)", // Image proxy is public
   "/manifest.json", // PWA manifest
   "/sw.js", // Service worker
