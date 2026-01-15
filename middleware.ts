@@ -7,8 +7,7 @@ const isPublicRoute = createRouteMatcher([
   "/landing(.*)",
   "/render/(.*)", // Video export render pages (accessed by Puppeteer)
   "/api/inngest(.*)", // Inngest webhooks
-  "/api/books/search(.*)", // Book search is public
-  "/api/books/:path", // Book details for render page (any single path segment)
+  "/api/books/(.*)", // Book APIs - handler checks ownership where needed
   "/api/proxy-image(.*)", // Image proxy is public
   "/manifest.json", // PWA manifest
   "/sw.js", // Service worker
