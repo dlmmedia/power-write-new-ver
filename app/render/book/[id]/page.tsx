@@ -16,7 +16,7 @@
  * - ready: Set to 'true' by client when ready for capture
  */
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, Suspense } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Book3D } from '@/components/library/reader/Book3D';
 import { paginateBook, getSpreadPages } from '@/components/library/reader/PageContent';
@@ -40,7 +40,25 @@ interface BookData {
   chapters: Chapter[];
 }
 
-export default function RenderBookPage() {
+// Loading fallback for Suspense
+function LoadingFallback() {
+  return (
+    <div 
+      className="flex items-center justify-center"
+      style={{ 
+        width: FRAME_WIDTH, 
+        height: FRAME_HEIGHT,
+        backgroundColor: '#1a1a1a',
+        color: '#fff',
+      }}
+    >
+      <div className="text-2xl">Loading...</div>
+    </div>
+  );
+}
+
+// Main content component that uses useSearchParams
+function RenderBookContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   
@@ -265,5 +283,14 @@ export default function RenderBookPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+// Default export wraps content in Suspense for useSearchParams
+export default function RenderBookPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <RenderBookContent />
+    </Suspense>
   );
 }
