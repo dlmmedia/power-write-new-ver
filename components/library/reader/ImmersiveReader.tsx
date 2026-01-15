@@ -26,6 +26,63 @@ import {
 // Reader mode type
 type ReaderMode = '3d' | 'traditional';
 
+// --- Word/character mapping helpers (robust sync across pages) ---
+function buildWordStartCharIndices(text: string): number[] {
+  // Tokenize words using unicode letters/numbers (plus apostrophes).
+  // This aligns well with typical TTS alignment tokenization.
+  const indices: number[] = [];
+  const re = /[\p{L}\p{N}’']+/gu;
+  for (const match of text.matchAll(re)) {
+    if (typeof match.index === 'number') indices.push(match.index);
+  }
+  return indices;
+}
+
+function upperBound(arr: number[], target: number): number {
+  // First index with value > target
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid] <= target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function wordIndexAtCharPos(wordStarts: number[], charPos: number): number {
+  if (wordStarts.length === 0) return 0;
+  const idx = upperBound(wordStarts, charPos) - 1;
+  return Math.max(0, Math.min(idx, wordStarts.length - 1));
+}
+
+function findWordIndexByTime(timestamps: AudioTimestamp[], time: number): number {
+  // Binary search on start times, then adjust to ensure [start,end] contains time.
+  if (timestamps.length === 0) return -1;
+
+  let lo = 0;
+  let hi = timestamps.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const t = timestamps[mid];
+    if (time < t.start) hi = mid - 1;
+    else if (time > t.end) lo = mid + 1;
+    else return mid;
+  }
+
+  // Not inside any exact word span (gaps/seeks). Pick the last word that started before time.
+  let idx = 0;
+  let l = 0;
+  let r = timestamps.length;
+  while (l < r) {
+    const m = (l + r) >> 1;
+    if (timestamps[m].start <= time) l = m + 1;
+    else r = m;
+  }
+  idx = l - 1;
+  return idx >= 0 ? idx : -1;
+}
+
 // Hook to detect mobile viewport
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(false);
@@ -246,6 +303,7 @@ const TraditionalReaderView: React.FC<{
   currentAudioTime?: number;
   isAudioPlaying?: boolean;
   currentWordIndex?: number;
+  chapterWordStarts?: number[];
 }> = ({ content, pageNumber, totalPages, chapterTitle, theme, fontSize, audioTimestamps, currentAudioTime, isAudioPlaying, currentWordIndex = -1 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = {
@@ -256,13 +314,16 @@ const TraditionalReaderView: React.FC<{
   };
   const config = fontConfig[fontSize];
 
-  // Estimate word offset from character index (average ~6 chars per word including space)
-  const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
-
   // Get the base word offset from the first chunk's character position
   const getPageBaseOffset = useCallback(() => {
-    return content.length > 0 ? estimateWordOffset(content[0].startCharIndex) : 0;
-  }, [content, estimateWordOffset]);
+    if (content.length === 0) return 0;
+    const startChar = content[0].startCharIndex;
+    // Prefer real chapter word mapping; fall back to rough estimate if missing.
+    if (chapterWordStarts && chapterWordStarts.length > 0) {
+      return wordIndexAtCharPos(chapterWordStarts, startChar);
+    }
+    return Math.round(startChar / 6);
+  }, [content, chapterWordStarts]);
 
   return (
     <motion.div
@@ -381,6 +442,13 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const currentChapterData = chapters[currentChapter];
   const themeConfig = READING_THEMES[theme];
 
+  // Build a robust mapping of word index -> character position for the current chapter.
+  // This fixes drift/stop issues caused by rough word/char estimates when paging.
+  const chapterWordStarts = useMemo(() => {
+    const text = currentChapterData?.content || '';
+    return buildWordStartCharIndices(text);
+  }, [currentChapterData?.content]);
+
   // Get audio timestamps for current chapter (use local if just generated)
   const audioTimestamps = localTimestamps || currentChapterData?.audioTimestamps || null;
   const audioUrl = currentChapterData?.audioUrl || null;
@@ -391,28 +459,14 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   // This finds which word in the timestamps array corresponds to the current audio position
   const currentWordIndex = useMemo(() => {
     if (!audioTimestamps || audioTimestamps.length === 0) return -1;
-    
-    // Find the word that contains the current time
-    const index = audioTimestamps.findIndex(
-      t => currentAudioTime >= t.start && currentAudioTime <= t.end
-    );
-    
-    // If found, return it
-    if (index !== -1) return index;
-    
-    // If not found but we have audio time > 0, find the closest word
-    // This handles gaps between words and seeking
-    if (currentAudioTime > 0) {
-      // Find all timestamps that start before current time
-      for (let i = audioTimestamps.length - 1; i >= 0; i--) {
-        if (audioTimestamps[i].start <= currentAudioTime) {
-          return i;
-        }
-      }
-    }
-    
-    return -1;
+
+    return findWordIndexByTime(audioTimestamps, currentAudioTime);
   }, [audioTimestamps, currentAudioTime]);
+
+  // Effective values for highlighting - respect isSyncEnabled toggle
+  // When sync is OFF, don't highlight text even if audio is playing
+  const effectiveWordIndex = isSyncEnabled ? currentWordIndex : -1;
+  const effectiveIsHighlighting = isSyncEnabled && isAudioPlaying;
 
   // Clear local timestamps when chapter changes
   useEffect(() => {
@@ -497,26 +551,64 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
     const audio = new Audio(audioUrl);
     audioRef.current = audio;
     audio.playbackRate = playbackRate;
+    audio.preload = 'auto';
 
-    audio.addEventListener('loadedmetadata', () => {
-      setAudioDuration(audio.duration);
-    });
+    let rafId: number | null = null;
+    const stopTick = () => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+        rafId = null;
+      }
+    };
+    const tick = () => {
+      if (!audioRef.current) return;
+      // Avoid excessive re-renders: only update if time moved meaningfully.
+      const t = audioRef.current.currentTime;
+      setCurrentAudioTime((prev) => (Math.abs(prev - t) > 0.03 ? t : prev));
+      rafId = requestAnimationFrame(tick);
+    };
 
-    audio.addEventListener('timeupdate', () => {
-      setCurrentAudioTime(audio.currentTime);
-    });
-
-    audio.addEventListener('ended', () => {
+    const handleLoadedMetadata = () => setAudioDuration(audio.duration);
+    const handleTimeUpdate = () => setCurrentAudioTime(audio.currentTime);
+    const handlePlay = () => {
+      setIsAudioPlaying(true);
+      if (rafId === null) rafId = requestAnimationFrame(tick);
+    };
+    const handlePause = () => {
       setIsAudioPlaying(false);
+      stopTick();
+    };
+    const handleEnded = () => {
+      setIsAudioPlaying(false);
+      stopTick();
       setCurrentAudioTime(0);
-    });
+    };
+    const handleError = () => {
+      // Keep UI consistent if playback fails mid-session.
+      setIsAudioPlaying(false);
+      stopTick();
+    };
+
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
+      stopTick();
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
       audio.pause();
       audio.src = '';
       audioRef.current = null;
     };
-  }, [audioUrl]);
+  }, [audioUrl, playbackRate]);
 
   // Update playback rate when it changes
   useEffect(() => {
@@ -531,10 +623,11 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
 
     if (isAudioPlaying) {
       audioRef.current.pause();
-      setIsAudioPlaying(false);
     } else {
-      audioRef.current.play();
-      setIsAudioPlaying(true);
+      audioRef.current.play().catch((err) => {
+        console.error('[ImmersiveReader] Audio play failed:', err);
+        setIsAudioPlaying(false);
+      });
     }
   }, [isAudioPlaying]);
 
@@ -632,10 +725,17 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   );
 
   // Helper function to estimate character position from word index
-  const estimateCharPosFromWordIndex = useCallback((wordIndex: number) => {
-    // Average word length is ~6 chars + 1 space = 7 chars
-    return wordIndex * 7;
-  }, []);
+  const estimateCharPosFromWordIndex = useCallback(
+    (wordIndex: number) => {
+      // Prefer true word->char mapping when available, otherwise fall back.
+      if (chapterWordStarts.length > 0 && wordIndex >= 0 && wordIndex < chapterWordStarts.length) {
+        return chapterWordStarts[wordIndex];
+      }
+      // Average word length is ~6 chars + 1 space = 7 chars
+      return wordIndex * 7;
+    },
+    [chapterWordStarts]
+  );
 
   // Helper function to find which page contains a given character position
   const findPageForCharPos = useCallback((charPos: number) => {
@@ -979,10 +1079,11 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                 canGoPrev={canGoPrev}
                 isFlipping={isFlipping}
                 flipDirection={flipDirection}
+                chapterWordStarts={chapterWordStarts}
                 audioTimestamps={audioTimestamps}
                 currentAudioTime={currentAudioTime}
-                isAudioPlaying={isAudioPlaying}
-                currentWordIndex={currentWordIndex}
+                isAudioPlaying={effectiveIsHighlighting}
+                currentWordIndex={effectiveWordIndex}
               />
             ) : readerMode === '3d' ? (
               <Book3D
@@ -1001,10 +1102,11 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                   if (direction === 'next') goToNextPage();
                   else goToPrevPage();
                 }}
+                chapterWordStarts={chapterWordStarts}
                 audioTimestamps={audioTimestamps || undefined}
                 currentAudioTime={currentAudioTime}
-                isAudioPlaying={isAudioPlaying}
-                currentWordIndex={currentWordIndex}
+                isAudioPlaying={effectiveIsHighlighting}
+                currentWordIndex={effectiveWordIndex}
               />
             ) : (
               <TraditionalReaderView
@@ -1016,8 +1118,9 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                 fontSize={fontSize}
                 audioTimestamps={audioTimestamps}
                 currentAudioTime={currentAudioTime}
-                isAudioPlaying={isAudioPlaying}
-                currentWordIndex={currentWordIndex}
+                isAudioPlaying={effectiveIsHighlighting}
+                currentWordIndex={effectiveWordIndex}
+                chapterWordStarts={chapterWordStarts}
               />
             )}
           </motion.div>

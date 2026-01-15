@@ -693,7 +693,7 @@ export class PDFServicePDFKit {
         // CHAPTERS
         // =============================================
         const sceneBreakSymbol = getSceneBreakSymbol(settings);
-        const chapterDropFromTop = safeNum(chapterSettings.chapterDropFromTop, 1.5, 0.5, 4) * 72;
+        const chapterDropFromTop = safeNum(chapterSettings.chapterDropFromTop, 1.5, 0, 4) * 72;
         const numberStyle = chapterSettings.chapterNumberStyle || 'numeric';
         const titleCase = chapterSettings.chapterTitleCase || 'title-case';
         const showChapterNumber = chapterSettings.showChapterNumber !== false;

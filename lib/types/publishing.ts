@@ -374,6 +374,9 @@ export interface ExportSettings {
 // MAIN PUBLISHING SETTINGS INTERFACE
 // =============================================
 export interface PublishingSettings {
+  // Publishing preset selection (for UI + tracking)
+  publishingPresetId?: string;
+
   // Book Type
   bookType: BookType;
   
@@ -426,23 +429,24 @@ export interface PublishingSettings {
 // DEFAULT PUBLISHING SETTINGS
 // =============================================
 export const DEFAULT_PUBLISHING_SETTINGS: PublishingSettings = {
+  publishingPresetId: 'a5-default',
   bookType: 'novel',
   layoutType: 'novel-classic',
-  trimSize: 'trade-5.5x8.5',
+  trimSize: 'a5',
   orientation: 'portrait',
   
   typography: {
     bodyFont: 'georgia',
     bodyFontSize: 11,
-    bodyLineHeight: 1.5,
+    bodyLineHeight: 1.45,
     headingFont: 'inherit',
-    chapterTitleSize: 24,
+    chapterTitleSize: 20,
     chapterSubtitleSize: 14,
     sectionHeadingSize: 16,
     dropCapEnabled: false,
     dropCapLines: 3,
     dropCapFont: 'inherit',
-    paragraphIndent: 0.3,
+    paragraphIndent: 0.25,
     paragraphIndentUnit: 'inches',
     paragraphSpacing: 'none',
     firstParagraphIndent: false,
@@ -465,8 +469,8 @@ export const DEFAULT_PUBLISHING_SETTINGS: PublishingSettings = {
     chapterNumberLabel: 'Chapter',
     chapterTitlePosition: 'centered',
     chapterTitleCase: 'title-case',
-    chapterDropFromTop: 2,
-    afterChapterTitleSpace: 0.5,
+    chapterDropFromTop: 0,
+    afterChapterTitleSpace: 0.35,
     chapterOrnament: 'line',
     chapterOrnamentPosition: 'below-title',
     sceneBreakStyle: 'asterisks',
@@ -565,6 +569,331 @@ export const DEFAULT_PUBLISHING_SETTINGS: PublishingSettings = {
   stylePreset: 'classic',
   language: 'en-US',
 };
+
+// =============================================
+// PUBLISHING PRESETS (complete, robust)
+// =============================================
+export type PublishingPresetIconKey =
+  | 'sparkles'
+  | 'book'
+  | 'ruler'
+  | 'file'
+  | 'graduation'
+  | 'square';
+
+export interface PublishingPresetDefinition {
+  id: string;
+  title: string;
+  description: string;
+  icon: PublishingPresetIconKey;
+  settings: Partial<PublishingSettings>;
+}
+
+export const PUBLISHING_PRESETS: PublishingPresetDefinition[] = [
+  {
+    id: 'a5-default',
+    title: 'Default (A5)',
+    description: 'Compact A5 interior with clean chapter openings (drop = 0).',
+    icon: 'sparkles',
+    settings: {
+      publishingPresetId: 'a5-default',
+      trimSize: 'a5',
+      orientation: 'portrait',
+      marginPreset: 'normal',
+      margins: MARGIN_PRESETS['normal'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        chapterDropFromTop: 0,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        pdf: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.pdf,
+          quality: 'ebook',
+        },
+      },
+    },
+  },
+  {
+    id: 'trade-5x8',
+    title: 'Trade Paperback (5×8)',
+    description: 'Classic fiction size; balanced margins and readable typography.',
+    icon: 'book',
+    settings: {
+      publishingPresetId: 'trade-5x8',
+      trimSize: 'trade-5x8',
+      orientation: 'portrait',
+      marginPreset: 'normal',
+      margins: MARGIN_PRESETS['normal'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyLineHeight: 1.5,
+        chapterTitleSize: 22,
+        paragraphIndent: 0.3,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        chapterDropFromTop: 1.25,
+        afterChapterTitleSpace: 0.5,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        pdf: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.pdf,
+          quality: 'print',
+          includeBleed: false,
+        },
+      },
+    },
+  },
+  {
+    id: 'trade-5.5x8.5',
+    title: 'Trade Paperback (5.5×8.5)',
+    description: 'Standard trade size for fiction & non-fiction.',
+    icon: 'book',
+    settings: {
+      publishingPresetId: 'trade-5.5x8.5',
+      trimSize: 'trade-5.5x8.5',
+      orientation: 'portrait',
+      marginPreset: 'normal',
+      margins: MARGIN_PRESETS['normal'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyLineHeight: 1.5,
+        chapterTitleSize: 24,
+        paragraphIndent: 0.3,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        chapterDropFromTop: 1.5,
+        afterChapterTitleSpace: 0.5,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        pdf: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.pdf,
+          quality: 'print',
+        },
+      },
+    },
+  },
+  {
+    id: 'us-trade-6x9',
+    title: 'US Trade (6×9)',
+    description: 'Popular for non-fiction, business, and textbooks.',
+    icon: 'ruler',
+    settings: {
+      publishingPresetId: 'us-trade-6x9',
+      trimSize: 'us-trade-6x9',
+      orientation: 'portrait',
+      marginPreset: 'normal',
+      margins: MARGIN_PRESETS['normal'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyFontSize: 12,
+        bodyLineHeight: 1.55,
+        chapterTitleSize: 26,
+        paragraphIndent: 0.3,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        chapterDropFromTop: 1.5,
+        afterChapterTitleSpace: 0.55,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        pdf: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.pdf,
+          quality: 'print',
+        },
+      },
+    },
+  },
+  {
+    id: 'a4',
+    title: 'A4',
+    description: 'International standard paper size; great for documents and academic layouts.',
+    icon: 'file',
+    settings: {
+      publishingPresetId: 'a4',
+      trimSize: 'a4',
+      orientation: 'portrait',
+      stylePreset: 'academic',
+      marginPreset: 'academic',
+      margins: MARGIN_PRESETS['academic'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyFont: 'times-new-roman',
+        bodyFontSize: 12,
+        bodyLineHeight: 1.9,
+        bodyAlignment: 'left',
+        paragraphIndent: 0.5,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        startOnOddPage: false,
+        chapterOrnament: 'none',
+        chapterDropFromTop: 1.0,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        pdf: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.pdf,
+          quality: 'print',
+        },
+      },
+    },
+  },
+  {
+    id: 'us-letter',
+    title: 'US Letter',
+    description: 'Standard US paper size; best for worksheets and academic exports.',
+    icon: 'file',
+    settings: {
+      publishingPresetId: 'us-letter',
+      trimSize: 'us-letter',
+      orientation: 'portrait',
+      stylePreset: 'academic',
+      marginPreset: 'academic',
+      margins: MARGIN_PRESETS['academic'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyFont: 'times-new-roman',
+        bodyFontSize: 12,
+        bodyLineHeight: 2.0,
+        bodyAlignment: 'left',
+        paragraphIndent: 0.5,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        startOnOddPage: false,
+        chapterOrnament: 'none',
+        chapterDropFromTop: 1.0,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        pdf: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.pdf,
+          quality: 'print',
+        },
+      },
+    },
+  },
+  {
+    id: 'ya-5.5x8.25',
+    title: 'Young Adult (5.5×8.25)',
+    description: 'YA-friendly size with slightly larger type and comfortable spacing.',
+    icon: 'sparkles',
+    settings: {
+      publishingPresetId: 'ya-5.5x8.25',
+      trimSize: 'ya-5.5x8.25',
+      orientation: 'portrait',
+      stylePreset: 'modern',
+      marginPreset: 'normal',
+      margins: MARGIN_PRESETS['normal'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyFontSize: 12,
+        bodyLineHeight: 1.6,
+        paragraphIndent: 0.25,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        chapterDropFromTop: 1.0,
+        afterChapterTitleSpace: 0.45,
+      },
+    },
+  },
+  {
+    id: 'children-square-8.5x8.5',
+    title: "Children's Square (8.5×8.5)",
+    description: 'Square format for picture books; large type and generous spacing.',
+    icon: 'square',
+    settings: {
+      publishingPresetId: 'children-square-8.5x8.5',
+      trimSize: 'children-square-8.5',
+      orientation: 'portrait',
+      stylePreset: 'childrens',
+      marginPreset: 'picture-book',
+      margins: MARGIN_PRESETS['picture-book'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyFont: 'open-sans',
+        bodyFontSize: 16,
+        bodyLineHeight: 1.8,
+        bodyAlignment: 'left',
+        paragraphIndent: 0,
+        paragraphSpacing: 'large',
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        startOnOddPage: false,
+        chapterOpeningStyle: 'illustrated',
+        showChapterNumber: false,
+        chapterOrnament: 'none',
+        chapterDropFromTop: 0.5,
+        afterChapterTitleSpace: 0.35,
+        sceneBreakStyle: 'blank-line',
+      },
+      headerFooter: {
+        ...DEFAULT_PUBLISHING_SETTINGS.headerFooter,
+        headerEnabled: false,
+        footerEnabled: false,
+      },
+    },
+  },
+  {
+    id: 'academic',
+    title: 'Academic',
+    description: 'Double-spaced, left-aligned text with academic margins.',
+    icon: 'graduation',
+    settings: {
+      publishingPresetId: 'academic',
+      trimSize: 'us-letter',
+      orientation: 'portrait',
+      stylePreset: 'academic',
+      marginPreset: 'academic',
+      margins: MARGIN_PRESETS['academic'],
+      typography: {
+        ...DEFAULT_PUBLISHING_SETTINGS.typography,
+        bodyFont: 'times-new-roman',
+        bodyFontSize: 12,
+        bodyLineHeight: 2.0,
+        bodyAlignment: 'left',
+        paragraphIndent: 0.5,
+      },
+      chapters: {
+        ...DEFAULT_PUBLISHING_SETTINGS.chapters,
+        startOnOddPage: false,
+        chapterOrnament: 'none',
+        chapterDropFromTop: 1.0,
+      },
+      export: {
+        ...DEFAULT_PUBLISHING_SETTINGS.export,
+        docx: {
+          ...DEFAULT_PUBLISHING_SETTINGS.export.docx,
+          compatibility: 'word365',
+        },
+      },
+    },
+  },
+  {
+    id: 'custom',
+    title: 'Custom',
+    description: 'Keep your current settings; no auto changes.',
+    icon: 'ruler',
+    settings: {
+      publishingPresetId: 'custom',
+    },
+  },
+];
+
+export function getPublishingPreset(presetId: string): PublishingPresetDefinition | undefined {
+  return PUBLISHING_PRESETS.find((p) => p.id === presetId);
+}
 
 // =============================================
 // STYLE PRESETS

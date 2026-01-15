@@ -139,6 +139,9 @@ export interface Book3DProps {
   flipDirection: 'forward' | 'backward';
   onFlipComplete?: () => void;
   onPageClick: (direction: 'prev' | 'next') => void;
+  // Optional robust word->char mapping for the current chapter.
+  // When provided, it enables accurate audio/text sync across page flips.
+  chapterWordStarts?: number[];
   audioTimestamps?: AudioTimestamp[];
   currentAudioTime?: number;
   isAudioPlaying?: boolean;

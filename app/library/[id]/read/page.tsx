@@ -92,6 +92,7 @@ function ReadPageContent() {
           status: ch.status || 'draft',
           audioUrl: ch.audioUrl,
           audioDuration: ch.audioDuration,
+          audioTimestamps: ch.audioTimestamps || null,
         }));
 
       if (chapters.length === 0) {

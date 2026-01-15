@@ -278,19 +278,34 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
                 ) : hasTimestamps ? (
                   <button
                     onClick={onToggleSync}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
                     style={{
                       background: isSyncEnabled 
-                        ? `${themeConfig.accentColor}20` 
-                        : `${themeConfig.textColor}10`,
+                        ? '#22c55e' 
+                        : `${themeConfig.textColor}20`,
                       color: isSyncEnabled 
-                        ? themeConfig.accentColor 
+                        ? '#fff' 
                         : themeConfig.textColor,
+                      boxShadow: isSyncEnabled ? '0 2px 8px rgba(34, 197, 94, 0.3)' : 'none',
                     }}
-                    title={isSyncEnabled ? 'Text sync enabled - click to disable' : 'Text sync disabled - click to enable'}
+                    title={isSyncEnabled ? 'Text sync ON - click to turn off' : 'Text sync OFF - click to turn on'}
                   >
-                    <RefreshCw className={`w-3 h-3 ${isSyncEnabled ? 'animate-pulse' : ''}`} />
-                    <span className="hidden sm:inline">Sync</span>
+                    {/* Toggle switch visual */}
+                    <div 
+                      className="relative w-8 h-4 rounded-full transition-all"
+                      style={{
+                        background: isSyncEnabled ? 'rgba(255,255,255,0.3)' : `${themeConfig.textColor}30`,
+                      }}
+                    >
+                      <div 
+                        className="absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200"
+                        style={{
+                          background: isSyncEnabled ? '#fff' : themeConfig.textColor,
+                          left: isSyncEnabled ? '18px' : '2px',
+                        }}
+                      />
+                    </div>
+                    <span>Sync {isSyncEnabled ? 'ON' : 'OFF'}</span>
                   </button>
                 ) : (
                   <button
@@ -329,7 +344,15 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
               {hasAudio && (
                 <>
                   <span className="mx-2">•</span>
-                  <Headphones className="w-3 h-3 inline-block" /> Audio available
+                  <Headphones className="w-3 h-3 inline-block" /> Audio
+                  {hasTimestamps && (
+                    <span 
+                      className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: '#22c55e30', color: '#22c55e' }}
+                    >
+                      Synced
+                    </span>
+                  )}
                 </>
               )}
             </div>

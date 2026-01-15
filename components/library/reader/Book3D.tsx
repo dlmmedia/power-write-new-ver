@@ -119,6 +119,7 @@ export const Book3D: React.FC<Book3DProps> = ({
   flipDirection,
   onFlipComplete,
   onPageClick,
+  chapterWordStarts,
   audioTimestamps,
   currentAudioTime,
   isAudioPlaying,
@@ -157,18 +158,30 @@ export const Book3D: React.FC<Book3DProps> = ({
   const rotateY = isHovering ? (mousePosition.x - 0.5) * -4 : 0;
   const rotateX = isHovering ? (mousePosition.y - 0.5) * 3 : 0;
 
-  // Estimate word offset from character index (average ~6 chars per word including space)
-  const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
+  const wordIndexAtCharPos = useCallback((charPos: number) => {
+    const starts = chapterWordStarts;
+    if (!starts || starts.length === 0) return Math.round(charPos / 6);
+    // Upper-bound minus one: last word start <= charPos
+    let lo = 0;
+    let hi = starts.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (starts[mid] <= charPos) lo = mid + 1;
+      else hi = mid;
+    }
+    const idx = lo - 1;
+    return Math.max(0, Math.min(idx, starts.length - 1));
+  }, [chapterWordStarts]);
 
   // Get page base offset for left page
   const getLeftPageBaseOffset = useCallback(() => {
-    return leftPageContent.length > 0 ? estimateWordOffset(leftPageContent[0].startCharIndex) : 0;
-  }, [leftPageContent, estimateWordOffset]);
+    return leftPageContent.length > 0 ? wordIndexAtCharPos(leftPageContent[0].startCharIndex) : 0;
+  }, [leftPageContent, wordIndexAtCharPos]);
 
   // Get page base offset for right page
   const getRightPageBaseOffset = useCallback(() => {
-    return rightPageContent.length > 0 ? estimateWordOffset(rightPageContent[0].startCharIndex) : 0;
-  }, [rightPageContent, estimateWordOffset]);
+    return rightPageContent.length > 0 ? wordIndexAtCharPos(rightPageContent[0].startCharIndex) : 0;
+  }, [rightPageContent, wordIndexAtCharPos]);
 
   // Render paragraph content with enhanced audio highlighting
   const renderLeftContent = () => {

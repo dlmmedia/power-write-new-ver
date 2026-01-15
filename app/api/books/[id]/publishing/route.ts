@@ -20,7 +20,7 @@ function sanitizeSettings(settings: PublishingSettings): PublishingSettings {
     ...DEFAULT_PUBLISHING_SETTINGS,
     ...settings,
     bookType: settings.bookType || 'novel',
-    trimSize: settings.trimSize || 'trade-5.5x8.5',
+    trimSize: settings.trimSize || DEFAULT_PUBLISHING_SETTINGS.trimSize,
     orientation: settings.orientation || 'portrait',
     typography: {
       ...DEFAULT_PUBLISHING_SETTINGS.typography,
@@ -47,7 +47,7 @@ function sanitizeSettings(settings: PublishingSettings): PublishingSettings {
     chapters: {
       ...DEFAULT_PUBLISHING_SETTINGS.chapters,
       ...settings.chapters,
-      chapterDropFromTop: safeNum(settings.chapters?.chapterDropFromTop, 2, 0.5, 5),
+      chapterDropFromTop: safeNum(settings.chapters?.chapterDropFromTop, 2, 0, 5),
       afterChapterTitleSpace: safeNum(settings.chapters?.afterChapterTitleSpace, 0.5, 0, 2),
     },
     headerFooter: {

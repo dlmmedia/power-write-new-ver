@@ -108,6 +108,7 @@ interface Chapter {
   audioUrl?: string | null;
   audioDuration?: number | null;
   audioMetadata?: any;
+  audioTimestamps?: { word: string; start: number; end: number }[] | null;
 }
 
 interface BibliographyData {
@@ -1675,6 +1676,28 @@ export default function BookDetailPage() {
                     </h4>
                     
                     <div className="space-y-4">
+                      {/* Production Status Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                          Production Status
+                        </label>
+                        <select
+                          value={book.productionStatus || 'draft'}
+                          onChange={(e) => handleStatusChange(e.target.value as ProductionStatus)}
+                          disabled={isUpdatingStatus}
+                          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent disabled:opacity-50"
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="in-progress">In Progress</option>
+                          <option value="content-complete">Content Complete</option>
+                          <option value="audio-pending">Audio Pending</option>
+                          <option value="published">Published</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Update the status to track your progress in the library.
+                        </p>
+                      </div>
+
                       {/* Title Field */}
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -2059,413 +2082,6 @@ export default function BookDetailPage() {
               </div>
             )
           )}
-
-          {activeTab === 'manage' && (
-            <div className="space-y-6">
-              {/* Public Showcase Section */}
-              <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700 p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-yellow-400 dark:bg-yellow-500 p-3 rounded-xl">
-                      <Globe className="w-6 h-6 text-black" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-lg text-gray-900 dark:text-white flex items-center gap-2">
-                        Public Showcase
-                        {book.isPublic && (
-                          <span className="px-2 py-0.5 bg-green-500 text-white text-xs font-bold rounded">
-                            LIVE
-                          </span>
-                        )}
-                      </h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                        {book.isPublic 
-                          ? 'Your book is publicly visible in the showcase. Anyone can read and listen to it.'
-                          : 'Share your book with the world! Add it to the public showcase for everyone to read and enjoy.'}
-                      </p>
-                      {book.isPublic && (
-                        <a 
-                          href={`/showcase/${book.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-yellow-600 dark:text-yellow-400 hover:underline mt-2 inline-flex items-center gap-1"
-                        >
-                          <Eye className="w-4 h-4" />
-                          View in Showcase →
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                  <Button
-                    variant={book.isPublic ? 'outline' : 'primary'}
-                    onClick={handleToggleShowcase}
-                    disabled={isTogglingShowcase || (book.status !== 'completed' && !book.isPublic)}
-                    className="flex items-center gap-2"
-                  >
-                    {isTogglingShowcase ? (
-                      <>
-                        <span className="animate-spin">⏳</span>
-                        {book.isPublic ? 'Removing...' : 'Adding...'}
-                      </>
-                    ) : book.isPublic ? (
-                      <>
-                        <EyeOff className="w-4 h-4" />
-                        Remove from Showcase
-                      </>
-                    ) : (
-                      <>
-                        <Globe className="w-4 h-4" />
-                        Add to Showcase
-                      </>
-                    )}
-                  </Button>
-                </div>
-                {book.status !== 'completed' && !book.isPublic && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-3 flex items-center gap-1">
-                    <AlertCircle className="w-3 h-3" />
-                    Only completed books can be added to the showcase.
-                  </p>
-                )}
-              </div>
-
-              {/* Book Information */}
-              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Information</h3>
-                
-                <div className="space-y-4">
-                  {/* Production Status Field */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Production Status
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={book.productionStatus || 'draft'}
-                        onChange={(e) => handleStatusChange(e.target.value as ProductionStatus)}
-                        disabled={isUpdatingStatus}
-                        className="w-full appearance-none bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg py-2 pl-4 pr-10 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 disabled:opacity-50"
-                      >
-                        <option value="draft">Draft</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="content-complete">Content Complete</option>
-                        <option value="audio-pending">Audio Pending</option>
-                        <option value="published">Published</option>
-                      </select>
-                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                        {isUpdatingStatus ? (
-                          <span className="animate-spin">⏳</span>
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
-                      </div>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Update the status to track your progress in the library.
-                    </p>
-                  </div>
-
-                  {/* Title Field */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Book Title
-                    </label>
-                    {isEditingTitle ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editedTitle}
-                          onChange={(e) => setEditedTitle(e.target.value)}
-                          className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                          placeholder="Enter book title"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveTitle();
-                            if (e.key === 'Escape') {
-                              setIsEditingTitle(false);
-                              setEditedTitle(book.title);
-                            }
-                          }}
-                        />
-                        <Button
-                          variant="primary"
-                          onClick={handleSaveTitle}
-                          disabled={isSavingTitle || !editedTitle.trim()}
-                          className="flex items-center gap-2"
-                        >
-                          {isSavingTitle ? (
-                            <>
-                              <span className="animate-spin">⏳</span>
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-4 h-4" />
-                              Save
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setIsEditingTitle(false);
-                            setEditedTitle(book.title);
-                          }}
-                          disabled={isSavingTitle}
-                          className="flex items-center gap-2"
-                        >
-                          <X className="w-4 h-4" />
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
-                          {book.title}
-                        </span>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setEditedTitle(book.title);
-                            setIsEditingTitle(true);
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Edit Title
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Author Field */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Author
-                    </label>
-                    {isEditingAuthor ? (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={editedAuthor}
-                          onChange={(e) => setEditedAuthor(e.target.value)}
-                          className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                          placeholder="Enter author name"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') handleSaveAuthor();
-                            if (e.key === 'Escape') {
-                              setIsEditingAuthor(false);
-                              setEditedAuthor(book.author);
-                            }
-                          }}
-                        />
-                        <Button
-                          variant="primary"
-                          onClick={handleSaveAuthor}
-                          disabled={isSavingAuthor || !editedAuthor.trim()}
-                          className="flex items-center gap-2"
-                        >
-                          {isSavingAuthor ? (
-                            <>
-                              <span className="animate-spin">⏳</span>
-                              Saving...
-                            </>
-                          ) : (
-                            <>
-                              <Save className="w-4 h-4" />
-                              Save
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setIsEditingAuthor(false);
-                            setEditedAuthor(book.author);
-                          }}
-                          disabled={isSavingAuthor}
-                          className="flex items-center gap-2"
-                        >
-                          <X className="w-4 h-4" />
-                          Cancel
-                        </Button>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
-                          {book.author}
-                        </span>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setEditedAuthor(book.author);
-                            setIsEditingAuthor(true);
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Edit Author
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Synopsis Field */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Synopsis
-                    </label>
-                    {isEditingSynopsis ? (
-                      <div className="space-y-2">
-                        <textarea
-                          value={editedSynopsis}
-                          onChange={(e) => setEditedSynopsis(e.target.value)}
-                          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-y min-h-[120px]"
-                          placeholder="Enter book synopsis..."
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Escape') {
-                              setIsEditingSynopsis(false);
-                              setEditedSynopsis(book.metadata.description || '');
-                            }
-                          }}
-                        />
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="primary"
-                            onClick={handleSaveSynopsis}
-                            disabled={isSavingSynopsis}
-                            className="flex items-center gap-2"
-                          >
-                            {isSavingSynopsis ? (
-                              <>
-                                <span className="animate-spin">⏳</span>
-                                Saving...
-                              </>
-                            ) : (
-                              <>
-                                <Save className="w-4 h-4" />
-                                Save
-                              </>
-                            )}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setIsEditingSynopsis(false);
-                              setEditedSynopsis(book.metadata.description || '');
-                            }}
-                            disabled={isSavingSynopsis}
-                            className="flex items-center gap-2"
-                          >
-                            <X className="w-4 h-4" />
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3">
-                        <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white whitespace-pre-wrap min-h-[60px]">
-                          {book.metadata.description || <span className="text-gray-400 italic">No synopsis added</span>}
-                        </span>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setEditedSynopsis(book.metadata.description || '');
-                            setIsEditingSynopsis(true);
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Edit Synopsis
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Genre (Read-only) */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Genre
-                    </label>
-                    <span className="block px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
-                      {book.genre}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Book Settings */}
-              <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                <h3 className="text-xl font-bold mb-6" style={{ fontFamily: 'var(--font-nav)' }}>Book Settings</h3>
-                
-                <div className="space-y-6">
-                  <div>
-                    <h4 className="font-medium mb-4 text-gray-700 dark:text-gray-300">Danger Zone</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                      These actions will affect your book. Please proceed with caution.
-                    </p>
-                    <div className="space-y-3">
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start flex items-center gap-2"
-                        onClick={handleDuplicateBook}
-                        disabled={isDuplicating}
-                      >
-                        {isDuplicating ? (
-                          <>
-                            <span className="animate-spin mr-2">⏳</span>
-                            Duplicating...
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4" />
-                            Duplicate Book
-                          </>
-                        )}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start flex items-center gap-2"
-                        onClick={handleArchiveBook}
-                        disabled={isArchiving}
-                      >
-                        {isArchiving ? (
-                          <>
-                            <span className="animate-spin mr-2">⏳</span>
-                            {book?.status === 'archived' ? 'Unarchiving...' : 'Archiving...'}
-                          </>
-                        ) : (
-                          <>
-                            <Archive className="w-4 h-4" />
-                            {book?.status === 'archived' ? 'Unarchive Book' : 'Archive Book'}
-                          </>
-                        )}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        className="w-full justify-start text-red-600 dark:text-red-400 border-red-300 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
-                        onClick={handleDeleteBook}
-                        disabled={isDeleting}
-                      >
-                        {isDeleting ? (
-                          <>
-                            <span className="animate-spin mr-2">⏳</span>
-                            Deleting...
-                          </>
-                        ) : (
-                          <>
-                            <Trash2 className="w-4 h-4" />
-                            Delete Book
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
@@ -2498,6 +2114,7 @@ export default function BookDetailPage() {
             audioUrl: ch.audioUrl,
             audioDuration: ch.audioDuration,
             audioMetadata: ch.audioMetadata,
+            audioTimestamps: ch.audioTimestamps,
           }))}
           onClose={() => {
             setShowAudiobookPlayer(false);

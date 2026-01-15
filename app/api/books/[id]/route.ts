@@ -132,6 +132,7 @@ export async function GET(
         audioUrl: ch.audioUrl || null,
         audioDuration: ch.audioDuration || null,
         audioMetadata: ch.audioMetadata || null,
+        audioTimestamps: ch.audioTimestamps || null,
       })),
       bibliography: bibliographyData,
     };

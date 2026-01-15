@@ -20,6 +20,8 @@ interface MobilePageViewProps {
   canGoPrev: boolean;
   isFlipping: boolean;
   flipDirection: 'forward' | 'backward';
+  // Optional robust word->char mapping for the current chapter.
+  chapterWordStarts?: number[];
   audioTimestamps?: AudioTimestamp[] | null;
   currentAudioTime?: number;
   isAudioPlaying?: boolean;
@@ -40,6 +42,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
   canGoPrev,
   isFlipping,
   flipDirection,
+  chapterWordStarts,
   audioTimestamps,
   currentAudioTime,
   isAudioPlaying,
@@ -58,13 +61,23 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
     }
   };
 
-  // Estimate word offset from character index (average ~6 chars per word including space)
-  const estimateWordOffset = useCallback((startCharIndex: number) => Math.round(startCharIndex / 6), []);
-
   // Get page base offset - memoized to prevent unnecessary re-renders
   const getPageBaseOffset = useCallback(() => {
-    return content.length > 0 ? estimateWordOffset(content[0].startCharIndex) : 0;
-  }, [content, estimateWordOffset]);
+    if (content.length === 0) return 0;
+    const startChar = content[0].startCharIndex;
+    const starts = chapterWordStarts;
+    if (!starts || starts.length === 0) return Math.round(startChar / 6);
+    // Upper-bound minus one: last word start <= startChar
+    let lo = 0;
+    let hi = starts.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (starts[mid] <= startChar) lo = mid + 1;
+      else hi = mid;
+    }
+    const idx = lo - 1;
+    return Math.max(0, Math.min(idx, starts.length - 1));
+  }, [content, chapterWordStarts]);
 
   // Render paragraph content with enhanced audio highlighting
   const renderContent = () => {

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ComponentType } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Book, Check, FileText, GraduationCap, Ruler, Sparkles, Square } from 'lucide-react';
 import { useBookPublishingSettings } from '@/lib/store/publishing-store';
 import { 
   BookType, 
@@ -9,6 +10,7 @@ import {
   STYLE_PRESETS,
   BOOK_TYPE_PRESETS,
   DEFAULT_PUBLISHING_SETTINGS,
+  PUBLISHING_PRESETS,
 } from '@/lib/types/publishing';
 import { TrimSizeSelector } from './TrimSizeSelector';
 import { TypographySettings } from './TypographySettings';
@@ -22,9 +24,10 @@ interface PublishingSettingsProps {
   onSave?: () => void;
 }
 
-type Tab = 'book-type' | 'page-size' | 'typography' | 'margins' | 'chapters' | 'headers' | 'front-matter' | 'export';
+type Tab = 'presets' | 'book-type' | 'page-size' | 'typography' | 'margins' | 'chapters' | 'headers' | 'front-matter' | 'export';
 
 const TABS: { id: Tab; label: string; icon: string }[] = [
+  { id: 'presets', label: 'Presets', icon: '✨' },
   { id: 'book-type', label: 'Book Type', icon: '📚' },
   { id: 'page-size', label: 'Page Size', icon: '📐' },
   { id: 'typography', label: 'Typography', icon: '📝' },
@@ -57,8 +60,17 @@ const BOOK_TYPE_OPTIONS: { id: BookType; label: string; icon: string; descriptio
   { id: 'custom', label: 'Custom', icon: '⚡', description: 'Custom format' },
 ];
 
+const PRESET_ICON: Record<string, ComponentType<{ className?: string }>> = {
+  sparkles: Sparkles,
+  book: Book,
+  ruler: Ruler,
+  file: FileText,
+  graduation: GraduationCap,
+  square: Square,
+};
+
 export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSettingsProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('book-type');
+  const [activeTab, setActiveTab] = useState<Tab>('presets');
   const [isSaving, setIsSaving] = useState(false);
   
   const {
@@ -74,6 +86,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
     applyStylePreset,
     applyBookTypePreset,
     applyMarginPreset,
+    applyPublishingPreset,
     resetSettings,
     clearModified,
     hasUnsavedChanges,
@@ -177,6 +190,77 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
             exit={{ opacity: 0, y: -10 }}
             transition={{ duration: 0.2 }}
           >
+            {/* Presets Tab */}
+            {activeTab === 'presets' && (
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Publishing Presets
+                  </h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Choose a complete, coherent layout preset. You can fine-tune everything in the other tabs after applying one.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {PUBLISHING_PRESETS.map((preset) => {
+                    const Icon = PRESET_ICON[preset.icon] || Sparkles;
+                    const isSelected = (settings.publishingPresetId || 'custom') === preset.id;
+
+                    return (
+                      <button
+                        key={preset.id}
+                        onClick={() => applyPublishingPreset(preset.id)}
+                        className={`text-left rounded-xl border transition-all p-5 bg-white dark:bg-gray-800 hover:shadow-sm ${
+                          isSelected
+                            ? 'border-yellow-400 ring-2 ring-yellow-400/30'
+                            : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                              isSelected ? 'bg-yellow-100 dark:bg-yellow-900/30' : 'bg-gray-100 dark:bg-gray-900/40'
+                            }`}>
+                              <Icon className={`w-5 h-5 ${isSelected ? 'text-yellow-700 dark:text-yellow-300' : 'text-gray-700 dark:text-gray-300'}`} />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                                  {preset.title}
+                                </div>
+                                {isSelected && (
+                                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-700 dark:text-yellow-300">
+                                    <Check className="w-3.5 h-3.5" />
+                                    Selected
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                {preset.description}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 text-xs text-gray-600 dark:text-gray-400">
+                          <div className="font-medium text-gray-700 dark:text-gray-300 mb-1">Applies</div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                            <div>• Trim</div>
+                            <div>• Typography</div>
+                            <div>• Margins</div>
+                            <div>• Chapters</div>
+                            <div>• Headers</div>
+                            <div>• Export</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Book Type Tab */}
             {activeTab === 'book-type' && (
               <div className="space-y-6">

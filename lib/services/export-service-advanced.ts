@@ -1220,7 +1220,7 @@ export class ExportServiceAdvanced {
       chapters: {
         ...DEFAULT_PUBLISHING_SETTINGS.chapters,
         ...settings.chapters,
-        chapterDropFromTop: safeNum(settings.chapters?.chapterDropFromTop, 2, 0.5, 5),
+        chapterDropFromTop: safeNum(settings.chapters?.chapterDropFromTop, 2, 0, 5),
         afterChapterTitleSpace: safeNum(settings.chapters?.afterChapterTitleSpace, 0.5, 0, 2),
       },
       headerFooter: {

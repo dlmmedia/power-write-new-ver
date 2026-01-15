@@ -134,7 +134,8 @@ export async function POST(request: NextRequest) {
 
       console.log(`[Audio API] Generated audio for ${audioResults.length} chapters`);
 
-      // Save audio URLs to database (this will overwrite existing audio URLs for regeneration)
+      // Save audio URLs to database and trigger alignment for each chapter
+      const chaptersWithTimestamps: number[] = [];
       for (const audioResult of audioResults) {
         const chapter = await getChapterByBookAndNumber(book.id, audioResult.chapterNumber);
         if (chapter) {
@@ -152,14 +153,37 @@ export async function POST(request: NextRequest) {
           );
           const wasRegenerated = chaptersWithExistingAudio.includes(audioResult.chapterNumber);
           console.log(`[Audio API] ${wasRegenerated ? 'Regenerated' : 'Saved'} audio URL for chapter ${audioResult.chapterNumber}`);
+
+          // Auto-trigger alignment to generate word timestamps for text sync
+          try {
+            console.log(`[Audio API] Auto-generating timestamps for chapter ${audioResult.chapterNumber}...`);
+            const alignmentResponse = await fetch(`${request.nextUrl.origin}/api/generate/audio/alignment`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ chapterId: chapter.id }),
+            });
+            
+            if (alignmentResponse.ok) {
+              const alignmentData = await alignmentResponse.json();
+              console.log(`[Audio API] Auto-alignment successful: ${alignmentData.count} timestamps for chapter ${audioResult.chapterNumber}`);
+              chaptersWithTimestamps.push(audioResult.chapterNumber);
+            } else {
+              const errorData = await alignmentResponse.json().catch(() => ({}));
+              console.warn(`[Audio API] Auto-alignment failed for chapter ${audioResult.chapterNumber}:`, errorData.error || 'Unknown error');
+            }
+          } catch (alignError) {
+            console.warn(`[Audio API] Auto-alignment error for chapter ${audioResult.chapterNumber}:`, alignError);
+            // Don't fail the whole request if alignment fails - audio was still generated successfully
+          }
         }
       }
 
-      console.log(`[Audio API] Successfully completed chapter audio generation`);
+      console.log(`[Audio API] Successfully completed chapter audio generation (${chaptersWithTimestamps.length}/${audioResults.length} chapters synced)`);
       return NextResponse.json({
         success: true,
         type: 'chapters',
         chapters: audioResults,
+        syncedChapters: chaptersWithTimestamps,
       });
     }
 

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, BookOpen, Check, ChevronRight } from 'lucide-react';
+import { X, BookOpen, Check, ChevronRight, Headphones, Type } from 'lucide-react';
 import { TableOfContentsProps, READING_THEMES, Chapter } from './types';
 
 interface ExtendedTableOfContentsProps extends TableOfContentsProps {
@@ -232,6 +232,33 @@ export const TableOfContents: React.FC<ExtendedTableOfContentsProps> = ({
                               >
                                 Reading
                               </span>
+                            )}
+                            {/* Audio & Sync indicators */}
+                            {chapter.audioUrl && (
+                              <div className="flex items-center gap-1 flex-shrink-0">
+                                <span 
+                                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px]"
+                                  style={{
+                                    background: `${themeConfig.accentColor}20`,
+                                    color: themeConfig.accentColor,
+                                  }}
+                                  title="Audio available"
+                                >
+                                  <Headphones className="w-3 h-3" />
+                                </span>
+                                {chapter.audioTimestamps && chapter.audioTimestamps.length > 0 && (
+                                  <span 
+                                    className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px]"
+                                    style={{
+                                      background: '#22c55e20',
+                                      color: '#22c55e',
+                                    }}
+                                    title="Text synced with audio"
+                                  >
+                                    <Type className="w-3 h-3" />
+                                  </span>
+                                )}
+                              </div>
                             )}
                           </div>
                           <div 
