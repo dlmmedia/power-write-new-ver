@@ -8,6 +8,8 @@
 import puppeteer from 'puppeteer';
 import type { Browser, Page } from 'puppeteer-core';
 import { put } from '@vercel/blob';
+import * as path from 'path';
+import * as fs from 'fs';
 import { VideoManifest, ChapterTiming, PageTiming } from './video-sync-calculator';
 import type { FontSize } from '@/lib/utils/pagination';
 
@@ -23,7 +25,8 @@ const FLIP_FRAME_COUNT = 15; // Number of frames for page flip animation
 const FLIP_DURATION_MS = 600; // Duration of flip animation in ms
 
 export interface FrameInfo {
-  url: string;
+  url?: string;
+  localPath?: string;
   time: number;
   type: 'static' | 'flip';
   chapterIndex: number;
@@ -49,8 +52,17 @@ export interface RenderOptions {
   fontSize: FontSize;
   manifest: VideoManifest;
   outputPrefix: string;
+  outputDir?: string;
+  uploadFrames?: boolean;
+  navigationWaitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
   onProgress?: (progress: RenderProgress) => void | Promise<void>;
 }
+
+const FRAME_JPEG_QUALITY = (() => {
+  const raw = Number.parseInt(process.env.VIDEO_EXPORT_JPEG_QUALITY || '85', 10);
+  if (!Number.isFinite(raw)) return 85;
+  return Math.max(30, Math.min(95, raw));
+})();
 
 /**
  * Get Puppeteer browser instance
@@ -116,6 +128,11 @@ async function getBrowser(): Promise<Browser> {
           '--disable-gpu',
           '--disable-software-rasterizer',
           '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--hide-scrollbars',
+          '--mute-audio',
           '--single-process', // May help in containerized environments
           '--no-zygote', // Required for some containerized environments
         ],
@@ -215,9 +232,10 @@ function buildRenderUrl(
  */
 async function captureFrame(
   page: Page,
-  url: string
+  url: string,
+  waitUntil: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2'
 ): Promise<Buffer> {
-  await page.goto(url, { waitUntil: 'networkidle0' });
+  await page.goto(url, { waitUntil, timeout: 60000 });
   await waitForRenderReady(page);
   
   // Small delay to ensure animations are complete
@@ -231,7 +249,7 @@ async function captureFrame(
   
   const screenshot = await element.screenshot({
     type: 'jpeg',
-    quality: 90,
+    quality: FRAME_JPEG_QUALITY,
   });
   
   return Buffer.from(screenshot);
@@ -268,6 +286,9 @@ async function renderChapterFrames(
   theme: ReadingTheme,
   fontSize: FontSize,
   outputPrefix: string,
+  outputDir: string | undefined,
+  uploadFrames: boolean,
+  navigationWaitUntil: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2',
   startFrameIndex: number,
   onFrameRendered?: (frame: FrameInfo) => void | Promise<void>
 ): Promise<FrameInfo[]> {
@@ -289,14 +310,25 @@ async function renderChapterFrames(
     );
     
     // Capture frame
-    const frameBuffer = await captureFrame(page, url);
+    const frameBuffer = await captureFrame(page, url, navigationWaitUntil);
+
+    // Persist locally if requested (fast path for video assembly)
+    let localPath: string | undefined;
+    if (outputDir) {
+      localPath = path.join(outputDir, `frame-${String(frameIndex).padStart(6, '0')}.jpg`);
+      fs.writeFileSync(localPath, frameBuffer);
+    }
     
-    // Upload to blob storage
-    const filename = `${outputPrefix}/frame-${String(frameIndex).padStart(6, '0')}.jpg`;
-    const frameUrl = await uploadFrame(frameBuffer, filename);
+    // Upload to blob storage (optional; significantly slower than local disk)
+    let frameUrl: string | undefined;
+    if (uploadFrames) {
+      const filename = `${outputPrefix}/frame-${String(frameIndex).padStart(6, '0')}.jpg`;
+      frameUrl = await uploadFrame(frameBuffer, filename);
+    }
     
     const frameInfo: FrameInfo = {
       url: frameUrl,
+      localPath,
       time: pageTiming.startTime,
       type: 'static',
       chapterIndex: chapter.chapterIndex,
@@ -327,16 +359,27 @@ async function renderChapterFrames(
       );
       
       // Capture frame
-      const frameBuffer = await captureFrame(page, url);
+      const frameBuffer = await captureFrame(page, url, navigationWaitUntil);
+
+      // Persist locally if requested
+      let localPath: string | undefined;
+      if (outputDir) {
+        localPath = path.join(outputDir, `frame-${String(frameIndex).padStart(6, '0')}.jpg`);
+        fs.writeFileSync(localPath, frameBuffer);
+      }
       
-      // Upload to blob storage
-      const filename = `${outputPrefix}/frame-${String(frameIndex).padStart(6, '0')}.jpg`;
-      const frameUrl = await uploadFrame(frameBuffer, filename);
+      // Upload to blob storage (optional)
+      let frameUrl: string | undefined;
+      if (uploadFrames) {
+        const filename = `${outputPrefix}/frame-${String(frameIndex).padStart(6, '0')}.jpg`;
+        frameUrl = await uploadFrame(frameBuffer, filename);
+      }
       
       const flipTime = flip.startTime + (f / FLIP_FRAME_COUNT) * flip.duration;
       
       const frameInfo: FrameInfo = {
         url: frameUrl,
+        localPath,
         time: flipTime,
         type: 'flip',
         chapterIndex: chapter.chapterIndex,
@@ -367,6 +410,9 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
     fontSize,
     manifest,
     outputPrefix,
+    outputDir,
+    uploadFrames = false,
+    navigationWaitUntil = 'domcontentloaded',
     onProgress,
   } = options;
   
@@ -389,6 +435,71 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
     // Launch browser
     browser = await getBrowser();
     const page = await browser.newPage();
+
+    // More forgiving timeouts for slow cold starts
+    page.setDefaultNavigationTimeout(60000);
+    page.setDefaultTimeout(60000);
+
+    // Bypass service worker (can cause stalls in headless navigation)
+    try {
+      const client = await page.target().createCDPSession();
+      await client.send('Network.enable');
+      await client.send('Network.setBypassServiceWorker', { bypass: true });
+    } catch (e) {
+      console.warn('[FrameRenderer] Failed to bypass service worker:', e);
+    }
+
+    // Enable caching inside Chromium
+    try {
+      await page.setCacheEnabled(true);
+    } catch (e) {
+      console.warn('[FrameRenderer] Failed to enable page cache:', e);
+    }
+
+    // Cache `/api/books/:id` response to avoid repeated DB/API calls per frame
+    const cachedApiResponses = new Map<string, { body: string; contentType: string }>();
+    try {
+      await page.setRequestInterception(true);
+      page.on('request', async (req) => {
+        try {
+          const reqUrl = new URL(req.url());
+          const isBookApi = req.method() === 'GET' && reqUrl.pathname === `/api/books/${bookId}`;
+          const cached = cachedApiResponses.get(reqUrl.pathname);
+          if (isBookApi && cached) {
+            await req.respond({
+              status: 200,
+              contentType: cached.contentType,
+              body: cached.body,
+            });
+            return;
+          }
+          await req.continue();
+        } catch {
+          try {
+            await req.continue();
+          } catch {
+            // ignore
+          }
+        }
+      });
+
+      page.on('response', async (res) => {
+        try {
+          const resUrl = new URL(res.url());
+          const isBookApi = res.request().method() === 'GET' && resUrl.pathname === `/api/books/${bookId}`;
+          if (!isBookApi) return;
+          if (res.status() !== 200) return;
+          if (cachedApiResponses.has(resUrl.pathname)) return;
+          const body = await res.text();
+          const contentType = res.headers()['content-type'] || 'application/json';
+          cachedApiResponses.set(resUrl.pathname, { body, contentType });
+        } catch {
+          // ignore
+        }
+      });
+    } catch (e) {
+      console.warn('[FrameRenderer] Failed to enable request interception cache:', e);
+    }
     
     // Set viewport
     await page.setViewport({
@@ -396,6 +507,20 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
       height: FRAME_HEIGHT,
       deviceScaleFactor: 1,
     });
+
+    // Reduce CPU churn from animations/transitions (we render deterministic frames)
+    try {
+      await page.addStyleTag({
+        content: `
+          *, *::before, *::after {
+            animation: none !important;
+            transition: none !important;
+          }
+        `,
+      });
+    } catch (e) {
+      console.warn('[FrameRenderer] Failed to inject no-animation CSS:', e);
+    }
     
     progress.phase = 'rendering';
     if (onProgress) await onProgress(progress);
@@ -418,6 +543,9 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
         theme,
         fontSize,
         outputPrefix,
+        outputDir,
+        uploadFrames,
+        navigationWaitUntil,
         frameIndex,
         async (frame) => {
           progress.currentFrame++;
@@ -496,6 +624,9 @@ export async function renderChapter(
       theme,
       fontSize,
       outputPrefix,
+      undefined,
+      true,
+      'domcontentloaded',
       0,
       async (frame) => {
         progress.currentFrame++;
@@ -524,6 +655,7 @@ export async function cleanupFrames(frames: FrameInfo[]): Promise<void> {
   
   for (const frame of frames) {
     try {
+      if (!frame.url) continue;
       await del(frame.url);
     } catch (e) {
       console.warn(`[FrameRenderer] Failed to delete frame: ${frame.url}`, e);

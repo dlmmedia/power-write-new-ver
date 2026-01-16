@@ -77,6 +77,10 @@ export const exportVideoBackground = inngest.createFunction(
       console.log(`[Inngest Video] Starting export for job ${jobId}, bookId: ${bookId}, baseUrl: ${baseUrl}`);
       
       try {
+        // Progress batching (avoid noisy DB writes, but don't get stuck on fractional % updates)
+        let lastReportedPhase: string | null = null;
+        let lastReportedProgress = -1;
+
         // Run the export
         const exportResult = await exportVideo({
           bookId,
@@ -88,11 +92,21 @@ export const exportVideoBackground = inngest.createFunction(
           onProgress: async (progress) => {
             // Update job progress in database
             // Note: This might be called frequently, so we batch updates
-            if (progress.progress % 5 === 0 || progress.phase !== 'rendering_frames') {
-              console.log(`[Inngest Video] Progress update - phase: ${progress.phase}, progress: ${progress.progress}%`);
+            const roundedProgress = Math.max(0, Math.min(100, Math.round(progress.progress)));
+            const phaseChanged = progress.phase !== lastReportedPhase;
+            const progressedEnough = roundedProgress >= lastReportedProgress + 5;
+            const shouldUpdate = phaseChanged || progressedEnough || roundedProgress === 100;
+
+            if (shouldUpdate) {
+              lastReportedPhase = progress.phase;
+              lastReportedProgress = roundedProgress;
+
+              console.log(
+                `[Inngest Video] Progress update - phase: ${progress.phase}, progress: ${roundedProgress}%`
+              );
               await updateVideoExportJob(jobId, {
                 currentPhase: progress.phase,
-                progress: Math.round(progress.progress),
+                progress: roundedProgress,
                 currentChapter: progress.currentChapter,
                 currentFrame: progress.currentFrame,
                 error: progress.error,

@@ -26,6 +26,25 @@ function stringifyUnknownError(err: unknown): string {
   }
 }
 
+function normalizeEnvUrl(value: string | undefined | null): string | undefined {
+  const v = value?.trim();
+  if (!v) return undefined;
+  // Guard against misconfigured env vars like "undefined" or "null"
+  if (v === 'undefined' || v === 'null') return undefined;
+  return v;
+}
+
+function getBaseUrlFromRequest(request: NextRequest): string | undefined {
+  const host =
+    request.headers.get('x-forwarded-host') ??
+    request.headers.get('host') ??
+    undefined;
+  if (!host) return undefined;
+
+  const proto = request.headers.get('x-forwarded-proto') ?? 'https';
+  return `${proto}://${host}`;
+}
+
 /**
  * POST /api/generate/video
  * Start a new video export job
@@ -159,16 +178,35 @@ export async function POST(request: NextRequest) {
     });
     
     // Get base URL for rendering
-    // Priority: NEXT_PUBLIC_APP_URL > RAILWAY_PUBLIC_DOMAIN > VERCEL_URL > localhost
-    let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-    if (!baseUrl && process.env.RAILWAY_PUBLIC_DOMAIN) {
-      baseUrl = `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`;
-    }
-    if (!baseUrl && process.env.VERCEL_URL) {
-      baseUrl = `https://${process.env.VERCEL_URL}`;
-    }
-    if (!baseUrl) {
-      baseUrl = 'http://localhost:3000';
+    // Priority:
+    // 0) Explicit override for video export rendering (advanced)
+    // 1) Explicit app URL (recommended)
+    // 2) Platform-provided domains (Railway/Vercel)
+    // 3) Derived from the incoming request headers (most reliable on Vercel)
+    // 4) Local fallback (uses PORT when available; critical on Railway)
+    const port = normalizeEnvUrl(process.env.PORT) ?? '3000';
+    const internalBaseUrl = `http://127.0.0.1:${port}`;
+
+    const isRailway = Boolean(process.env.RAILWAY_ENVIRONMENT);
+
+    // On Railway, prefer loopback for speed and reliability (no public DNS/TLS/proxy hops).
+    // You can override with VIDEO_EXPORT_BASE_URL if you need to force a public URL.
+    let baseUrl =
+      normalizeEnvUrl(process.env.VIDEO_EXPORT_BASE_URL) ??
+      (isRailway ? internalBaseUrl : undefined) ??
+      normalizeEnvUrl(process.env.NEXT_PUBLIC_APP_URL);
+    const railwayDomain = normalizeEnvUrl(process.env.RAILWAY_PUBLIC_DOMAIN);
+    if (!baseUrl && railwayDomain) baseUrl = `https://${railwayDomain}`;
+
+    const vercelUrl = normalizeEnvUrl(process.env.VERCEL_URL);
+    if (!baseUrl && vercelUrl) baseUrl = `https://${vercelUrl}`;
+
+    if (!baseUrl) baseUrl = getBaseUrlFromRequest(request);
+
+    // If we still can't determine a public URL, or we ended up with localhost:3000,
+    // use an internal loopback URL that matches Railway's assigned PORT.
+    if (!baseUrl || baseUrl.includes('localhost:3000') || baseUrl.includes('127.0.0.1:3000')) {
+      baseUrl = internalBaseUrl;
     }
     
     console.log(`[Video API] Using base URL: ${baseUrl}`);

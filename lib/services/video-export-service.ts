@@ -34,8 +34,11 @@ if (process.env.FFMPEG_PATH) {
   // Priority 2: Try @ffmpeg-installer/ffmpeg (works locally and on some platforms)
   try {
     const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-    ffmpegPath = ffmpegInstaller.path;
-    ffmpeg.setFfmpegPath(ffmpegPath);
+    const detectedPath: string | undefined = ffmpegInstaller?.path;
+    if (typeof detectedPath === 'string' && detectedPath.length > 0) {
+      ffmpegPath = detectedPath;
+      ffmpeg.setFfmpegPath(detectedPath);
+    }
     console.log(`[VideoExport] Using @ffmpeg-installer/ffmpeg: ${ffmpegPath}`);
   } catch (e) {
     console.warn('[VideoExport] @ffmpeg-installer/ffmpeg not found, checking for system FFmpeg...');
@@ -349,6 +352,7 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
   
   let tempDir: string | null = null;
   let renderedFrames: FrameInfo[] = [];
+  let uploadedFrames = false;
   
   const reportProgress = async (progress: VideoExportProgress) => {
     if (onProgress) {
@@ -375,6 +379,8 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
     
     // Create temp directory
     tempDir = createTempDir();
+    const rawFramesDir = path.join(tempDir, 'frames-raw');
+    fs.mkdirSync(rawFramesDir, { recursive: true });
     
     // Phase 2: Render frames
     await reportProgress({
@@ -386,6 +392,10 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
     });
     
     const outputPrefix = `video-exports/${bookId}/${Date.now()}`;
+
+    // Uploading every frame to Blob is extremely slow on Railway and not needed for stitching.
+    // Keep it opt-in for debugging/legacy behavior.
+    uploadedFrames = process.env.VIDEO_EXPORT_UPLOAD_FRAMES === 'true';
     
     renderedFrames = await renderFrames({
       bookId,
@@ -394,6 +404,9 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
       fontSize,
       manifest,
       outputPrefix,
+      outputDir: rawFramesDir,
+      uploadFrames: uploadedFrames,
+      navigationWaitUntil: 'domcontentloaded',
       onProgress: async (renderProgress) => {
         const framePercent = (renderProgress.currentFrame / manifest.totalFrames) * 40;
         await reportProgress({
@@ -408,27 +421,36 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
       },
     });
     
-    // Phase 3: Download frames locally
+    // Phase 3: Prepare frames locally in time order (no Blob roundtrip)
     await reportProgress({
       phase: 'downloading',
       progress: 45,
-      message: 'Downloading rendered frames...',
+      message: 'Preparing rendered frames...',
     });
     
     // Sort frames by time
     const sortedFrames = [...renderedFrames].sort((a, b) => a.time - b.time);
     
-    // Download all frames to temp directory
+    // Move/copy all frames into the exact concat order/filenames that FFmpeg expects
     for (let i = 0; i < sortedFrames.length; i++) {
       const frame = sortedFrames[i];
       const localPath = path.join(tempDir, `frame-${String(i).padStart(6, '0')}.jpg`);
-      await downloadFile(frame.url, localPath);
+      if (!frame.localPath) {
+        throw new Error('Frame rendering did not produce local files');
+      }
+
+      // Use rename when possible (fast), fallback to copy (cross-device)
+      try {
+        fs.renameSync(frame.localPath, localPath);
+      } catch {
+        fs.copyFileSync(frame.localPath, localPath);
+      }
       
       const downloadPercent = 45 + ((i + 1) / sortedFrames.length) * 15;
       await reportProgress({
         phase: 'downloading',
         progress: downloadPercent,
-        message: `Downloading frame ${i + 1} of ${sortedFrames.length}...`,
+        message: `Preparing frame ${i + 1} of ${sortedFrames.length}...`,
       });
     }
     
@@ -485,7 +507,9 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
     });
     
     // Clean up rendered frames from blob storage
-    await cleanupFrames(renderedFrames);
+    if (uploadedFrames) {
+      await cleanupFrames(renderedFrames);
+    }
     
     // Phase 6: Complete
     await reportProgress({
@@ -513,7 +537,9 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
     // Clean up any rendered frames
     if (renderedFrames.length > 0) {
       try {
-        await cleanupFrames(renderedFrames);
+        if (uploadedFrames) {
+          await cleanupFrames(renderedFrames);
+        }
       } catch (e) {
         console.warn('[VideoExport] Failed to cleanup frames:', e);
       }
