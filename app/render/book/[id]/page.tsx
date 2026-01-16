@@ -13,6 +13,7 @@
  * - fontSize: Font size (xs, sm, base, lg, xl, xxl)
  * - flipFrame: If provided, renders a flip animation frame (0 to ~15)
  * - flipDirection: 'forward' or 'backward' for flip animation
+ * - wordIndex: Index of the currently spoken word (for audio-synced text highlighting)
  * - ready: Set to 'true' by client when ready for capture
  */
 
@@ -27,6 +28,16 @@ import {
   Chapter,
   TextChunk,
 } from '@/components/library/reader/types';
+
+// Build an array of character positions where each word starts (for audio sync)
+function buildWordStartCharIndices(text: string): number[] {
+  const indices: number[] = [];
+  const re = /[\p{L}\p{N}'']+/gu;
+  for (const match of text.matchAll(re)) {
+    if (typeof match.index === 'number') indices.push(match.index);
+  }
+  return indices;
+}
 
 // Video frame dimensions (16:9 aspect ratio for video)
 const FRAME_WIDTH = 1920;
@@ -71,6 +82,10 @@ function RenderBookContent() {
   const fontSize = (searchParams.get('fontSize') || 'base') as FontSize;
   const flipFrame = searchParams.get('flipFrame');
   const flipDirection = (searchParams.get('flipDirection') || 'forward') as 'forward' | 'backward';
+  // Audio sync parameters for text highlighting
+  const wordIndexParam = searchParams.get('wordIndex');
+  const currentWordIndex = wordIndexParam !== null ? parseInt(wordIndexParam, 10) : -1;
+  const isAudioPlaying = currentWordIndex >= 0; // Highlight is active when wordIndex is provided
   
   // State
   const [book, setBook] = useState<BookData | null>(null);
@@ -78,42 +93,78 @@ function RenderBookContent() {
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
   
-  // Fetch book data
+  // Fetch book data with retry logic
   useEffect(() => {
     async function fetchBook() {
-      try {
-        const response = await fetch(`/api/books/${bookId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch book');
+      const maxRetries = 3;
+      let lastError: Error | null = null;
+      
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          console.log(`[RenderBook] Fetching book ${bookId} (attempt ${attempt}/${maxRetries})...`);
+          
+          // Use absolute URL if available (for Puppeteer headless context)
+          const apiUrl = typeof window !== 'undefined' && window.location.origin 
+            ? `${window.location.origin}/api/books/${bookId}`
+            : `/api/books/${bookId}`;
+          
+          const response = await fetch(apiUrl, {
+            cache: 'no-store',
+            headers: {
+              'Accept': 'application/json',
+            },
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error(`[RenderBook] API error ${response.status}: ${errorText}`);
+            throw new Error(`API returned ${response.status}: ${errorText}`);
+          }
+          
+          const responseData = await response.json();
+          console.log(`[RenderBook] Book data received:`, responseData.book ? 'has book' : 'no book');
+          
+          // API returns { success: true, book: { ... } }
+          const data = responseData.book || responseData;
+          
+          // Transform chapters to match expected format
+          const chapters: Chapter[] = (data.chapters || []).map((ch: any) => ({
+            id: ch.id,
+            number: ch.chapterNumber || ch.number,
+            title: ch.title,
+            content: ch.content,
+            wordCount: ch.wordCount || 0,
+            status: 'completed' as const,
+            audioUrl: ch.audioUrl,
+            audioDuration: ch.audioDuration,
+            audioTimestamps: ch.audioTimestamps,
+          }));
+          
+          setBook({
+            id: data.id,
+            title: data.title,
+            author: data.author || 'Unknown Author',
+            coverUrl: data.coverUrl,
+            chapters,
+          });
+          setLoading(false);
+          return; // Success, exit the retry loop
+          
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          console.error(`[RenderBook] Attempt ${attempt} failed:`, lastError.message);
+          
+          if (attempt < maxRetries) {
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+          }
         }
-        const data = await response.json();
-        
-        // Transform chapters to match expected format
-        const chapters: Chapter[] = (data.chapters || []).map((ch: any) => ({
-          id: ch.id,
-          number: ch.chapterNumber,
-          title: ch.title,
-          content: ch.content,
-          wordCount: ch.wordCount || 0,
-          status: 'completed' as const,
-          audioUrl: ch.audioUrl,
-          audioDuration: ch.audioDuration,
-          audioTimestamps: ch.audioTimestamps,
-        }));
-        
-        setBook({
-          id: data.id,
-          title: data.title,
-          author: data.author || 'Unknown Author',
-          coverUrl: data.coverUrl,
-          chapters,
-        });
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching book:', err);
-        setError(err instanceof Error ? err.message : 'Unknown error');
-        setLoading(false);
       }
+      
+      // All retries failed
+      console.error('[RenderBook] All fetch attempts failed:', lastError?.message);
+      setError(lastError?.message || 'Failed to fetch book after multiple attempts');
+      setLoading(false);
     }
     
     fetchBook();
@@ -137,6 +188,13 @@ function RenderBookContent() {
     if (nextPageIndex < 0 || nextPageIndex >= totalPagesInChapter) return null;
     return getSpreadPages(chapterPages, chapterIndex, nextPageIndex);
   }, [chapterPages, chapterIndex, pageIndex, flipFrame, flipDirection, totalPagesInChapter]);
+  
+  // Build word start indices for current chapter (for audio sync highlighting)
+  const chapterWordStarts = useMemo(() => {
+    const currentChapter = book?.chapters[chapterIndex];
+    if (!currentChapter?.content) return [];
+    return buildWordStartCharIndices(currentChapter.content);
+  }, [book?.chapters, chapterIndex]);
   
   // Calculate flip animation state
   const isFlipping = flipFrame !== null;
@@ -190,7 +248,7 @@ function RenderBookContent() {
   if (error || !book) {
     return (
       <div 
-        className="flex items-center justify-center"
+        className="flex items-center justify-center flex-col gap-4"
         style={{ 
           width: FRAME_WIDTH, 
           height: FRAME_HEIGHT,
@@ -198,7 +256,11 @@ function RenderBookContent() {
           color: '#ff4444',
         }}
       >
-        <div className="text-2xl">Error: {error || 'Book not found'}</div>
+        <div className="text-2xl">Error Loading Book</div>
+        <div className="text-lg opacity-80 max-w-lg text-center px-8">
+          {error || 'Book not found'}
+        </div>
+        <div className="text-sm opacity-60">Book ID: {bookId}</div>
       </div>
     );
   }
@@ -219,13 +281,15 @@ function RenderBookContent() {
       {/* Centered book container */}
       <div 
         className="absolute inset-0 flex items-center justify-center"
-        style={{ padding: '40px' }}
+        style={{ padding: '60px' }}
       >
         <div 
           className="relative"
           style={{
-            // Scale the book to fit the frame while maintaining aspect ratio
-            transform: 'scale(1.5)',
+            // Scale the book to fit the 1920x1080 frame with comfortable margins
+            // Book3D dimensions: ~1020px wide (500+20+500) x 680px tall
+            // At 1.35x scale: 1377px x 918px - fits well in 1920x1080 with margins
+            transform: 'scale(1.35)',
             transformOrigin: 'center center',
           }}
         >
@@ -244,6 +308,10 @@ function RenderBookContent() {
             flipBackContent={flipBackContent}
             onFlipComplete={() => {}}
             onPageClick={() => {}}
+            // Audio sync for text highlighting in video
+            chapterWordStarts={chapterWordStarts}
+            currentWordIndex={currentWordIndex}
+            isAudioPlaying={isAudioPlaying}
           />
         </div>
       </div>

@@ -10,7 +10,7 @@ import type { Browser, Page } from 'puppeteer-core';
 import { put } from '@vercel/blob';
 import * as path from 'path';
 import * as fs from 'fs';
-import { VideoManifest, ChapterTiming, PageTiming } from './video-sync-calculator';
+import { VideoManifest, ChapterTiming, PageTiming, AudioTimestamp, findWordIndexByTime } from './video-sync-calculator';
 import type { FontSize } from '@/lib/utils/pagination';
 
 // Reading theme type
@@ -24,6 +24,11 @@ const FRAME_HEIGHT = 1080;
 const FLIP_FRAME_COUNT = 15; // Number of frames for page flip animation
 const FLIP_DURATION_MS = 600; // Duration of flip animation in ms
 
+// Highlight sync settings
+// How often to capture a new frame for word highlighting (in seconds)
+// Lower = smoother highlighting but more frames to render
+const HIGHLIGHT_FRAME_INTERVAL = 0.5; // Capture a frame every 0.5 seconds for word sync
+
 export interface FrameInfo {
   url?: string;
   localPath?: string;
@@ -32,6 +37,7 @@ export interface FrameInfo {
   chapterIndex: number;
   pageIndex: number;
   flipFrame?: number;
+  wordIndex?: number; // Index of highlighted word for audio sync
   width: number;
   height: number;
 }
@@ -56,6 +62,8 @@ export interface RenderOptions {
   uploadFrames?: boolean;
   navigationWaitUntil?: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2';
   onProgress?: (progress: RenderProgress) => void | Promise<void>;
+  // Audio timestamps per chapter for word-by-word sync highlighting
+  chapterAudioTimestamps?: Map<number, AudioTimestamp[]>;
 }
 
 const FRAME_JPEG_QUALITY = (() => {
@@ -211,7 +219,8 @@ function buildRenderUrl(
   theme: ReadingTheme,
   fontSize: FontSize,
   flipFrame?: number,
-  flipDirection?: 'forward' | 'backward'
+  flipDirection?: 'forward' | 'backward',
+  wordIndex?: number
 ): string {
   const url = new URL(`${baseUrl}/render/book/${bookId}`);
   url.searchParams.set('chapter', chapterIndex.toString());
@@ -222,6 +231,11 @@ function buildRenderUrl(
   if (flipFrame !== undefined) {
     url.searchParams.set('flipFrame', flipFrame.toString());
     url.searchParams.set('flipDirection', flipDirection || 'forward');
+  }
+  
+  // Add word index for audio-synced text highlighting
+  if (wordIndex !== undefined && wordIndex >= 0) {
+    url.searchParams.set('wordIndex', wordIndex.toString());
   }
   
   return url.toString();
@@ -277,6 +291,7 @@ async function uploadFrame(
 
 /**
  * Render all frames for a single chapter
+ * Now generates multiple frames per page for smooth word-by-word audio sync
  */
 async function renderChapterFrames(
   page: Page,
@@ -290,63 +305,109 @@ async function renderChapterFrames(
   uploadFrames: boolean,
   navigationWaitUntil: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2',
   startFrameIndex: number,
+  audioTimestamps: AudioTimestamp[] | null,
   onFrameRendered?: (frame: FrameInfo) => void | Promise<void>
 ): Promise<FrameInfo[]> {
   const frames: FrameInfo[] = [];
   let frameIndex = startFrameIndex;
   
   // Render static pages (every 2 pages for spread view)
+  // Now with multiple frames per page for word highlighting sync
   for (let i = 0; i < chapter.pages.length; i += 2) {
     const pageTiming = chapter.pages[i];
+    const nextPageTiming = chapter.pages[i + 2]; // Next spread (if exists)
     
-    // Build URL for this page
-    const url = buildRenderUrl(
-      baseUrl,
-      bookId,
-      chapter.chapterIndex,
-      i,
-      theme,
-      fontSize
-    );
+    // Calculate page duration (time until next page or end of chapter)
+    const pageEndTime = nextPageTiming?.startTime ?? chapter.pages[chapter.pages.length - 1]?.endTime ?? pageTiming.endTime;
+    const pageDuration = pageEndTime - pageTiming.startTime;
     
-    // Capture frame
-    const frameBuffer = await captureFrame(page, url, navigationWaitUntil);
+    // Calculate how many frames to capture for this page spread
+    // At least 1 frame, based on HIGHLIGHT_FRAME_INTERVAL
+    const framesForThisPage = audioTimestamps && audioTimestamps.length > 0
+      ? Math.max(1, Math.ceil(pageDuration / HIGHLIGHT_FRAME_INTERVAL))
+      : 1; // Only 1 frame if no audio timestamps (no highlighting needed)
+    
+    for (let f = 0; f < framesForThisPage; f++) {
+      // Calculate the time for this frame
+      const frameTime = pageTiming.startTime + (f * HIGHLIGHT_FRAME_INTERVAL);
+      
+      // Don't go past the page end time
+      if (f > 0 && frameTime >= pageEndTime) break;
+      
+      // Calculate word index for this frame time
+      let wordIndex: number | undefined;
+      if (audioTimestamps && audioTimestamps.length > 0) {
+        const foundIndex = findWordIndexByTime(audioTimestamps, frameTime);
+        wordIndex = foundIndex >= 0 ? foundIndex : undefined;
+      } else {
+        // Fallback to page start word if no timestamps
+        wordIndex = pageTiming.startWordIndex >= 0 ? pageTiming.startWordIndex : undefined;
+      }
+      
+      // Build URL for this page with word index for text highlighting
+      const url = buildRenderUrl(
+        baseUrl,
+        bookId,
+        chapter.chapterIndex,
+        i,
+        theme,
+        fontSize,
+        undefined, // no flip frame
+        undefined, // no flip direction
+        wordIndex
+      );
+      
+      // Capture frame
+      const frameBuffer = await captureFrame(page, url, navigationWaitUntil);
 
-    // Persist locally if requested (fast path for video assembly)
-    let localPath: string | undefined;
-    if (outputDir) {
-      localPath = path.join(outputDir, `frame-${String(frameIndex).padStart(6, '0')}.jpg`);
-      fs.writeFileSync(localPath, frameBuffer);
+      // Persist locally if requested (fast path for video assembly)
+      let localPath: string | undefined;
+      if (outputDir) {
+        localPath = path.join(outputDir, `frame-${String(frameIndex).padStart(6, '0')}.jpg`);
+        fs.writeFileSync(localPath, frameBuffer);
+      }
+      
+      // Upload to blob storage (optional; significantly slower than local disk)
+      let frameUrl: string | undefined;
+      if (uploadFrames) {
+        const filename = `${outputPrefix}/frame-${String(frameIndex).padStart(6, '0')}.jpg`;
+        frameUrl = await uploadFrame(frameBuffer, filename);
+      }
+      
+      const frameInfo: FrameInfo = {
+        url: frameUrl,
+        localPath,
+        time: frameTime,
+        type: 'static',
+        chapterIndex: chapter.chapterIndex,
+        pageIndex: i,
+        wordIndex,
+        width: FRAME_WIDTH,
+        height: FRAME_HEIGHT,
+      };
+      
+      frames.push(frameInfo);
+      if (onFrameRendered) await onFrameRendered(frameInfo);
+      
+      frameIndex++;
     }
-    
-    // Upload to blob storage (optional; significantly slower than local disk)
-    let frameUrl: string | undefined;
-    if (uploadFrames) {
-      const filename = `${outputPrefix}/frame-${String(frameIndex).padStart(6, '0')}.jpg`;
-      frameUrl = await uploadFrame(frameBuffer, filename);
-    }
-    
-    const frameInfo: FrameInfo = {
-      url: frameUrl,
-      localPath,
-      time: pageTiming.startTime,
-      type: 'static',
-      chapterIndex: chapter.chapterIndex,
-      pageIndex: i,
-      width: FRAME_WIDTH,
-      height: FRAME_HEIGHT,
-    };
-    
-    frames.push(frameInfo);
-    if (onFrameRendered) await onFrameRendered(frameInfo);
-    
-    frameIndex++;
   }
   
   // Render page flip animations
   for (const flip of chapter.flipTransitions) {
+    // Get the word index for the page we're flipping from
+    const fromPageTiming = chapter.pages[flip.fromPage];
+    const toPageTiming = chapter.pages[flip.toPage];
+    
     for (let f = 0; f < FLIP_FRAME_COUNT; f++) {
-      // Build URL for flip frame
+      // Interpolate word index during the flip animation
+      // Start with the end word of the current page, transition to start word of next page
+      const flipProgress = f / FLIP_FRAME_COUNT;
+      const startWord = fromPageTiming?.endWordIndex ?? 0;
+      const endWord = toPageTiming?.startWordIndex ?? startWord;
+      const wordIndex = Math.round(startWord + (endWord - startWord) * flipProgress);
+      
+      // Build URL for flip frame with word highlighting
       const url = buildRenderUrl(
         baseUrl,
         bookId,
@@ -355,7 +416,8 @@ async function renderChapterFrames(
         theme,
         fontSize,
         f,
-        'forward'
+        'forward',
+        wordIndex >= 0 ? wordIndex : undefined
       );
       
       // Capture frame
@@ -385,6 +447,7 @@ async function renderChapterFrames(
         chapterIndex: chapter.chapterIndex,
         pageIndex: flip.fromPage,
         flipFrame: f,
+        wordIndex: wordIndex >= 0 ? wordIndex : undefined,
         width: FRAME_WIDTH,
         height: FRAME_HEIGHT,
       };
@@ -414,6 +477,7 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
     uploadFrames = false,
     navigationWaitUntil = 'domcontentloaded',
     onProgress,
+    chapterAudioTimestamps,
   } = options;
   
   const allFrames: FrameInfo[] = [];
@@ -534,6 +598,9 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
       progress.currentChapter = chapterIdx;
       if (onProgress) await onProgress(progress);
       
+      // Get audio timestamps for this chapter
+      const audioTimestamps = chapterAudioTimestamps?.get(chapter.chapterIndex) ?? null;
+      
       // Render chapter frames
       const chapterFrames = await renderChapterFrames(
         page,
@@ -547,6 +614,7 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
         uploadFrames,
         navigationWaitUntil,
         frameIndex,
+        audioTimestamps,
         async (frame) => {
           progress.currentFrame++;
           progress.framesRendered.push(frame);
@@ -615,7 +683,7 @@ export async function renderChapter(
     progress.phase = 'rendering';
     if (onProgress) await onProgress(progress);
     
-    // Render chapter frames
+    // Render chapter frames (no audio timestamps for single chapter render - use basic highlighting)
     const frames = await renderChapterFrames(
       page,
       baseUrl,
@@ -628,6 +696,7 @@ export async function renderChapter(
       true,
       'domcontentloaded',
       0,
+      null, // No audio timestamps for single chapter render
       async (frame) => {
         progress.currentFrame++;
         progress.framesRendered.push(frame);

@@ -377,6 +377,17 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
       throw new Error('Book not found');
     }
     
+    // Extract audio timestamps from chapters for word-by-word sync
+    const chapterAudioTimestamps = new Map<number, { word: string; start: number; end: number }[]>();
+    for (const chapter of book.chapters) {
+      if (chapter.audioTimestamps && Array.isArray(chapter.audioTimestamps)) {
+        // Chapter index is 0-based (chapterNumber - 1)
+        const chapterIndex = chapter.chapterNumber - 1;
+        chapterAudioTimestamps.set(chapterIndex, chapter.audioTimestamps as { word: string; start: number; end: number }[]);
+      }
+    }
+    console.log(`[VideoExport] Found audio timestamps for ${chapterAudioTimestamps.size} chapters`);
+    
     // Create temp directory
     tempDir = createTempDir();
     const rawFramesDir = path.join(tempDir, 'frames-raw');
@@ -407,6 +418,7 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
       outputDir: rawFramesDir,
       uploadFrames: uploadedFrames,
       navigationWaitUntil: 'domcontentloaded',
+      chapterAudioTimestamps, // Pass audio timestamps for word-by-word sync
       onProgress: async (renderProgress) => {
         const framePercent = (renderProgress.currentFrame / manifest.totalFrames) * 40;
         await reportProgress({
