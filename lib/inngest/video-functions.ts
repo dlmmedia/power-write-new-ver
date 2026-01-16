@@ -1,8 +1,11 @@
 import { inngest } from './client';
-import { exportVideo, generateManifest, estimateVideoSize } from '@/lib/services/video-export-service';
+import { exportVideo, generateManifest, estimateVideoSize, RenderCancelledError } from '@/lib/services/video-export-service';
 import { updateVideoExportJob, getVideoExportJob } from '@/lib/db/operations';
 import type { ReadingTheme } from '@/lib/services/frame-renderer';
 import type { FontSize } from '@/lib/utils/pagination';
+
+// Interval for checking cancellation status (in ms)
+const CANCELLATION_CHECK_INTERVAL = 5000; // 5 seconds
 
 /**
  * Video export background job
@@ -80,6 +83,37 @@ export const exportVideoBackground = inngest.createFunction(
         // Progress batching (avoid noisy DB writes, but don't get stuck on fractional % updates)
         let lastReportedPhase: string | null = null;
         let lastReportedProgress = -1;
+        
+        // Cancellation check state - avoid checking DB too frequently
+        let lastCancellationCheck = Date.now();
+        let isCancelledFlag = false;
+        
+        // Cancellation callback - checks job status periodically
+        const checkCancelled = async (): Promise<boolean> => {
+          // If already cancelled, return immediately
+          if (isCancelledFlag) return true;
+          
+          // Only check DB periodically to avoid excessive queries
+          const now = Date.now();
+          if (now - lastCancellationCheck < CANCELLATION_CHECK_INTERVAL) {
+            return false;
+          }
+          lastCancellationCheck = now;
+          
+          try {
+            const currentJob = await getVideoExportJob(jobId);
+            if (currentJob?.status === 'cancelled') {
+              console.log(`[Inngest Video] Job ${jobId} was cancelled, stopping export`);
+              isCancelledFlag = true;
+              return true;
+            }
+          } catch (e) {
+            // If we can't check status, continue processing
+            console.warn(`[Inngest Video] Could not check cancellation status:`, e);
+          }
+          
+          return false;
+        };
 
         // Run the export
         const exportResult = await exportVideo({
@@ -89,6 +123,7 @@ export const exportVideoBackground = inngest.createFunction(
           theme: theme as ReadingTheme,
           fontSize: fontSize as FontSize,
           baseUrl,
+          isCancelled: checkCancelled, // Pass cancellation callback
           onProgress: async (progress) => {
             // Update job progress in database
             // Note: This might be called frequently, so we batch updates
@@ -123,6 +158,23 @@ export const exportVideoBackground = inngest.createFunction(
         return exportResult;
       } catch (exportError) {
         console.error(`[Inngest Video] Unexpected error during export:`, exportError);
+        
+        // Check if it was a cancellation
+        if (exportError instanceof RenderCancelledError) {
+          console.log(`[Inngest Video] Job ${jobId} was cancelled, marking as cancelled`);
+          await updateVideoExportJob(jobId, {
+            status: 'cancelled',
+            currentPhase: 'cancelled',
+            error: 'Export cancelled by user',
+            completedAt: new Date(),
+          });
+          
+          // Return a cancelled result instead of throwing
+          return {
+            success: false,
+            error: 'Export cancelled by user',
+          };
+        }
         
         // Update job with error
         const errorMessage = exportError instanceof Error ? exportError.message : String(exportError);

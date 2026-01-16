@@ -16,6 +16,10 @@ export interface AudioTimestamp {
   end: number;
 }
 
+// Frame generation settings - MUST match frame-renderer.ts
+const HIGHLIGHT_FRAME_INTERVAL = 0.5; // Capture a frame every 0.5 seconds for word sync
+const FLIP_FRAME_COUNT = 15; // Number of frames for page flip animation
+
 // Types for video frame generation
 export interface PageTiming {
   pageIndex: number;        // Page index within chapter (0-based)
@@ -355,11 +359,33 @@ export function calculateBookTiming(
     
     totalDuration += timing.audioDuration;
     
-    // Estimate frames: static pages + flip animation frames
-    // Static pages: 1 frame per page spread (every 2 pages)
-    // Flip animations: ~15 frames per flip at 24fps for 0.6s
-    const staticFrames = Math.ceil(timing.totalPages / 2);
-    const flipFrames = timing.flipTransitions.length * Math.ceil(flipDuration * 24);
+    // Calculate frames: static pages + flip animation frames
+    // When audio timestamps exist, multiple frames per page for word highlighting
+    const hasAudioTimestamps = chapter.audioTimestamps && chapter.audioTimestamps.length > 0;
+    let staticFrames = 0;
+    
+    if (hasAudioTimestamps) {
+      // Calculate frames based on page duration (matching frame-renderer.ts logic)
+      for (let i = 0; i < timing.pages.length; i += 2) {
+        const currentPage = timing.pages[i];
+        const nextSpreadPage = timing.pages[i + 2];
+        
+        // Calculate page spread duration
+        const pageEndTime = nextSpreadPage?.startTime 
+          ?? timing.pages[timing.pages.length - 1]?.endTime 
+          ?? currentPage.endTime;
+        const pageDuration = pageEndTime - currentPage.startTime;
+        
+        // Match frame-renderer.ts calculation: Math.max(1, Math.ceil(pageDuration / HIGHLIGHT_FRAME_INTERVAL))
+        staticFrames += Math.max(1, Math.ceil(pageDuration / HIGHLIGHT_FRAME_INTERVAL));
+      }
+    } else {
+      // No audio timestamps: 1 frame per page spread
+      staticFrames = Math.ceil(timing.totalPages / 2);
+    }
+    
+    // Flip animations: FLIP_FRAME_COUNT frames per flip
+    const flipFrames = timing.flipTransitions.length * FLIP_FRAME_COUNT;
     totalFrames += staticFrames + flipFrames;
     
     chapterTimings.push(timing);
@@ -405,9 +431,32 @@ export function calculateSingleChapterTiming(
     flipDuration
   );
   
-  // Estimate frames
-  const staticFrames = Math.ceil(timing.totalPages / 2);
-  const flipFrames = timing.flipTransitions.length * Math.ceil(flipDuration * 24);
+  // Calculate frames - matching frame-renderer.ts logic
+  const hasAudioTimestamps = chapter.audioTimestamps && chapter.audioTimestamps.length > 0;
+  let staticFrames = 0;
+  
+  if (hasAudioTimestamps) {
+    // Calculate frames based on page duration (matching frame-renderer.ts logic)
+    for (let i = 0; i < timing.pages.length; i += 2) {
+      const currentPage = timing.pages[i];
+      const nextSpreadPage = timing.pages[i + 2];
+      
+      // Calculate page spread duration
+      const pageEndTime = nextSpreadPage?.startTime 
+        ?? timing.pages[timing.pages.length - 1]?.endTime 
+        ?? currentPage.endTime;
+      const pageDuration = pageEndTime - currentPage.startTime;
+      
+      // Match frame-renderer.ts calculation
+      staticFrames += Math.max(1, Math.ceil(pageDuration / HIGHLIGHT_FRAME_INTERVAL));
+    }
+  } else {
+    // No audio timestamps: 1 frame per page spread
+    staticFrames = Math.ceil(timing.totalPages / 2);
+  }
+  
+  // Flip animations: FLIP_FRAME_COUNT frames per flip
+  const flipFrames = timing.flipTransitions.length * FLIP_FRAME_COUNT;
   
   return {
     bookId,

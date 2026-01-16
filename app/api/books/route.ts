@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { getUserTier, getAllBooks, getDbUserIdFromClerk } from '@/lib/services/user-service';
 import { getBooksAudioStats, getUserBooks } from '@/lib/db/operations';
+import { isBlockedBookTitle } from '@/lib/utils/blocked-book-titles';
 
 export const runtime = 'nodejs';
 
@@ -54,6 +55,9 @@ export async function GET(request: NextRequest) {
     } catch (err) {
       console.error('Error fetching tier/books:', err);
     }
+
+    // Hide unwanted/foreign books from the UI (server-side filter)
+    userBooks = userBooks.filter((b) => !isBlockedBookTitle(b.title));
 
     // Get the effective user ID for ownership checks
     let effectiveUserId = clerkUserId;

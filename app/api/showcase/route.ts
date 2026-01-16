@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublicBooks, getBooksAudioStats } from '@/lib/db/operations';
+import { isBlockedBookTitle } from '@/lib/utils/blocked-book-titles';
 
 export const runtime = 'nodejs';
 
@@ -7,7 +8,8 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   try {
     // Get all public books
-    const publicBooks = await getPublicBooks();
+    const publicBooksRaw = await getPublicBooks();
+    const publicBooks = publicBooksRaw.filter((b) => !isBlockedBookTitle(b.title));
 
     // Get audio stats for all books
     let audioStatsMap = new Map<number, { chaptersWithAudio: number; totalChapters: number; totalDuration: number }>();

@@ -51,6 +51,14 @@ export interface RenderProgress {
   framesRendered: FrameInfo[];
 }
 
+// Custom error for cancellation
+export class RenderCancelledError extends Error {
+  constructor(message: string = 'Render cancelled') {
+    super(message);
+    this.name = 'RenderCancelledError';
+  }
+}
+
 export interface RenderOptions {
   bookId: number;
   baseUrl: string;
@@ -64,6 +72,8 @@ export interface RenderOptions {
   onProgress?: (progress: RenderProgress) => void | Promise<void>;
   // Audio timestamps per chapter for word-by-word sync highlighting
   chapterAudioTimestamps?: Map<number, AudioTimestamp[]>;
+  // Cancellation callback - should return true if the job is cancelled
+  isCancelled?: () => Promise<boolean> | boolean;
 }
 
 const FRAME_JPEG_QUALITY = (() => {
@@ -306,7 +316,8 @@ async function renderChapterFrames(
   navigationWaitUntil: 'load' | 'domcontentloaded' | 'networkidle0' | 'networkidle2',
   startFrameIndex: number,
   audioTimestamps: AudioTimestamp[] | null,
-  onFrameRendered?: (frame: FrameInfo) => void | Promise<void>
+  onFrameRendered?: (frame: FrameInfo) => void | Promise<void>,
+  isCancelled?: () => Promise<boolean> | boolean
 ): Promise<FrameInfo[]> {
   const frames: FrameInfo[] = [];
   let frameIndex = startFrameIndex;
@@ -314,6 +325,14 @@ async function renderChapterFrames(
   // Render static pages (every 2 pages for spread view)
   // Now with multiple frames per page for word highlighting sync
   for (let i = 0; i < chapter.pages.length; i += 2) {
+    // Check for cancellation before each page spread
+    if (isCancelled) {
+      const cancelled = await Promise.resolve(isCancelled());
+      if (cancelled) {
+        throw new RenderCancelledError('Render cancelled by user');
+      }
+    }
+    
     const pageTiming = chapter.pages[i];
     const nextPageTiming = chapter.pages[i + 2]; // Next spread (if exists)
     
@@ -395,6 +414,14 @@ async function renderChapterFrames(
   
   // Render page flip animations
   for (const flip of chapter.flipTransitions) {
+    // Check for cancellation before each flip transition
+    if (isCancelled) {
+      const cancelled = await Promise.resolve(isCancelled());
+      if (cancelled) {
+        throw new RenderCancelledError('Render cancelled by user');
+      }
+    }
+    
     // Get the word index for the page we're flipping from
     const fromPageTiming = chapter.pages[flip.fromPage];
     const toPageTiming = chapter.pages[flip.toPage];
@@ -478,6 +505,7 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
     navigationWaitUntil = 'domcontentloaded',
     onProgress,
     chapterAudioTimestamps,
+    isCancelled,
   } = options;
   
   const allFrames: FrameInfo[] = [];
@@ -593,6 +621,14 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
     
     // Render each chapter
     for (let chapterIdx = 0; chapterIdx < manifest.chapters.length; chapterIdx++) {
+      // Check for cancellation before each chapter
+      if (isCancelled) {
+        const cancelled = await Promise.resolve(isCancelled());
+        if (cancelled) {
+          throw new RenderCancelledError('Render cancelled by user');
+        }
+      }
+      
       const chapter = manifest.chapters[chapterIdx];
       
       progress.currentChapter = chapterIdx;
@@ -619,7 +655,8 @@ export async function renderFrames(options: RenderOptions): Promise<FrameInfo[]>
           progress.currentFrame++;
           progress.framesRendered.push(frame);
           if (onProgress) await onProgress(progress);
-        }
+        },
+        isCancelled
       );
       
       allFrames.push(...chapterFrames);

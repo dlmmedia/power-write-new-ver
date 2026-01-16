@@ -18,7 +18,7 @@ import {
   calculateSingleChapterTiming,
   AudioTimestamp,
 } from './video-sync-calculator';
-import { renderFrames, FrameInfo, cleanupFrames, ReadingTheme } from './frame-renderer';
+import { renderFrames, FrameInfo, cleanupFrames, ReadingTheme, RenderCancelledError } from './frame-renderer';
 import { getBookWithChapters } from '@/lib/db/operations';
 import type { FontSize } from '@/lib/utils/pagination';
 
@@ -85,7 +85,12 @@ export interface VideoExportOptions {
   fontSize: FontSize;
   baseUrl: string;
   onProgress?: (progress: VideoExportProgress) => void | Promise<void>;
+  // Cancellation callback - should return true if the job is cancelled
+  isCancelled?: () => Promise<boolean> | boolean;
 }
+
+// Re-export the cancellation error for consumers
+export { RenderCancelledError } from './frame-renderer';
 
 export interface VideoExportProgress {
   phase: 'initializing' | 'rendering_frames' | 'downloading' | 'stitching' | 'uploading' | 'complete' | 'error';
@@ -348,6 +353,7 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
     fontSize,
     baseUrl,
     onProgress,
+    isCancelled,
   } = options;
   
   let tempDir: string | null = null;
@@ -419,6 +425,7 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
       uploadFrames: uploadedFrames,
       navigationWaitUntil: 'domcontentloaded',
       chapterAudioTimestamps, // Pass audio timestamps for word-by-word sync
+      isCancelled, // Pass cancellation callback
       onProgress: async (renderProgress) => {
         const framePercent = (renderProgress.currentFrame / manifest.totalFrames) * 40;
         await reportProgress({
@@ -432,6 +439,14 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
         });
       },
     });
+    
+    // Check for cancellation before preparing frames
+    if (isCancelled) {
+      const cancelled = await Promise.resolve(isCancelled());
+      if (cancelled) {
+        throw new RenderCancelledError('Export cancelled by user');
+      }
+    }
     
     // Phase 3: Prepare frames locally in time order (no Blob roundtrip)
     await reportProgress({
@@ -471,6 +486,14 @@ export async function exportVideo(options: VideoExportOptions): Promise<VideoExp
     
     // Create concat file
     const concatPath = createConcatFile(sortedFrames, tempDir, manifest.totalDuration);
+    
+    // Check for cancellation before stitching (most expensive phase)
+    if (isCancelled) {
+      const cancelled = await Promise.resolve(isCancelled());
+      if (cancelled) {
+        throw new RenderCancelledError('Export cancelled by user');
+      }
+    }
     
     // Phase 4: Assemble video
     await reportProgress({
