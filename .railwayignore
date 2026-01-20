@@ -38,6 +38,36 @@ coverage/
 # Misc
 *.tsbuildinfo
 
+# Documentation and images
+*.md
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+docs/
+migrations/
+
+# Audio files (except public directory for voice previews and sounds)
+*.wav
+*.mp3
+!public/**/*.wav
+!public/**/*.mp3
+
+# Scripts not needed for deployment (keep update-sw-version.js)
+scripts/generate-*.ts
+scripts/pull-railway-env.js
+scripts/set-vercel-blob-token.ts
+scripts/update-blob-token-production.ts
+scripts/update-blob-token.exp
+scripts/update-edge-config.ts
+
+# Test files
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
 
 
 

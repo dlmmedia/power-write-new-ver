@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { upgradeToProWithCode, getUserInfo } from '@/lib/services/user-service';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { upgradeToProWithCode, getUserInfo, getDbUserIdFromClerk } from '@/lib/services/user-service';
 
 export const runtime = 'nodejs';
 
@@ -10,12 +10,26 @@ export const runtime = 'nodejs';
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await auth();
+    const { userId: clerkUserId } = await auth();
 
-    if (!userId) {
+    if (!clerkUserId) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      );
+    }
+
+    // Get user's email from Clerk to handle email-based user matching
+    const clerkUser = await currentUser();
+    const userEmail = clerkUser?.emailAddresses?.[0]?.emailAddress;
+
+    // Get the actual database user ID (may differ from Clerk ID if user was synced by email)
+    const dbUserId = await getDbUserIdFromClerk(clerkUserId, userEmail);
+    
+    if (!dbUserId) {
+      return NextResponse.json(
+        { error: 'User not found. Please try logging out and back in.' },
+        { status: 404 }
       );
     }
 
@@ -29,8 +43,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Attempt to upgrade
-    const result = await upgradeToProWithCode(userId, code);
+    // Attempt to upgrade using the correct database user ID
+    const result = await upgradeToProWithCode(dbUserId, code);
 
     if (!result.success) {
       return NextResponse.json(
@@ -39,8 +53,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get updated user info
-    const userInfo = await getUserInfo(userId);
+    // Get updated user info using the database user ID
+    const userInfo = await getUserInfo(dbUserId);
 
     return NextResponse.json({
       success: true,
