@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   List, 
   Palette, 
@@ -13,7 +13,11 @@ import {
   Maximize2,
   Minimize2,
   BookOpen,
-  Settings2
+  Settings2,
+  Play,
+  Pause,
+  Headphones,
+  RefreshCw
 } from 'lucide-react';
 import { 
   ReadingControlsProps, 
@@ -33,6 +37,20 @@ interface ExtendedReadingControlsProps extends ReadingControlsProps {
   onToggleFullscreen: () => void;
 }
 
+// Playback rate options
+const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+// Font size steps (slider snaps to these)
+const FONT_STEPS: FontSize[] = ['xs', 'sm', 'base', 'lg', 'xl', 'xxl'];
+const FONT_LABEL: Record<FontSize, string> = {
+  xs: 'XS',
+  sm: 'S',
+  base: 'M',
+  lg: 'L',
+  xl: 'XL',
+  xxl: 'XXL',
+};
+
 export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   currentPage,
   totalPages,
@@ -50,6 +68,7 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   onAmbientVolumeChange,
   onSoundEffectsToggle,
   onOpenTOC,
+  onOpenSettings,
   onClose,
   onPrevPage,
   onNextPage,
@@ -57,15 +76,43 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
   canGoNext,
   isFullscreen,
   onToggleFullscreen,
+  // Audio props
+  audioUrl,
+  isPlaying,
+  onPlayPause,
+  playbackRate,
+  onPlaybackRateChange,
+  audioProgress,
+  onSeek,
+  isSyncEnabled,
+  onToggleSync,
+  hasAudio,
+  // Timestamp sync props
+  hasTimestamps,
+  isGeneratingTimestamps,
+  onGenerateTimestamps,
 }) => {
   const themeConfig = READING_THEMES[theme];
   const [showSettingsHint, setShowSettingsHint] = useState(false);
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
 
   // Calculate overall progress
   const progressPercent = totalPages > 0 ? (currentPage / totalPages) * 100 : 0;
   
   // Get current ambient sound info
   const currentSoundInfo = AMBIENT_SOUNDS.find(s => s.id === ambientSound);
+
+  // Format playback rate for display
+  const formatRate = (rate: number) => rate === 1 ? '1x' : `${rate}x`;
+
+  // Font sizing
+  const fontIndex = Math.max(0, FONT_STEPS.indexOf(fontSize));
+  const canDecFont = fontIndex > 0;
+  const canIncFont = fontIndex < FONT_STEPS.length - 1;
+  const setFontIndex = (idx: number) => {
+    const nextIdx = Math.max(0, Math.min(FONT_STEPS.length - 1, idx));
+    onFontSizeChange(FONT_STEPS[nextIdx]);
+  };
 
   return (
     <motion.div
@@ -143,11 +190,163 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
             </button>
           </div>
 
-          {/* Center section - Current position */}
+          {/* Center section - Current position + Audio controls */}
           <div 
-            className="flex flex-col items-center"
+            className="flex flex-col items-center gap-2"
             style={{ color: themeConfig.textColor }}
           >
+            {/* Audio controls - Only show if chapter has audio */}
+            {hasAudio && (
+              <div className="flex items-center gap-3">
+                {/* Play/Pause button */}
+                <motion.button
+                  onClick={onPlayPause}
+                  className="flex items-center justify-center w-10 h-10 rounded-full transition-all"
+                  style={{
+                    background: isPlaying ? themeConfig.accentColor : `${themeConfig.accentColor}20`,
+                    color: isPlaying ? '#fff' : themeConfig.accentColor,
+                  }}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.95 }}
+                  title={isPlaying ? 'Pause (P)' : 'Play (P)'}
+                >
+                  {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                </motion.button>
+
+                {/* Audio progress bar */}
+                <div className="hidden sm:flex items-center gap-2 w-32">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={audioProgress}
+                    onChange={(e) => onSeek(parseFloat(e.target.value))}
+                    className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, ${themeConfig.accentColor} 0%, ${themeConfig.accentColor} ${audioProgress * 100}%, ${themeConfig.textColor}20 ${audioProgress * 100}%, ${themeConfig.textColor}20 100%)`,
+                    }}
+                    title="Seek"
+                  />
+                </div>
+
+                {/* Playback speed */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSpeedMenu(!showSpeedMenu)}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-all"
+                    style={{
+                      background: `${themeConfig.textColor}10`,
+                      color: themeConfig.textColor,
+                    }}
+                    title="Playback speed"
+                  >
+                    {formatRate(playbackRate)}
+                  </button>
+
+                  <AnimatePresence>
+                    {showSpeedMenu && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2 rounded-xl shadow-lg"
+                        style={{
+                          background: themeConfig.pageBackground,
+                          border: `1px solid ${themeConfig.accentColor}20`,
+                        }}
+                      >
+                        <div className="flex flex-col gap-1">
+                          {PLAYBACK_RATES.map((rate) => (
+                            <button
+                              key={rate}
+                              onClick={() => {
+                                onPlaybackRateChange(rate);
+                                setShowSpeedMenu(false);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                playbackRate === rate ? 'ring-1' : ''
+                              }`}
+                              style={{
+                                background: playbackRate === rate 
+                                  ? `${themeConfig.accentColor}20` 
+                                  : 'transparent',
+                                color: themeConfig.textColor,
+                                '--tw-ring-color': themeConfig.accentColor,
+                              } as React.CSSProperties}
+                            >
+                              {formatRate(rate)}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* Sync toggle / Generate timestamps button */}
+                {isGeneratingTimestamps ? (
+                  <div
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
+                    style={{
+                      background: `${themeConfig.accentColor}20`,
+                      color: themeConfig.accentColor,
+                    }}
+                  >
+                    <RefreshCw className="w-3 h-3 animate-spin" />
+                    <span>Syncing...</span>
+                  </div>
+                ) : hasTimestamps ? (
+                  <button
+                    onClick={onToggleSync}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold transition-all"
+                    style={{
+                      background: isSyncEnabled 
+                        ? '#22c55e' 
+                        : `${themeConfig.textColor}20`,
+                      color: isSyncEnabled 
+                        ? '#fff' 
+                        : themeConfig.textColor,
+                      boxShadow: isSyncEnabled ? '0 2px 8px rgba(34, 197, 94, 0.3)' : 'none',
+                    }}
+                    title={isSyncEnabled ? 'Text sync ON - click to turn off' : 'Text sync OFF - click to turn on'}
+                  >
+                    {/* Toggle switch visual */}
+                    <div 
+                      className="relative w-8 h-4 rounded-full transition-all"
+                      style={{
+                        background: isSyncEnabled ? 'rgba(255,255,255,0.3)' : `${themeConfig.textColor}30`,
+                      }}
+                    >
+                      <div 
+                        className="absolute top-0.5 w-3 h-3 rounded-full transition-all duration-200"
+                        style={{
+                          background: isSyncEnabled ? '#fff' : themeConfig.textColor,
+                          left: isSyncEnabled ? '18px' : '2px',
+                        }}
+                      />
+                    </div>
+                    <span>Sync {isSyncEnabled ? 'ON' : 'OFF'}</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={onGenerateTimestamps}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105"
+                    style={{
+                      background: `${themeConfig.accentColor}30`,
+                      color: themeConfig.accentColor,
+                      border: `1px dashed ${themeConfig.accentColor}50`,
+                    }}
+                    title="Generate timestamps to sync text with audio"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span className="hidden sm:inline">Sync Text</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Page info */}
             <div className="flex items-center gap-2">
               <BookOpen className="w-4 h-4 opacity-60" />
               <span className="text-sm font-medium">
@@ -157,12 +356,26 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
               </span>
             </div>
             <div 
-              className="text-xs mt-1"
+              className="text-xs"
               style={{ color: `${themeConfig.textColor}70` }}
             >
               Page {currentPage} of {totalPages}
               <span className="mx-2">•</span>
               {Math.round(progressPercent)}% complete
+              {hasAudio && (
+                <>
+                  <span className="mx-2">•</span>
+                  <Headphones className="w-3 h-3 inline-block" /> Audio
+                  {hasTimestamps && (
+                    <span 
+                      className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold"
+                      style={{ background: '#22c55e30', color: '#22c55e' }}
+                    >
+                      Synced
+                    </span>
+                  )}
+                </>
+              )}
             </div>
           </div>
 
@@ -209,6 +422,107 @@ export const ReadingControls: React.FC<ExtendedReadingControlsProps> = ({
                 <VolumeX className="w-5 h-5" />
               )}
             </button>
+
+            {/* Font size controls (presets + slider) */}
+            <div
+              className="hidden md:flex items-center gap-2 px-3 py-2.5 rounded-xl"
+              style={{
+                background: `${themeConfig.textColor}10`,
+                color: themeConfig.textColor,
+              }}
+              title={`Font size: ${FONT_LABEL[fontSize]}`}
+            >
+              <motion.button
+                onClick={() => setFontIndex(fontIndex - 1)}
+                disabled={!canDecFont}
+                className="px-2 py-1 rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                whileHover={canDecFont ? { scale: 1.06 } : undefined}
+                whileTap={canDecFont ? { scale: 0.96 } : undefined}
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                }}
+              >
+                A−
+              </motion.button>
+
+              <input
+                type="range"
+                min={0}
+                max={FONT_STEPS.length - 1}
+                step={1}
+                value={fontIndex}
+                onChange={(e) => setFontIndex(parseInt(e.target.value, 10))}
+                className="w-24 h-1.5 rounded-full appearance-none cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${themeConfig.accentColor} 0%, ${themeConfig.accentColor} ${(fontIndex / (FONT_STEPS.length - 1)) * 100}%, ${themeConfig.textColor}20 ${(fontIndex / (FONT_STEPS.length - 1)) * 100}%, ${themeConfig.textColor}20 100%)`,
+                }}
+                aria-label="Font size"
+              />
+
+              <motion.button
+                onClick={() => setFontIndex(fontIndex + 1)}
+                disabled={!canIncFont}
+                className="px-2 py-1 rounded-lg text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                whileHover={canIncFont ? { scale: 1.06 } : undefined}
+                whileTap={canIncFont ? { scale: 0.96 } : undefined}
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                }}
+              >
+                A+
+              </motion.button>
+
+              <span className="text-[10px] font-semibold opacity-70 tabular-nums">
+                {FONT_LABEL[fontSize]}
+              </span>
+            </div>
+
+            {/* Mobile font controls (compact) */}
+            <div className="flex md:hidden items-center gap-1">
+              <motion.button
+                onClick={() => setFontIndex(fontIndex - 1)}
+                disabled={!canDecFont}
+                className="px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                  color: themeConfig.textColor,
+                }}
+                whileHover={canDecFont ? { scale: 1.06 } : undefined}
+                whileTap={canDecFont ? { scale: 0.96 } : undefined}
+                aria-label="Decrease font size"
+              >
+                A−
+              </motion.button>
+              <motion.button
+                onClick={() => setFontIndex(fontIndex + 1)}
+                disabled={!canIncFont}
+                className="px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-30 disabled:cursor-not-allowed"
+                style={{
+                  background: `${themeConfig.textColor}10`,
+                  color: themeConfig.textColor,
+                }}
+                whileHover={canIncFont ? { scale: 1.06 } : undefined}
+                whileTap={canIncFont ? { scale: 0.96 } : undefined}
+                aria-label="Increase font size"
+              >
+                A+
+              </motion.button>
+            </div>
+
+            {/* Reading settings (opens ThemeSelector) */}
+            {onOpenSettings && (
+              <button
+                onClick={onOpenSettings}
+                className="p-2.5 rounded-xl transition-all hover:scale-105"
+                style={{
+                  background: `${themeConfig.accentColor}15`,
+                  color: themeConfig.accentColor,
+                }}
+                title="Reading settings (T)"
+              >
+                <Settings2 className="w-5 h-5" />
+              </button>
+            )}
 
             {/* Theme indicator */}
             <button
@@ -280,7 +594,7 @@ export const MinimalControls: React.FC<{
       <motion.button
         onClick={onPrev}
         disabled={!canPrev}
-        className="fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-0 hover:opacity-100 transition-opacity disabled:hidden z-30"
+        className="fixed left-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-20 hover:opacity-100 transition-opacity duration-200 disabled:hidden z-30"
         style={{
           background: `${themeConfig.pageBackground}e0`,
           color: themeConfig.accentColor,
@@ -296,7 +610,7 @@ export const MinimalControls: React.FC<{
       <motion.button
         onClick={onNext}
         disabled={!canNext}
-        className="fixed right-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-0 hover:opacity-100 transition-opacity disabled:hidden z-30"
+        className="fixed right-4 top-1/2 -translate-y-1/2 p-4 rounded-full opacity-20 hover:opacity-100 transition-opacity duration-200 disabled:hidden z-30"
         style={{
           background: `${themeConfig.pageBackground}e0`,
           color: themeConfig.accentColor,

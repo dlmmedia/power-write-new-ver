@@ -331,8 +331,11 @@ export const generateBookBackground = inngest.createFunction(
   }
 );
 
+// Import video functions
+import { videoFunctions } from './video-functions';
+
 // Export all functions for the Inngest serve handler
-export const functions = [generateBookBackground];
+export const functions = [generateBookBackground, ...videoFunctions];
 
 
 

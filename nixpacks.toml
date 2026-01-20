@@ -1,10 +1,11 @@
 # Nixpacks configuration for Railway deployment
-# Ensures Chromium dependencies are available for Puppeteer
+# Ensures Chromium and FFmpeg dependencies are available for video export
 
 [phases.setup]
 nixPkgs = [
   "nodejs_20",
   "chromium",
+  "ffmpeg",
   "libuuid"
 ]
 
@@ -17,6 +18,7 @@ cmds = ["npm run build"]
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
 PUPPETEER_EXECUTABLE_PATH = "/nix/var/nix/profiles/default/bin/chromium"
+FFMPEG_PATH = "/nix/var/nix/profiles/default/bin/ffmpeg"
 
 
 

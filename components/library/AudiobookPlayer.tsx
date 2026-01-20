@@ -28,6 +28,7 @@ export interface AudiobookChapter {
   audioUrl?: string | null;
   audioDuration?: number | null;
   audioMetadata?: any;
+  audioTimestamps?: { word: string; start: number; end: number }[] | null;
 }
 
 export interface AudiobookPlayerProps {

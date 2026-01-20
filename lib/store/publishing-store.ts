@@ -5,6 +5,7 @@ import {
   DEFAULT_PUBLISHING_SETTINGS,
   STYLE_PRESETS,
   BOOK_TYPE_PRESETS,
+  getPublishingPreset,
   BookType,
   TypographySettings,
   MarginSettings,
@@ -15,6 +16,40 @@ import {
   ExportSettings,
   MARGIN_PRESETS,
 } from '../types/publishing';
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function deepMerge<T>(base: T, patch: Partial<T>): T {
+  if (!isPlainObject(base) || !isPlainObject(patch)) {
+    return ((patch ?? base) as unknown) as T;
+  }
+
+  const baseObj = base as unknown as Record<string, unknown>;
+  const patchObj = patch as unknown as Record<string, unknown>;
+
+  const result: Record<string, unknown> = { ...baseObj };
+  for (const key of Object.keys(patchObj)) {
+    const nextVal = patchObj[key];
+    const prevVal = baseObj[key];
+
+    // Replace arrays entirely (orders, etc.)
+    if (Array.isArray(nextVal)) {
+      result[key] = nextVal;
+      continue;
+    }
+
+    if (isPlainObject(prevVal) && isPlainObject(nextVal)) {
+      result[key] = deepMerge(prevVal, nextVal);
+      continue;
+    }
+
+    result[key] = nextVal;
+  }
+
+  return result as T;
+}
 
 interface PublishingStore {
   // Current publishing settings (by book ID)
@@ -42,6 +77,7 @@ interface PublishingStore {
   applyStylePreset: (bookId: number, preset: string) => void;
   applyBookTypePreset: (bookId: number, bookType: BookType) => void;
   applyMarginPreset: (bookId: number, preset: string) => void;
+  applyPublishingPreset: (bookId: number, presetId: string) => void;
   
   // Reset to defaults
   resetSettings: (bookId: number) => void;
@@ -97,6 +133,7 @@ export const usePublishingStore = create<PublishingStore>()(
               [bookId]: {
                 ...currentSettings,
                 ...updates,
+                publishingPresetId: updates.publishingPresetId ?? 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -116,6 +153,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...currentSettings.typography,
                   ...updates,
                 },
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -136,6 +174,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...updates,
                 },
                 marginPreset: 'custom',
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -155,6 +194,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...currentSettings.chapters,
                   ...updates,
                 },
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -174,6 +214,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...currentSettings.headerFooter,
                   ...updates,
                 },
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -193,6 +234,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...currentSettings.frontMatter,
                   ...updates,
                 },
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -212,6 +254,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...currentSettings.backMatter,
                   ...updates,
                 },
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -231,6 +274,7 @@ export const usePublishingStore = create<PublishingStore>()(
                   ...currentSettings.export,
                   ...updates,
                 },
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -251,6 +295,7 @@ export const usePublishingStore = create<PublishingStore>()(
                 ...currentSettings,
                 ...presetSettings,
                 stylePreset: preset as PublishingSettings['stylePreset'],
+                publishingPresetId: 'custom',
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -285,6 +330,7 @@ export const usePublishingStore = create<PublishingStore>()(
               ...currentSettings.headerFooter,
               ...(presetSettings.headerFooter || {}),
             },
+            publishingPresetId: 'custom',
           };
           
           return {
@@ -310,6 +356,31 @@ export const usePublishingStore = create<PublishingStore>()(
                 ...currentSettings,
                 margins: { ...marginSettings },
                 marginPreset: preset,
+                publishingPresetId: 'custom',
+              },
+            },
+            modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
+          };
+        });
+      },
+
+      applyPublishingPreset: (bookId: number, presetId: string) => {
+        const preset = getPublishingPreset(presetId);
+        if (!preset) return;
+
+        set((state) => {
+          const currentSettings = state.settingsByBookId[bookId] || { ...DEFAULT_PUBLISHING_SETTINGS };
+
+          // Apply by deep-merging the preset patch over current settings.
+          // Presets intentionally replace arrays (e.g., matter order) and nested objects.
+          const merged = deepMerge(currentSettings, preset.settings);
+
+          return {
+            settingsByBookId: {
+              ...state.settingsByBookId,
+              [bookId]: {
+                ...merged,
+                publishingPresetId: preset.id,
               },
             },
             modifiedBookIds: new Set([...state.modifiedBookIds, bookId]),
@@ -399,6 +470,7 @@ export function useBookPublishingSettings(bookId: number) {
     applyStylePreset: (preset: string) => store.applyStylePreset(bookId, preset),
     applyBookTypePreset: (bookType: BookType) => store.applyBookTypePreset(bookId, bookType),
     applyMarginPreset: (preset: string) => store.applyMarginPreset(bookId, preset),
+    applyPublishingPreset: (presetId: string) => store.applyPublishingPreset(bookId, presetId),
     resetSettings: () => store.resetSettings(bookId),
     clearModified: () => store.clearModified(bookId),
     hasUnsavedChanges: store.hasUnsavedChanges(bookId),

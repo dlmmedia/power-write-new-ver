@@ -4,6 +4,7 @@ import { ensureDemoUser, updateBook } from '@/lib/db/operations';
 import { put } from '@vercel/blob';
 import { CoverService } from '@/lib/services/cover-service';
 import { 
+  CoverDesignOptions,
   CoverTextCustomization, 
   CoverTypographyOptions, 
   CoverLayoutOptions, 
@@ -14,19 +15,67 @@ export const maxDuration = 60; // 1 minute for image generation
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const contentType = request.headers.get('content-type') || '';
+
+    const safeJsonParse = <T,>(value: FormDataEntryValue | null): T | undefined => {
+      if (!value) return undefined;
+      if (typeof value !== 'string') return undefined;
+      const trimmed = value.trim();
+      if (!trimmed) return undefined;
+      try {
+        return JSON.parse(trimmed) as T;
+      } catch {
+        return undefined;
+      }
+    };
+
+    let body: any = {};
+    let referenceImageFile: File | null = null;
+
+    if (contentType.includes('multipart/form-data')) {
+      const form = await request.formData();
+      referenceImageFile = (form.get('referenceImage') as File | null) || null;
+
+      body = {
+        userId: (form.get('userId') as string) || '',
+        bookId: form.get('bookId') ? Number(form.get('bookId')) : undefined,
+        title: (form.get('title') as string) || '',
+        author: (form.get('author') as string) || '',
+        genre: (form.get('genre') as string) || '',
+        description: (form.get('description') as string) || '',
+        imageModel: (form.get('imageModel') as string) || undefined,
+        showPowerWriteBranding: form.get('showPowerWriteBranding')
+          ? (form.get('showPowerWriteBranding') as string) === 'true'
+          : undefined,
+        hideAuthorName: form.get('hideAuthorName')
+          ? (form.get('hideAuthorName') as string) === 'true'
+          : undefined,
+        targetAudience: (form.get('targetAudience') as string) || undefined,
+        customPrompt: (form.get('customPrompt') as string) || undefined,
+        referenceStyle: (form.get('referenceStyle') as string) || undefined,
+        themes: safeJsonParse<string[]>(form.get('themes')),
+        designOptions: safeJsonParse<Partial<CoverDesignOptions>>(form.get('designOptions')),
+        textCustomization: safeJsonParse<CoverTextCustomization>(form.get('textCustomization')),
+        typographyOptions: safeJsonParse<CoverTypographyOptions>(form.get('typographyOptions')),
+        layoutOptions: safeJsonParse<CoverLayoutOptions>(form.get('layoutOptions')),
+        visualOptions: safeJsonParse<CoverVisualOptions>(form.get('visualOptions')),
+      };
+    } else {
+      body = await request.json();
+    }
+
     const { 
       userId, 
       bookId, 
       title, 
       author, 
       genre, 
-      description, 
-      style, 
+      description,
       imageModel,
-      showPowerWriteBranding = true, // Default to true
+      showPowerWriteBranding = false, // OFF by default in the UI
       hideAuthorName = false, // Option to hide author name entirely
       // New customization options
+      designOptions,
       textCustomization,
       typographyOptions,
       layoutOptions,
@@ -42,11 +91,10 @@ export async function POST(request: NextRequest) {
       author: string;
       genre: string;
       description: string;
-      style?: string;
       imageModel?: string;
       showPowerWriteBranding?: boolean;
       hideAuthorName?: boolean;
-      // New customization types
+      designOptions?: Partial<CoverDesignOptions>;
       textCustomization?: CoverTextCustomization;
       typographyOptions?: CoverTypographyOptions;
       layoutOptions?: CoverLayoutOptions;
@@ -109,57 +157,53 @@ export async function POST(request: NextRequest) {
       console.log('Using enhanced cover customization, PowerWrite branding:', showPowerWriteBranding, 'Hide author:', hideAuthorName);
     }
 
+    // Determine style from either legacy field or designOptions
+    const style = designOptions?.style || 'photographic';
+
+    // If provided, upload reference image for vision-capable models
+    let referenceImageUrl: string | undefined;
+    if (referenceImageFile && referenceImageFile.size > 0) {
+      try {
+        const fileBuffer = Buffer.from(await referenceImageFile.arrayBuffer());
+
+        if (process.env.BLOB_READ_WRITE_TOKEN) {
+          const safeTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').substring(0, 60);
+          const refFilename = `cover-references/${safeTitle}-${bookId || Date.now()}-${referenceImageFile.name.replace(/[^a-z0-9.\-_]/gi, '_')}`;
+
+          const blob = await put(refFilename, fileBuffer, {
+            access: 'public',
+            contentType: referenceImageFile.type || 'image/png',
+            token: process.env.BLOB_READ_WRITE_TOKEN,
+          });
+          referenceImageUrl = blob.url;
+          console.log('Reference image uploaded:', referenceImageUrl);
+        } else {
+          // Fallback to data URL if blob token not available
+          const base64 = fileBuffer.toString('base64');
+          referenceImageUrl = `data:${referenceImageFile.type || 'image/png'};base64,${base64}`;
+          console.log('Using reference image as data URL (no blob token).');
+        }
+      } catch (refErr) {
+        console.error('Failed to process reference image, continuing without it:', refErr);
+      }
+    }
+
     // Generate cover using selected image model (default: Nano Banana Pro)
-    const tempUrl = await aiService.generateCoverImage(
+    const generatedCoverUrl = await aiService.generateCoverImage(
       title,
       author,
       genre,
       description,
-      style || 'photographic',
+      style,
       imageModel,
-      customEnhancedPrompt // Pass the enhanced prompt if available
+      customEnhancedPrompt, // Pass the enhanced prompt if available
+      referenceImageUrl
     );
-
-    // Download the image and upload to permanent storage (Vercel Blob)
-    let permanentUrl = tempUrl;
-    
-    if (process.env.BLOB_READ_WRITE_TOKEN) {
-      try {
-        console.log('Downloading generated image to upload to Blob storage...');
-        const imageResponse = await fetch(tempUrl);
-        if (imageResponse.ok) {
-          const imageBuffer = await imageResponse.arrayBuffer();
-          const buffer = Buffer.from(imageBuffer);
-          
-          // Generate filename
-          const sanitizedTitle = title
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '')
-            .substring(0, 100);
-          
-          const filename = `book-covers/${sanitizedTitle}-${bookId || Date.now()}.png`;
-          
-          console.log(`Uploading cover to Vercel Blob: ${filename}`);
-          const blob = await put(filename, buffer, {
-            access: 'public',
-            contentType: 'image/png',
-            token: process.env.BLOB_READ_WRITE_TOKEN,
-          });
-          
-          permanentUrl = blob.url;
-          console.log('Cover uploaded to Blob storage:', permanentUrl);
-        }
-      } catch (uploadError) {
-        console.error('Failed to upload to Blob storage, using temp URL:', uploadError);
-        // Continue with temp URL if blob upload fails
-      }
-    }
 
     // If bookId provided, update the book in the database
     if (bookId) {
       try {
-        await updateBook(bookId, { coverUrl: permanentUrl });
+        await updateBook(bookId, { coverUrl: generatedCoverUrl });
         console.log(`Updated book ${bookId} with cover URL`);
       } catch (updateError) {
         console.error('Failed to update book with cover URL:', updateError);
@@ -171,7 +215,28 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      coverUrl: permanentUrl,
+      coverUrl: generatedCoverUrl,
+      metadata: {
+        designVersion: 'cover-studio-v2',
+        generatedAt: new Date().toISOString(),
+        options: {
+          ...(designOptions || {}),
+          textCustomization,
+          typographyOptions,
+          layoutOptions,
+          visualOptions,
+          customPrompt,
+          referenceStyle,
+          showPowerWriteBranding,
+          hideAuthorName,
+        },
+        aiPrompt: customEnhancedPrompt,
+        imageUrl: generatedCoverUrl,
+        dimensions: { width: 1024, height: 1792 },
+        format: 'png',
+        referenceImageUrl,
+        imageModel,
+      },
     });
   } catch (error) {
     console.error('Error generating cover:', error);

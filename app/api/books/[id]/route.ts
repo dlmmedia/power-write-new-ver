@@ -3,12 +3,18 @@ import { auth } from '@clerk/nextjs/server';
 import { getBookWithChaptersAndBibliography } from '@/lib/db/operations';
 import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
 
+export const runtime = 'nodejs';
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: bookId } = await params;
+    const { id } = await params;
+    const bookId = parseInt(id, 10);
+    if (!Number.isFinite(bookId)) {
+      return NextResponse.json({ error: 'Invalid book id' }, { status: 400 });
+    }
     
     // Get current user ID for ownership check
     let currentUserId: string | null = null;
@@ -132,6 +138,7 @@ export async function GET(
         audioUrl: ch.audioUrl || null,
         audioDuration: ch.audioDuration || null,
         audioMetadata: ch.audioMetadata || null,
+        audioTimestamps: ch.audioTimestamps || null,
       })),
       bibliography: bibliographyData,
     };
@@ -143,7 +150,7 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching book detail:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch book details' },
+      { error: 'Failed to fetch book details', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -156,6 +163,9 @@ export async function PATCH(
   try {
     const { id } = await params;
     const bookId = parseInt(id, 10);
+    if (!Number.isFinite(bookId)) {
+      return NextResponse.json({ error: 'Invalid book id' }, { status: 400 });
+    }
     const updates = await request.json();
 
     const { updateBook } = await import('@/lib/db/operations');
@@ -188,6 +198,9 @@ export async function DELETE(
   try {
     const { id } = await params;
     const bookId = parseInt(id, 10);
+    if (!Number.isFinite(bookId)) {
+      return NextResponse.json({ error: 'Invalid book id' }, { status: 400 });
+    }
 
     const { deleteBook, getBook } = await import('@/lib/db/operations');
     const book = await getBook(bookId);

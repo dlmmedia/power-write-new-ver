@@ -1,7 +1,7 @@
 // Types for the Immersive 3D Book Reader
 
 export type ReadingTheme = 'day' | 'night' | 'sepia' | 'focus';
-export type FontSize = 'sm' | 'base' | 'lg' | 'xl';
+export type FontSize = 'xs' | 'sm' | 'base' | 'lg' | 'xl' | 'xxl';
 export type AmbientSoundType = 'fireplace' | 'rain' | 'library' | null;
 
 export interface ThemeConfig {
@@ -58,6 +58,12 @@ export const READING_THEMES: Record<ReadingTheme, ThemeConfig> = {
   },
 };
 
+export interface AudioTimestamp {
+  word: string;
+  start: number;
+  end: number;
+}
+
 export interface Chapter {
   id: number;
   number: number;
@@ -67,6 +73,7 @@ export interface Chapter {
   status: 'draft' | 'completed';
   audioUrl?: string | null;
   audioDuration?: number | null;
+  audioTimestamps?: AudioTimestamp[] | null;
 }
 
 export interface BookData {
@@ -95,8 +102,16 @@ export interface PageDimensions {
   charsPerLine: number;
 }
 
+// Represents a chunk of text with its character range for highlighting
+export interface TextChunk {
+  text: string;
+  startCharIndex: number;
+  endCharIndex: number;
+  isParagraphStart?: boolean;
+}
+
 export interface PaginatedContent {
-  pages: string[][];  // Array of pages, each page is array of paragraphs
+  pages: TextChunk[][]; // Array of pages, each page is array of TextChunks
   totalPages: number;
 }
 
@@ -112,8 +127,8 @@ export interface ImmersiveReaderProps {
 }
 
 export interface Book3DProps {
-  leftPageContent: string[];
-  rightPageContent: string[];
+  leftPageContent: TextChunk[];
+  rightPageContent: TextChunk[];
   leftPageNumber: number;
   rightPageNumber: number;
   totalPages: number;
@@ -124,11 +139,27 @@ export interface Book3DProps {
   flipDirection: 'forward' | 'backward';
   onFlipComplete?: () => void;
   onPageClick: (direction: 'prev' | 'next') => void;
+  /**
+   * Optional content used ONLY during the flip animation overlay.
+   * - forward flip: front = current right page, back = next left page
+   * - backward flip: front = current left page, back = prev right page
+   *
+   * If omitted, the flip animation still plays but will not render page content on the turning sheet.
+   */
+  flipFrontContent?: TextChunk[];
+  flipBackContent?: TextChunk[];
+  // Optional robust word->char mapping for the current chapter.
+  // When provided, it enables accurate audio/text sync across page flips.
+  chapterWordStarts?: number[];
+  audioTimestamps?: AudioTimestamp[];
+  currentAudioTime?: number;
+  isAudioPlaying?: boolean;
+  currentWordIndex?: number; // Index of currently spoken word in timestamps array
 }
 
 export interface PageFlipProps {
-  frontContent: string[];
-  backContent: string[];
+  frontContent: TextChunk[];
+  backContent: TextChunk[];
   isFlipping: boolean;
   direction: 'forward' | 'backward';
   theme: ReadingTheme;
@@ -154,7 +185,25 @@ export interface ReadingControlsProps {
   onAmbientVolumeChange: (volume: number) => void;
   onSoundEffectsToggle: () => void;
   onOpenTOC: () => void;
+  onOpenSettings?: () => void;
   onClose: () => void;
+  
+  // Audio playback controls
+  audioUrl?: string | null;
+  isPlaying: boolean;
+  onPlayPause: () => void;
+  playbackRate: number;
+  onPlaybackRateChange: (rate: number) => void;
+  audioProgress: number;
+  onSeek: (time: number) => void;
+  isSyncEnabled: boolean;
+  onToggleSync: () => void;
+  hasAudio: boolean;
+  
+  // Timestamp sync controls
+  hasTimestamps?: boolean;
+  isGeneratingTimestamps?: boolean;
+  onGenerateTimestamps?: () => void;
 }
 
 export interface ThemeSelectorProps {
@@ -193,10 +242,12 @@ export const FONT_SIZE_CONFIG: Record<FontSize, {
   lineHeight: string;
   linesPerPage: number;
 }> = {
+  xs: { className: 'text-sm', lineHeight: 'leading-relaxed', linesPerPage: 30 },
   sm: { className: 'text-base', lineHeight: 'leading-relaxed', linesPerPage: 28 },
   base: { className: 'text-lg', lineHeight: 'leading-relaxed', linesPerPage: 24 },
   lg: { className: 'text-xl', lineHeight: 'leading-loose', linesPerPage: 20 },
   xl: { className: 'text-2xl', lineHeight: 'leading-loose', linesPerPage: 16 },
+  xxl: { className: 'text-3xl', lineHeight: 'leading-snug', linesPerPage: 13 },
 };
 
 // Ambient sound configurations

@@ -18,6 +18,7 @@
     "@ai-sdk/google": "^2.0.25",
     "@ai-sdk/openai": "^2.0.56",
     "@clerk/nextjs": "^6.36.2",
+    "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@fontsource/crimson-pro": "^5.2.8",
     "@fontsource/eb-garamond": "^5.2.7",
     "@fontsource/lora": "^5.2.8",
@@ -43,6 +44,7 @@
     "drizzle-orm": "^0.44.7",
     "drizzle-zod": "^0.8.3",
     "epub-gen-memory": "^1.1.2",
+    "fluent-ffmpeg": "^2.1.3",
     "framer-motion": "^12.23.24",
     "idb": "^8.0.0",
     "inngest": "^3.47.0",
@@ -68,6 +70,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/fluent-ffmpeg": "^2.1.28",
     "@types/lodash": "^4.17.20",
     "@types/node": "^20",
     "@types/pdfkit": "^0.17.3",

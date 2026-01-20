@@ -1,12 +1,13 @@
 'use client';
 
-import React from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import React, { useCallback } from 'react';
+import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'framer-motion';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { ReadingTheme, FontSize, READING_THEMES, FONT_SIZE_CONFIG } from './types';
+import { ReadingTheme, FontSize, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
+import { AudioTextHighlighter } from './AudioTextHighlighter';
 
 interface MobilePageViewProps {
-  content: string[];
+  content: TextChunk[];
   pageNumber: number;
   totalPages: number;
   chapterTitle: string;
@@ -19,6 +20,12 @@ interface MobilePageViewProps {
   canGoPrev: boolean;
   isFlipping: boolean;
   flipDirection: 'forward' | 'backward';
+  // Optional robust word->char mapping for the current chapter.
+  chapterWordStarts?: number[];
+  audioTimestamps?: AudioTimestamp[] | null;
+  currentAudioTime?: number;
+  isAudioPlaying?: boolean;
+  currentWordIndex?: number;
 }
 
 export const MobilePageView: React.FC<MobilePageViewProps> = ({
@@ -35,9 +42,15 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
   canGoPrev,
   isFlipping,
   flipDirection,
+  chapterWordStarts,
+  audioTimestamps,
+  currentAudioTime,
+  isAudioPlaying,
+  currentWordIndex = -1,
 }) => {
   const themeConfig = READING_THEMES[theme];
   const fontConfig = FONT_SIZE_CONFIG[fontSize];
+  const prefersReducedMotion = useReducedMotion();
 
   // Handle swipe gestures
   const handleDragEnd = (event: MouseEvent | TouchEvent | PointerEvent, info: PanInfo) => {
@@ -49,21 +62,39 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
     }
   };
 
-  // Render paragraph content
-  const renderContent = (paragraphs: string[]) => {
-    return paragraphs.map((paragraph, index) => (
-      <p
-        key={index}
-        className={`mb-4 ${fontConfig.className} ${fontConfig.lineHeight} book-text reader-selection`}
-        style={{
-          color: themeConfig.textColor,
-          fontFamily: '"EB Garamond", "Crimson Pro", Georgia, serif',
-          textIndent: index > 0 ? '1.5em' : '0',
-        }}
-      >
-        {paragraph}
-      </p>
-    ));
+  // Get page base offset - memoized to prevent unnecessary re-renders
+  const getPageBaseOffset = useCallback(() => {
+    if (content.length === 0) return 0;
+    const startChar = content[0].startCharIndex;
+    const starts = chapterWordStarts;
+    if (!starts || starts.length === 0) return Math.round(startChar / 6);
+    // Upper-bound minus one: last word start <= startChar
+    let lo = 0;
+    let hi = starts.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (starts[mid] <= startChar) lo = mid + 1;
+      else hi = mid;
+    }
+    const idx = lo - 1;
+    return Math.max(0, Math.min(idx, starts.length - 1));
+  }, [content, chapterWordStarts]);
+
+  // Render paragraph content with enhanced audio highlighting
+  const renderContent = () => {
+    return (
+      <AudioTextHighlighter
+        chunks={content}
+        currentWordIndex={currentWordIndex}
+        isAudioPlaying={isAudioPlaying || false}
+        theme={theme}
+        fontSize={fontConfig.className}
+        lineHeight={fontConfig.lineHeight}
+        textColor={themeConfig.textColor}
+        fontFamily='"EB Garamond", "Crimson Pro", Georgia, serif'
+        getPageBaseOffset={getPageBaseOffset}
+      />
+    );
   };
 
   return (
@@ -102,7 +133,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
         )}
 
         {/* Content area */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="popLayout" initial={false}>
           <motion.div
             key={pageNumber}
             initial={{ 
@@ -114,12 +145,12 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
               opacity: 0, 
               x: flipDirection === 'forward' ? -50 : 50 
             }}
-            transition={{ duration: 0.3, ease: 'easeOut' }}
+            transition={{ duration: prefersReducedMotion ? 0 : 0.3, ease: 'easeOut' }}
             className="absolute inset-0 p-6 overflow-y-auto reader-scrollbar"
             style={{ top: pageNumber <= 1 ? '80px' : 0 }}
           >
             {content.length > 0 ? (
-              renderContent(content)
+              renderContent()
             ) : (
               <div 
                 className="h-full flex items-center justify-center"

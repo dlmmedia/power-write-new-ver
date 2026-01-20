@@ -18,6 +18,7 @@ import {
 } from '@/lib/types/cover';
 import { CoverService } from '@/lib/services/cover-service';
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '@/lib/types/models';
+import { getDemoUserId } from '@/lib/services/demo-account';
 import CoverGallery from './CoverGallery';
 import { CollapsibleSection, CollapsibleItem } from '@/components/ui/CollapsibleSection';
 import { Badge } from '@/components/ui/Badge';
@@ -43,6 +44,7 @@ import {
   Loader2,
   BoxSelect,
   Images,
+  Maximize2,
   ChevronDown,
   Eye,
   Wand2,
@@ -97,7 +99,12 @@ export default function CoverGenerator({
   const [activeTab, setActiveTab] = useState<CustomizationTab>('quick');
   const [showGallery, setShowGallery] = useState(false);
   const [galleryKey, setGalleryKey] = useState(0);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewModalSrc, setPreviewModalSrc] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const referenceImageInputRef = useRef<HTMLInputElement>(null);
+  const [referenceImageFile, setReferenceImageFile] = useState<File | null>(null);
+  const [referenceImagePreviewUrl, setReferenceImagePreviewUrl] = useState<string | null>(null);
   
   // Sync with props when they change
   useEffect(() => {
@@ -107,6 +114,42 @@ export default function CoverGenerator({
   useEffect(() => {
     setBackCoverUrl(currentBackCoverUrl);
   }, [currentBackCoverUrl]);
+
+  // Reference image preview URL lifecycle
+  useEffect(() => {
+    if (!referenceImageFile) {
+      setReferenceImagePreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(referenceImageFile);
+    setReferenceImagePreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [referenceImageFile]);
+
+  // Preview modal: ESC closes, lock body scroll when open
+  useEffect(() => {
+    if (!isPreviewModalOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsPreviewModalOpen(false);
+      }
+    };
+
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isPreviewModalOpen]);
+
+  const openPreviewModal = useCallback((src: string) => {
+    setPreviewModalSrc(src);
+    setIsPreviewModalOpen(true);
+  }, []);
   
   const refreshGallery = useCallback(() => {
     setGalleryKey(prev => prev + 1);
@@ -298,7 +341,7 @@ export default function CoverGenerator({
     setError(null);
 
     try {
-      const userId = 'demo_user';
+      const userId = getDemoUserId();
 
       const hasTextCustomization = 
         textCustomization.customTitle || 
@@ -309,7 +352,34 @@ export default function CoverGenerator({
         textCustomization.awardBadge ||
         (textCustomization.publisherName && textCustomization.publisherName !== 'DLM Media');
 
-      const response = await fetch('/api/generate/cover', {
+      const hasReferenceImage = !!referenceImageFile;
+
+      const response = await fetch('/api/generate/cover', hasReferenceImage ? {
+        method: 'POST',
+        body: (() => {
+          const formData = new FormData();
+          formData.append('userId', userId);
+          if (bookId !== undefined && bookId !== null) formData.append('bookId', String(bookId));
+          formData.append('title', title);
+          formData.append('author', author);
+          formData.append('genre', genre);
+          formData.append('description', description);
+          formData.append('targetAudience', targetAudience);
+          formData.append('imageModel', imageModel);
+          formData.append('showPowerWriteBranding', String(showPowerWriteBranding));
+          formData.append('hideAuthorName', String(hideAuthorName));
+          if (themes?.length) formData.append('themes', JSON.stringify(themes));
+          if (designOptions) formData.append('designOptions', JSON.stringify(designOptions));
+          if (hasTextCustomization) formData.append('textCustomization', JSON.stringify(textCustomization));
+          if (typographyOptions) formData.append('typographyOptions', JSON.stringify(typographyOptions));
+          if (layoutOptions) formData.append('layoutOptions', JSON.stringify(layoutOptions));
+          if (visualOptions) formData.append('visualOptions', JSON.stringify(visualOptions));
+          if (customPrompt.trim()) formData.append('customPrompt', customPrompt.trim());
+          if (referenceStyle.trim()) formData.append('referenceStyle', referenceStyle.trim());
+          if (referenceImageFile) formData.append('referenceImage', referenceImageFile);
+          return formData;
+        })(),
+      } : {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -569,6 +639,27 @@ export default function CoverGenerator({
     }
   };
 
+  const handleReferenceImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!validTypes.includes(file.type)) {
+      setError('Reference image must be JPEG, PNG, WebP, or GIF.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Reference image is too large. Maximum size is 5MB.');
+      return;
+    }
+
+    setReferenceImageFile(file);
+    if (referenceImageInputRef.current) {
+      referenceImageInputRef.current.value = '';
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -716,730 +807,880 @@ export default function CoverGenerator({
         </div>
       </div>
 
-      {/* Cover Type & Mode Selection */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
-          {/* Cover Type Toggle */}
-          <div className="flex-1">
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Cover Type</label>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setCoverType('front')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  coverType === 'front'
-                    ? 'bg-yellow-400 text-black'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Book className="w-4 h-4" />
-                Front Cover
-                {hasFrontCover && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
-              </button>
-              <button
-                onClick={() => setCoverType('back')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  coverType === 'back'
-                    ? 'bg-yellow-400 text-black'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <FileText className="w-4 h-4" />
-                Back Cover
-                {hasBackCover && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
-              </button>
-            </div>
-          </div>
-          
-          {/* Mode Toggle */}
-          <div className="flex-1">
-            <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Method</label>
-            <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => setCoverMode('generate')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  coverMode === 'generate'
-                    ? 'bg-yellow-400 text-black'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Wand2 className="w-4 h-4" />
-                AI Generate
-              </button>
-              <button
-                onClick={() => setCoverMode('upload')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                  coverMode === 'upload'
-                    ? 'bg-yellow-400 text-black'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Upload className="w-4 h-4" />
-                Upload
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Preview Section - Always Visible */}
-      <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <Eye className="w-4 h-4 text-amber-500" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {coverType === 'front' ? 'Front Cover' : 'Back Cover'} Preview
-            </span>
-          </div>
-          <div className="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-md">
-            <button
-              onClick={() => setPreviewMode('cover')}
-              className={`px-2 py-1 text-xs rounded transition-all ${
-                previewMode === 'cover'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}
-            >
-              Flat
-            </button>
-            <button
-              onClick={() => setPreviewMode('mockup')}
-              className={`px-2 py-1 text-xs rounded transition-all flex items-center gap-1 ${
-                previewMode === 'mockup'
-                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}
-            >
-              <BoxSelect className="w-3 h-3" />
-              3D
-            </button>
-          </div>
-        </div>
-
-        <div className="flex justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6">
-          {previewMode === 'cover' ? (
-            <div className="relative w-48 h-72 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl overflow-hidden ring-1 ring-black/10 dark:ring-white/10">
-              <img
-                src={getCurrentPreviewImage()}
-                alt={`${coverType} cover preview`}
-                className="w-full h-full object-cover"
-              />
-              {(coverType === 'front' && !coverUrl) || (coverType === 'back' && !backCoverUrl) ? (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 bg-black/50 px-2 py-1 rounded">Preview</span>
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_minmax(0,1fr)] gap-3 items-start">
+        {/* Left column: key controls + preview + primary action */}
+        <div className="space-y-3 lg:sticky lg:top-24">
+          {/* Cover Type & Mode Selection */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+            <div className="flex flex-col gap-3">
+              {/* Cover Type Toggle */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Cover Type</label>
+                <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setCoverType('front')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                      coverType === 'front'
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <Book className="w-4 h-4" />
+                    Front
+                    {hasFrontCover && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
+                  </button>
+                  <button
+                    onClick={() => setCoverType('back')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                      coverType === 'back'
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4" />
+                    Back
+                    {hasBackCover && <CheckCircle2 className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />}
+                  </button>
                 </div>
-              ) : null}
-            </div>
-          ) : (
-            <div className="relative" style={{ perspective: '1000px' }}>
-              <div
-                className="w-48 h-72 bg-gray-800 rounded shadow-2xl overflow-hidden"
-                style={{
-                  transform: coverType === 'front' ? 'rotateY(-15deg) rotateX(5deg)' : 'rotateY(15deg) rotateX(5deg)',
-                  transformStyle: 'preserve-3d',
-                }}
-              >
-                <img
-                  src={getCurrentPreviewImage()}
-                  alt={`${coverType} cover preview`}
-                  className="w-full h-full object-cover rounded"
-                />
+              </div>
+              
+              {/* Mode Toggle */}
+              <div>
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 block">Method</label>
+                <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setCoverMode('generate')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                      coverMode === 'generate'
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <Wand2 className="w-4 h-4" />
+                    Generate
+                  </button>
+                  <button
+                    onClick={() => setCoverMode('upload')}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                      coverMode === 'upload'
+                        ? 'bg-yellow-400 text-black'
+                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Upload
+                  </button>
+                </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
 
-      {/* Gallery Section - Collapsible */}
-      {bookId && (
-        <CollapsibleSection
-          title="Cover Gallery"
-          subtitle="Previously generated covers"
-          icon={<div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center"><Images className="w-4 h-4 text-white" /></div>}
-          defaultOpen={false}
-          variant="card"
-        >
-          <CoverGallery
-            key={galleryKey}
-            bookId={bookId}
-            coverType="all"
-            currentCoverUrl={coverType === 'front' ? coverUrl : backCoverUrl}
-            onCoverSelect={handleGalleryCoverSelect}
-          />
-        </CollapsibleSection>
-      )}
-
-      {/* Generation/Upload Content */}
-      {coverMode === 'generate' ? (
-        <>
-          {/* AI Model Selection */}
-          <CollapsibleSection
-            title="AI Model"
-            subtitle={selectedModelInfo ? `${selectedModelInfo.name} (${selectedModelInfo.tier})` : 'Select model'}
-            icon={<div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>}
-            badge={selectedModelInfo?.tier === 'premium' ? <Badge variant="warning" size="sm">Premium</Badge> : null}
-            defaultOpen={false}
-            variant="card"
-          >
-            <div className="grid grid-cols-1 gap-2">
-              {IMAGE_MODELS.map((model) => (
+          {/* Preview Section - Always Visible */}
+          <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-amber-500" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {coverType === 'front' ? 'Front Cover' : 'Back Cover'} Preview
+                </span>
+              </div>
+              <div className="flex gap-1 p-0.5 bg-gray-100 dark:bg-gray-800 rounded-md">
                 <button
-                  key={model.id}
-                  onClick={() => setImageModel(model.id)}
-                  className={`px-4 py-3 rounded-lg text-left transition-all border ${
-                    imageModel === model.id
-                      ? 'bg-yellow-400 text-black border-yellow-400'
-                      : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-yellow-300'
+                  onClick={() => setPreviewMode('cover')}
+                  className={`px-2 py-1 text-xs rounded transition-all ${
+                    previewMode === 'cover'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{model.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
-                      model.tier === 'premium' 
-                        ? imageModel === model.id 
-                          ? 'bg-black/20 text-black'
-                          : 'bg-amber-100 dark:bg-yellow-500/20 text-amber-600 dark:text-yellow-400'
-                        : imageModel === model.id
-                          ? 'bg-black/20 text-black'
-                          : 'bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300'
-                    }`}>
-                      {model.tier === 'premium' && <Star className="w-3 h-3 fill-current" />}
-                      {model.tier === 'premium' ? 'Premium' : 'Standard'}
-                    </span>
-                  </div>
-                  <p className={`text-xs mt-1 ${imageModel === model.id ? 'text-black/70' : 'text-gray-500'}`}>
-                    {model.description}
-                  </p>
+                  Flat
                 </button>
-              ))}
+                <button
+                  onClick={() => setPreviewMode('mockup')}
+                  className={`px-2 py-1 text-xs rounded transition-all flex items-center gap-1 ${
+                    previewMode === 'mockup'
+                      ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  <BoxSelect className="w-3 h-3" />
+                  3D
+                </button>
+              </div>
             </div>
-          </CollapsibleSection>
 
-          {/* Style & Design Options */}
-          <CollapsibleSection
-            title="Style & Design"
-            subtitle={`${designOptions.style} • ${designOptions.colorScheme}`}
-            icon={<div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center"><Sparkles className="w-4 h-4 text-white" /></div>}
-            defaultOpen={true}
-            variant="card"
-          >
-            {/* Cover Style */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Cover Style
-              </label>
-              <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                {(['minimalist', 'illustrative', 'photographic', 'abstract', 'typographic'] as const).map((style) => (
+            <div className="flex justify-center bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-5">
+              {previewMode === 'cover' ? (
+                <button
+                  type="button"
+                  onClick={() => openPreviewModal(getCurrentPreviewImage())}
+                  className="group relative w-44 h-64 bg-gray-300 dark:bg-gray-700 rounded-lg shadow-xl overflow-hidden ring-1 ring-black/10 dark:ring-white/10 focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                  aria-label="Open full-size preview"
+                >
+                  <img
+                    src={getCurrentPreviewImage()}
+                    alt={`${coverType} cover preview`}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="px-2 py-1 rounded-md bg-black/60 text-white text-xs flex items-center gap-1">
+                      <Maximize2 className="w-3.5 h-3.5" />
+                      Full size
+                    </div>
+                  </div>
+                  {(coverType === 'front' && !coverUrl) || (coverType === 'back' && !backCoverUrl) ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-xs text-gray-500 dark:text-gray-400 bg-black/50 px-2 py-1 rounded">Preview</span>
+                    </div>
+                  ) : null}
+                </button>
+              ) : (
+                <div className="relative" style={{ perspective: '1000px' }}>
                   <button
-                    key={style}
-                    onClick={() => handleStyleChange(style)}
-                    className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
-                      designOptions.style === style
-                        ? 'bg-yellow-400 text-black'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
+                    type="button"
+                    onClick={() => openPreviewModal(getCurrentPreviewImage())}
+                    className="group w-44 h-64 bg-gray-800 rounded shadow-2xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                    style={{
+                      transform: coverType === 'front' ? 'rotateY(-15deg) rotateX(5deg)' : 'rotateY(15deg) rotateX(5deg)',
+                      transformStyle: 'preserve-3d',
+                    }}
+                    aria-label="Open full-size preview"
                   >
-                    {style}
+                    <img
+                      src={getCurrentPreviewImage()}
+                      alt={`${coverType} cover preview`}
+                      className="w-full h-full object-cover rounded"
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/15 transition-colors" />
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="px-2 py-1 rounded-md bg-black/60 text-white text-xs flex items-center gap-1">
+                        <Maximize2 className="w-3.5 h-3.5" />
+                        Full size
+                      </div>
+                    </div>
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Color Scheme */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Color Scheme
-              </label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                {(['warm', 'cool', 'monochrome', 'vibrant', 'pastel', 'dark'] as const).map((scheme) => (
-                  <button
-                    key={scheme}
-                    onClick={() => handleColorSchemeChange(scheme)}
-                    className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
-                      designOptions.colorScheme === scheme
-                        ? 'bg-yellow-400 text-black'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {scheme}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </CollapsibleSection>
-
-          {/* Text & Branding Options */}
-          <CollapsibleSection
-            title="Text & Branding"
-            subtitle={showPowerWriteBranding ? 'PowerWrite branding ON' : 'Custom branding'}
-            icon={<div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center"><Type className="w-4 h-4 text-white" /></div>}
-            defaultOpen={false}
-            variant="card"
-          >
-            {/* PowerWrite Branding Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  "Created with PowerWrite" Branding
-                </label>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Display PowerWrite branding on the cover
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowPowerWriteBranding(!showPowerWriteBranding)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  showPowerWriteBranding ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
+          {/* Error Display */}
+          <AnimatePresence>
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3"
               >
-                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                  showPowerWriteBranding ? 'translate-x-6' : 'translate-x-0.5'
-                }`} />
-              </button>
-            </div>
+                <div className="flex-1">
+                  <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+                </div>
+                <button
+                  onClick={() => setError(null)}
+                  className="text-red-400 hover:text-red-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
-            {/* Hide Author Name Toggle */}
-            <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Hide Author Name
-                </label>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Show only the title (no author)
-                </p>
+          {/* Primary Action */}
+          <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-xl p-0.5">
+            <div className="bg-white dark:bg-gray-900 rounded-[10px] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {coverType === 'front' ? 'Front Cover' : 'Back Cover'}
+                  </span>
+                  {selectedModelInfo && coverMode === 'generate' && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                      with {selectedModelInfo.name}
+                    </span>
+                  )}
+                </div>
+                {coverMode === 'generate' && (
+                  <span className="text-xs text-gray-500">
+                    {showPowerWriteBranding ? '✓ Branding ON' : 'No branding'}
+                  </span>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setHideAuthorName(!hideAuthorName)}
-                className={`relative w-12 h-6 rounded-full transition-colors ${
-                  hideAuthorName ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              >
-                <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
-                  hideAuthorName ? 'translate-x-6' : 'translate-x-0.5'
-                }`} />
-              </button>
+              
+              {coverMode === 'generate' ? (
+                <button
+                  onClick={coverType === 'front' ? handleGenerateCover : handleGenerateBackCover}
+                  disabled={(coverType === 'front' ? isGenerating : isGeneratingBack) || !title || (coverType === 'front' && !author)}
+                  className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                    (coverType === 'front' ? isGenerating : isGeneratingBack) || !title || (coverType === 'front' && !author)
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 text-black hover:from-yellow-500 hover:via-amber-500 hover:to-orange-500 shadow-lg'
+                  }`}
+                >
+                  {(coverType === 'front' ? isGenerating : isGeneratingBack) ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Generating {coverType === 'front' ? 'Front' : 'Back'} Cover...
+                    </>
+                  ) : (coverType === 'front' ? coverUrl : backCoverUrl) ? (
+                    <>
+                      <RefreshCw className="w-5 h-5" />
+                      Regenerate {coverType === 'front' ? 'Front' : 'Back'} Cover
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Generate {coverType === 'front' ? 'Front' : 'Back'} Cover
+                    </>
+                  )}
+                </button>
+              ) : (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploading}
+                  className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                    isUploading
+                      ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 text-black hover:from-yellow-500 hover:via-amber-500 hover:to-orange-500 shadow-lg'
+                  }`}
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-5 h-5" />
+                      Upload {coverType === 'front' ? 'Front' : 'Back'} Cover
+                    </>
+                  )}
+                </button>
+              )}
             </div>
+          </div>
+        </div>
 
-            {/* Custom Title & Author */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Custom Title
-                </label>
-                <input
-                  type="text"
-                  value={textCustomization.customTitle || ''}
-                  onChange={(e) => setTextCustomization(prev => ({ ...prev, customTitle: e.target.value }))}
-                  placeholder={title || 'Use book title'}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                />
-              </div>
-              <div className={hideAuthorName ? 'opacity-50' : ''}>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Author Name {hideAuthorName && '(hidden)'}
-                </label>
-                <input
-                  type="text"
-                  value={textCustomization.customAuthor || ''}
-                  onChange={(e) => setTextCustomization(prev => ({ ...prev, customAuthor: e.target.value }))}
-                  placeholder={author || 'Enter author'}
-                  disabled={hideAuthorName}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
-                />
-              </div>
-            </div>
-
-            {/* Subtitle & Tagline */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Subtitle (optional)
-                </label>
-                <input
-                  type="text"
-                  value={textCustomization.subtitle || ''}
-                  onChange={(e) => setTextCustomization(prev => ({ ...prev, subtitle: e.target.value }))}
-                  placeholder="Add a subtitle..."
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  Tagline (optional)
-                </label>
-                <input
-                  type="text"
-                  value={textCustomization.tagline || ''}
-                  onChange={(e) => setTextCustomization(prev => ({ ...prev, tagline: e.target.value }))}
-                  placeholder="A gripping tale..."
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-                />
-              </div>
-            </div>
-          </CollapsibleSection>
-
-          {/* Back Cover Options - Only show when back cover is selected */}
-          {coverType === 'back' && (
+        {/* Right column: gallery + settings */}
+        <div className="space-y-3">
+          {/* Gallery Section - Collapsible */}
+          {bookId && (
             <CollapsibleSection
-              title="Back Cover Options"
-              subtitle={`${backCoverOptions.layout} layout • ${backCoverOptions.barcodeType} barcode`}
-              icon={<div className="w-8 h-8 bg-gradient-to-br from-slate-500 to-gray-700 rounded-lg flex items-center justify-center"><FileText className="w-4 h-4 text-white" /></div>}
-              defaultOpen={true}
+              title="Cover Gallery"
+              subtitle="Previously generated covers"
+              icon={<div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-600 rounded-lg flex items-center justify-center"><Images className="w-4 h-4 text-white" /></div>}
+              defaultOpen={false}
               variant="card"
             >
-              {/* Custom Description */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Back Cover Synopsis
-                </label>
-                <textarea
-                  value={backCoverOptions.customDescription}
-                  onChange={(e) => setBackCoverOptions(prev => ({ ...prev, customDescription: e.target.value }))}
-                  placeholder={`Leave blank to use book description...`}
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
-                />
-              </div>
-
-              {/* Layout Style */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Layout
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { id: 'classic', label: 'Classic' },
-                    { id: 'modern', label: 'Modern' },
-                    { id: 'minimal', label: 'Minimal' },
-                    { id: 'editorial', label: 'Editorial' },
-                  ].map((layout) => (
-                    <button
-                      key={layout.id}
-                      onClick={() => setBackCoverOptions(prev => ({ ...prev, layout: layout.id as any }))}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                        backCoverOptions.layout === layout.id
-                          ? 'bg-yellow-400 text-black'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                      }`}
-                    >
-                      {layout.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Barcode Type */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Barcode
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  {[
-                    { id: 'isbn', label: '📊 ISBN' },
-                    { id: 'qr', label: '📱 QR Code' },
-                    { id: 'none', label: '✕ None' },
-                  ].map((option) => (
-                    <button
-                      key={option.id}
-                      onClick={() => setBackCoverOptions(prev => ({ 
-                        ...prev, 
-                        barcodeType: option.id as any,
-                        showBarcode: option.id !== 'none'
-                      }))}
-                      className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                        backCoverOptions.barcodeType === option.id
-                          ? 'bg-yellow-400 text-black'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Toggles */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Match Front Cover Style</span>
-                  <button
-                    type="button"
-                    onClick={() => setBackCoverOptions(prev => ({ ...prev, matchFrontCover: !prev.matchFrontCover }))}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                      backCoverOptions.matchFrontCover ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                      backCoverOptions.matchFrontCover ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Show Website URL</span>
-                  <button
-                    type="button"
-                    onClick={() => setBackCoverOptions(prev => ({ ...prev, showWebsite: !prev.showWebsite }))}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                      backCoverOptions.showWebsite ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                      backCoverOptions.showWebsite ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
-                  </button>
-                </div>
-                <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">"Created with PowerWrite" Tagline</span>
-                  <button
-                    type="button"
-                    onClick={() => setBackCoverOptions(prev => ({ ...prev, showTagline: !prev.showTagline }))}
-                    className={`relative w-10 h-5 rounded-full transition-colors ${
-                      backCoverOptions.showTagline ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                    }`}
-                  >
-                    <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                      backCoverOptions.showTagline ? 'translate-x-5' : 'translate-x-0.5'
-                    }`} />
-                  </button>
-                </div>
-              </div>
+              <CoverGallery
+                key={galleryKey}
+                bookId={bookId}
+                coverType="all"
+                currentCoverUrl={coverType === 'front' ? coverUrl : backCoverUrl}
+                onCoverSelect={handleGalleryCoverSelect}
+              />
             </CollapsibleSection>
           )}
 
-          {/* Advanced Options */}
-          <CollapsibleSection
-            title="Advanced Options"
-            subtitle="Typography, layout, visuals & custom prompts"
-            icon={<div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center"><Settings className="w-4 h-4 text-white" /></div>}
-            defaultOpen={false}
-            variant="card"
-          >
-            {/* Typography Presets */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Typography Preset
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(Object.keys(FONT_STYLE_PRESETS) as FontStylePreset[]).slice(0, 6).map((presetKey) => (
+          {/* Generation/Upload Content */}
+          {coverMode === 'generate' ? (
+            <>
+              {/* AI Model Selection */}
+              <CollapsibleSection
+                title="AI Model"
+                subtitle={selectedModelInfo ? `${selectedModelInfo.name} (${selectedModelInfo.tier})` : 'Select model'}
+                icon={<div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>}
+                badge={selectedModelInfo?.tier === 'premium' ? <Badge variant="warning" size="sm">Premium</Badge> : null}
+                defaultOpen={false}
+                variant="card"
+              >
+                <div className="grid grid-cols-1 gap-2">
+                  {IMAGE_MODELS.map((model) => (
+                    <button
+                      key={model.id}
+                      onClick={() => setImageModel(model.id)}
+                      className={`px-4 py-3 rounded-lg text-left transition-all border ${
+                        imageModel === model.id
+                          ? 'bg-yellow-400 text-black border-yellow-400'
+                          : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-yellow-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{model.name}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${
+                          model.tier === 'premium' 
+                            ? imageModel === model.id 
+                              ? 'bg-black/20 text-black'
+                              : 'bg-amber-100 dark:bg-yellow-500/20 text-amber-600 dark:text-yellow-400'
+                            : imageModel === model.id
+                              ? 'bg-black/20 text-black'
+                              : 'bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-300'
+                        }`}>
+                          {model.tier === 'premium' && <Star className="w-3 h-3 fill-current" />}
+                          {model.tier === 'premium' ? 'Premium' : 'Standard'}
+                        </span>
+                      </div>
+                      <p className={`text-xs mt-1 ${imageModel === model.id ? 'text-black/70' : 'text-gray-500'}`}>
+                        {model.description}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              </CollapsibleSection>
+
+              {/* Style & Design Options */}
+              <CollapsibleSection
+                title="Style & Design"
+                subtitle={`${designOptions.style} • ${designOptions.colorScheme}`}
+                icon={<div className="w-8 h-8 bg-gradient-to-br from-pink-500 to-rose-600 rounded-lg flex items-center justify-center"><Sparkles className="w-4 h-4 text-white" /></div>}
+                defaultOpen={true}
+                variant="card"
+              >
+                {/* Cover Style */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Cover Style
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {(['minimalist', 'illustrative', 'photographic', 'abstract', 'typographic'] as const).map((style) => (
+                      <button
+                        key={style}
+                        onClick={() => handleStyleChange(style)}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          designOptions.style === style
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {style}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color Scheme */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Color Scheme
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {(['warm', 'cool', 'monochrome', 'vibrant', 'pastel', 'dark'] as const).map((scheme) => (
+                      <button
+                        key={scheme}
+                        onClick={() => handleColorSchemeChange(scheme)}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          designOptions.colorScheme === scheme
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {scheme}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Text & Branding Options */}
+              <CollapsibleSection
+                title="Text & Branding"
+                subtitle={showPowerWriteBranding ? 'PowerWrite branding ON' : 'Custom branding'}
+                icon={<div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center"><Type className="w-4 h-4 text-white" /></div>}
+                defaultOpen={false}
+                variant="card"
+              >
+                {/* PowerWrite Branding Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      "Created with PowerWrite" Branding
+                    </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Display PowerWrite branding on the cover
+                    </p>
+                  </div>
                   <button
-                    key={presetKey}
-                    onClick={() => applyFontPreset(presetKey)}
-                    className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
-                      selectedFontPreset === presetKey
-                        ? 'bg-yellow-400 text-black'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    type="button"
+                    onClick={() => setShowPowerWriteBranding(!showPowerWriteBranding)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      showPowerWriteBranding ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
                     }`}
                   >
-                    {presetKey.replace(/-/g, ' ')}
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+                      showPowerWriteBranding ? 'translate-x-6' : 'translate-x-0.5'
+                    }`} />
                   </button>
-                ))}
-              </div>
-            </div>
+                </div>
 
-            {/* Visual Presets */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Visual Preset
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(Object.keys(VISUAL_STYLE_PRESETS) as VisualStylePreset[]).slice(0, 6).map((presetKey) => (
+                {/* Hide Author Name Toggle */}
+                <div className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/50 mb-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      Hide Author Name
+                    </label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Show only the title (no author)
+                    </p>
+                  </div>
                   <button
-                    key={presetKey}
-                    onClick={() => applyVisualPreset(presetKey)}
-                    className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
-                      selectedVisualPreset === presetKey
-                        ? 'bg-yellow-400 text-black'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                    type="button"
+                    onClick={() => setHideAuthorName(!hideAuthorName)}
+                    className={`relative w-12 h-6 rounded-full transition-colors ${
+                      hideAuthorName ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
                     }`}
                   >
-                    {presetKey.replace(/-/g, ' ')}
+                    <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-md transition-transform ${
+                      hideAuthorName ? 'translate-x-6' : 'translate-x-0.5'
+                    }`} />
                   </button>
-                ))}
+                </div>
+
+                {/* Custom Title & Author */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Custom Title
+                    </label>
+                    <input
+                      type="text"
+                      value={textCustomization.customTitle || ''}
+                      onChange={(e) => setTextCustomization(prev => ({ ...prev, customTitle: e.target.value }))}
+                      placeholder={title || 'Use book title'}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div className={hideAuthorName ? 'opacity-50' : ''}>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Author Name {hideAuthorName && '(hidden)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={textCustomization.customAuthor || ''}
+                      onChange={(e) => setTextCustomization(prev => ({ ...prev, customAuthor: e.target.value }))}
+                      placeholder={author || 'Enter author'}
+                      disabled={hideAuthorName}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent disabled:cursor-not-allowed disabled:opacity-50"
+                    />
+                  </div>
+                </div>
+
+                {/* Subtitle & Tagline */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Subtitle (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={textCustomization.subtitle || ''}
+                      onChange={(e) => setTextCustomization(prev => ({ ...prev, subtitle: e.target.value }))}
+                      placeholder="Add a subtitle..."
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Tagline (optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={textCustomization.tagline || ''}
+                      onChange={(e) => setTextCustomization(prev => ({ ...prev, tagline: e.target.value }))}
+                      placeholder="A gripping tale..."
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Back Cover Options - Only show when back cover is selected */}
+              {coverType === 'back' && (
+                <CollapsibleSection
+                  title="Back Cover Options"
+                  subtitle={`${backCoverOptions.layout} layout • ${backCoverOptions.barcodeType} barcode`}
+                  icon={<div className="w-8 h-8 bg-gradient-to-br from-slate-500 to-gray-700 rounded-lg flex items-center justify-center"><FileText className="w-4 h-4 text-white" /></div>}
+                  defaultOpen={true}
+                  variant="card"
+                >
+                  {/* Custom Description */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Back Cover Synopsis
+                    </label>
+                    <textarea
+                      value={backCoverOptions.customDescription}
+                      onChange={(e) => setBackCoverOptions(prev => ({ ...prev, customDescription: e.target.value }))}
+                      placeholder={`Leave blank to use book description...`}
+                      rows={3}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
+                    />
+                  </div>
+
+                  {/* Layout Style */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Layout
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { id: 'classic', label: 'Classic' },
+                        { id: 'modern', label: 'Modern' },
+                        { id: 'minimal', label: 'Minimal' },
+                        { id: 'editorial', label: 'Editorial' },
+                      ].map((layout) => (
+                        <button
+                          key={layout.id}
+                          onClick={() => setBackCoverOptions(prev => ({ ...prev, layout: layout.id as any }))}
+                          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                            backCoverOptions.layout === layout.id
+                              ? 'bg-yellow-400 text-black'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                          }`}
+                        >
+                          {layout.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Barcode Type */}
+                  <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Barcode
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { id: 'isbn', label: '📊 ISBN' },
+                        { id: 'qr', label: '📱 QR Code' },
+                        { id: 'none', label: '✕ None' },
+                      ].map((option) => (
+                        <button
+                          key={option.id}
+                          onClick={() => setBackCoverOptions(prev => ({ 
+                            ...prev, 
+                            barcodeType: option.id as any,
+                            showBarcode: option.id !== 'none'
+                          }))}
+                          className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                            backCoverOptions.barcodeType === option.id
+                              ? 'bg-yellow-400 text-black'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Toggles */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Match Front Cover Style</span>
+                      <button
+                        type="button"
+                        onClick={() => setBackCoverOptions(prev => ({ ...prev, matchFrontCover: !prev.matchFrontCover }))}
+                        className={`relative w-10 h-5 rounded-full transition-colors ${
+                          backCoverOptions.matchFrontCover ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          backCoverOptions.matchFrontCover ? 'translate-x-5' : 'translate-x-0.5'
+                        }`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">Show Website URL</span>
+                      <button
+                        type="button"
+                        onClick={() => setBackCoverOptions(prev => ({ ...prev, showWebsite: !prev.showWebsite }))}
+                        className={`relative w-10 h-5 rounded-full transition-colors ${
+                          backCoverOptions.showWebsite ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          backCoverOptions.showWebsite ? 'translate-x-5' : 'translate-x-0.5'
+                        }`} />
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <span className="text-sm text-gray-700 dark:text-gray-300">"Created with PowerWrite" Tagline</span>
+                      <button
+                        type="button"
+                        onClick={() => setBackCoverOptions(prev => ({ ...prev, showTagline: !prev.showTagline }))}
+                        className={`relative w-10 h-5 rounded-full transition-colors ${
+                          backCoverOptions.showTagline ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
+                        }`}
+                      >
+                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                          backCoverOptions.showTagline ? 'translate-x-5' : 'translate-x-0.5'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+                </CollapsibleSection>
+              )}
+
+              {/* Advanced Options */}
+              <CollapsibleSection
+                title="Advanced Options"
+                subtitle="Typography, layout, visuals & custom prompts"
+                icon={<div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center"><Settings className="w-4 h-4 text-white" /></div>}
+                defaultOpen={false}
+                variant="card"
+              >
+                {/* Typography Presets */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Typography Preset
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(Object.keys(FONT_STYLE_PRESETS) as FontStylePreset[]).slice(0, 6).map((presetKey) => (
+                      <button
+                        key={presetKey}
+                        onClick={() => applyFontPreset(presetKey)}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          selectedFontPreset === presetKey
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        {presetKey.replace(/-/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Visual Presets */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Visual Preset
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(Object.keys(VISUAL_STYLE_PRESETS) as VisualStylePreset[]).slice(0, 6).map((presetKey) => (
+                      <button
+                        key={presetKey}
+                        onClick={() => applyVisualPreset(presetKey)}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          selectedVisualPreset === presetKey
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+                        }`}
+                      >
+                        {presetKey.replace(/-/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Main Subject */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Main Subject/Imagery
+                  </label>
+                  <input
+                    type="text"
+                    value={visualOptions.mainSubject || ''}
+                    onChange={(e) => setVisualOptions(prev => ({ ...prev, mainSubject: e.target.value }))}
+                    placeholder="e.g., A mysterious hooded figure..."
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Custom Prompt */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Custom AI Instructions
+                  </label>
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="Add specific instructions for the AI..."
+                    rows={3}
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
+                  />
+                </div>
+
+                {/* Reference Style */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Style Reference
+                  </label>
+                  <input
+                    type="text"
+                    value={referenceStyle}
+                    onChange={(e) => setReferenceStyle(e.target.value)}
+                    placeholder="e.g., 'Like Stephen King covers'"
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Reference Image (Front cover only) */}
+                {coverType === 'front' && (
+                  <div className="mt-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Reference Image (optional)
+                      </label>
+                      {referenceImageFile && (
+                        <button
+                          type="button"
+                          onClick={() => setReferenceImageFile(null)}
+                          className="text-xs text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      )}
+                    </div>
+
+                    <input
+                      ref={referenceImageInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={handleReferenceImageSelect}
+                      className="hidden"
+                    />
+
+                    {referenceImagePreviewUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => openPreviewModal(referenceImagePreviewUrl)}
+                        className="w-full flex items-center gap-3 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40 hover:border-yellow-300 dark:hover:border-yellow-500 transition-colors text-left"
+                      >
+                        <div className="w-14 h-14 rounded-md overflow-hidden bg-gray-200 dark:bg-gray-700 flex-shrink-0">
+                          <img src={referenceImagePreviewUrl} alt="Reference preview" className="w-full h-full object-cover" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
+                            {referenceImageFile?.name}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Click to preview full size • Used to guide the AI
+                          </div>
+                        </div>
+                        <Maximize2 className="w-4 h-4 text-gray-400" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => referenceImageInputRef.current?.click()}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm bg-gray-50 dark:bg-gray-800 border border-dashed border-gray-300 dark:border-gray-700 rounded-lg hover:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-gray-800/60 transition-colors"
+                      >
+                        <Upload className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                        Upload reference image
+                      </button>
+                    )}
+
+                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                      Helps the model match style/composition. JPEG/PNG/WebP/GIF • Max 5MB.
+                    </p>
+                  </div>
+                )}
+              </CollapsibleSection>
+            </>
+          ) : (
+            /* Upload Mode */
+            <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              
+              <div
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-gray-800/50 transition-all"
+              >
+                {isUploading ? (
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="animate-spin h-10 w-10 text-yellow-500" />
+                    <p className="text-gray-600 dark:text-gray-400">Uploading {coverType} cover...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-gray-800 flex items-center justify-center">
+                      <Upload className="w-7 h-7 text-yellow-500" />
+                    </div>
+                    <p className="text-gray-700 dark:text-gray-300 font-medium mb-1">
+                      Drop your {coverType} cover here
+                    </p>
+                    <p className="text-gray-500 text-sm mb-3">
+                      or click to browse
+                    </p>
+                    <div className="text-xs text-gray-400 space-y-0.5">
+                      <p>JPEG, PNG, WebP, GIF • Max 5MB</p>
+                      <p>Recommended: 1024×1536px</p>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
-
-            {/* Main Subject */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Main Subject/Imagery
-              </label>
-              <input
-                type="text"
-                value={visualOptions.mainSubject || ''}
-                onChange={(e) => setVisualOptions(prev => ({ ...prev, mainSubject: e.target.value }))}
-                placeholder="e.g., A mysterious hooded figure..."
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-              />
-            </div>
-
-            {/* Custom Prompt */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Custom AI Instructions
-              </label>
-              <textarea
-                value={customPrompt}
-                onChange={(e) => setCustomPrompt(e.target.value)}
-                placeholder="Add specific instructions for the AI..."
-                rows={3}
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
-              />
-            </div>
-
-            {/* Reference Style */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Style Reference
-              </label>
-              <input
-                type="text"
-                value={referenceStyle}
-                onChange={(e) => setReferenceStyle(e.target.value)}
-                placeholder="e.g., 'Like Stephen King covers'"
-                className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
-              />
-            </div>
-          </CollapsibleSection>
-        </>
-      ) : (
-        /* Upload Mode */
-        <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          
-          <div
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl p-8 text-center cursor-pointer hover:border-yellow-400 hover:bg-yellow-50 dark:hover:bg-gray-800/50 transition-all"
-          >
-            {isUploading ? (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="animate-spin h-10 w-10 text-yellow-500" />
-                <p className="text-gray-600 dark:text-gray-400">Uploading {coverType} cover...</p>
-              </div>
-            ) : (
-              <>
-                <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-yellow-100 dark:bg-gray-800 flex items-center justify-center">
-                  <Upload className="w-7 h-7 text-yellow-500" />
-                </div>
-                <p className="text-gray-700 dark:text-gray-300 font-medium mb-1">
-                  Drop your {coverType} cover here
-                </p>
-                <p className="text-gray-500 text-sm mb-3">
-                  or click to browse
-                </p>
-                <div className="text-xs text-gray-400 space-y-0.5">
-                  <p>JPEG, PNG, WebP, GIF • Max 5MB</p>
-                  <p>Recommended: 1024×1536px</p>
-                </div>
-              </>
-            )}
-          </div>
+          )}
         </div>
-      )}
+      </div>
 
-      {/* Error Display */}
+      {/* Full-size Preview Modal */}
       <AnimatePresence>
-        {error && (
+        {isPreviewModalOpen && previewModalSrc && (
           <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 flex items-start gap-3"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setIsPreviewModalOpen(false)}
+            role="dialog"
+            aria-modal="true"
           >
-            <div className="flex-1">
-              <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
-            </div>
-            <button
-              onClick={() => setError(null)}
-              className="text-red-400 hover:text-red-600 transition-colors"
+            <motion.div
+              initial={{ scale: 0.98, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.98, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="relative w-full max-w-4xl"
+              onClick={(e) => e.stopPropagation()}
             >
-              <X className="w-4 h-4" />
-            </button>
+              <button
+                type="button"
+                onClick={() => setIsPreviewModalOpen(false)}
+                className="absolute -top-3 -right-3 w-10 h-10 rounded-full bg-black/80 text-white flex items-center justify-center hover:bg-black transition-colors focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                aria-label="Close preview"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="bg-black/30 rounded-xl border border-white/10 overflow-hidden shadow-2xl">
+                <div className="px-4 py-3 flex items-center justify-between border-b border-white/10">
+                  <div className="text-sm text-white/90 font-medium">
+                    {coverType === 'front' ? 'Front Cover' : 'Back Cover'} • Full Size Preview
+                  </div>
+                  <a
+                    href={previewModalSrc}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-white/80 hover:text-white underline underline-offset-4"
+                  >
+                    Open in new tab
+                  </a>
+                </div>
+                <div className="bg-black flex items-center justify-center p-3">
+                  <img
+                    src={previewModalSrc}
+                    alt={`${coverType} cover full preview`}
+                    className="max-h-[80vh] w-auto max-w-full object-contain"
+                  />
+                </div>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Generate Button */}
-      <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-xl p-0.5">
-        <div className="bg-white dark:bg-gray-900 rounded-[10px] p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                {coverType === 'front' ? 'Front Cover' : 'Back Cover'}
-              </span>
-              {selectedModelInfo && coverMode === 'generate' && (
-                <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                  with {selectedModelInfo.name}
-                </span>
-              )}
-            </div>
-            {coverMode === 'generate' && (
-              <span className="text-xs text-gray-500">
-                {showPowerWriteBranding ? '✓ Branding ON' : 'No branding'}
-              </span>
-            )}
-          </div>
-          
-          {coverMode === 'generate' ? (
-            <button
-              onClick={coverType === 'front' ? handleGenerateCover : handleGenerateBackCover}
-              disabled={(coverType === 'front' ? isGenerating : isGeneratingBack) || !title || (coverType === 'front' && !author)}
-              className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                (coverType === 'front' ? isGenerating : isGeneratingBack) || !title || (coverType === 'front' && !author)
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 text-black hover:from-yellow-500 hover:via-amber-500 hover:to-orange-500 shadow-lg'
-              }`}
-            >
-              {(coverType === 'front' ? isGenerating : isGeneratingBack) ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Generating {coverType === 'front' ? 'Front' : 'Back'} Cover...
-                </>
-              ) : (coverType === 'front' ? coverUrl : backCoverUrl) ? (
-                <>
-                  <RefreshCw className="w-5 h-5" />
-                  Regenerate {coverType === 'front' ? 'Front' : 'Back'} Cover
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Generate {coverType === 'front' ? 'Front' : 'Back'} Cover
-                </>
-              )}
-            </button>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className={`w-full py-3.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                isUploading
-                  ? 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 text-black hover:from-yellow-500 hover:via-amber-500 hover:to-orange-500 shadow-lg'
-              }`}
-            >
-              {isUploading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Uploading...
-                </>
-              ) : (
-                <>
-                  <Upload className="w-5 h-5" />
-                  Upload {coverType === 'front' ? 'Front' : 'Back'} Cover
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
     </div>
   );
 }

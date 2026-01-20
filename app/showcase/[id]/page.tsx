@@ -33,6 +33,7 @@ interface Chapter {
   audioUrl?: string | null;
   audioDuration?: number | null;
   audioMetadata?: any;
+  audioTimestamps?: { word: string; start: number; end: number }[] | null;
 }
 
 interface BibliographyData {
@@ -504,6 +505,7 @@ export default function ShowcaseBookDetailPage() {
             audioUrl: ch.audioUrl,
             audioDuration: ch.audioDuration,
             audioMetadata: ch.audioMetadata,
+            audioTimestamps: ch.audioTimestamps,
           }))}
           onClose={() => {
             setShowAudiobookPlayer(false);

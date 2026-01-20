@@ -10,6 +10,7 @@ export interface BookListItem {
   author: string;
   genre: string;
   status: string;
+  productionStatus?: string;
   coverUrl?: string;
   createdAt: string;
   outline?: any;
@@ -213,6 +214,10 @@ export function BooksProvider({ children }: BooksProviderProps) {
   
   // Fetch book detail with caching and deduplication
   const fetchBookDetail = useCallback(async (bookId: number, force = false): Promise<BookDetail | null> => {
+    // Guard against invalid ids (prevents /api/books/NaN → 400)
+    if (!Number.isFinite(bookId) || bookId <= 0) {
+      return null;
+    }
     // Check cache first
     const cached = bookDetailsCache.get(bookId);
     const now = Date.now();

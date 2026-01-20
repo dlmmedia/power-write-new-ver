@@ -38,7 +38,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
     default: {
       container: 'bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800',
       header: 'p-4',
-      content: 'px-4 pb-4',
+      content: 'px-4 pb-5',
     },
     compact: {
       container: 'bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800',
@@ -47,8 +47,8 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
     },
     card: {
       container: 'bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm',
-      header: 'p-4',
-      content: 'px-4 pb-4',
+      header: 'px-5 py-4',
+      content: 'px-5 pb-5',
     },
   };
 

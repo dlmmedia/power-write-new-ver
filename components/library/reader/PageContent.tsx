@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Chapter, FontSize, PaginatedContent, FONT_SIZE_CONFIG } from './types';
+import { Chapter, FontSize, PaginatedContent, FONT_SIZE_CONFIG, TextChunk } from './types';
 
 // Larger page dimensions for the enhanced 3D book
 const PAGE_WIDTH = 440; // Increased from 320
@@ -18,35 +18,51 @@ export function paginateContent(
 
   // Improved character width estimates for better pagination
   const avgCharWidth: Record<FontSize, number> = {
+    xs: 7,
     sm: 7.5,
     base: 8.5,
     lg: 10,
     xl: 11.5,
+    xxl: 13,
   };
 
   const lineHeight: Record<FontSize, number> = {
+    xs: 22,
     sm: 24,
     base: 28,
     lg: 34,
     xl: 42,
+    xxl: 50,
   };
 
   const charsPerLine = Math.floor(pageWidth / avgCharWidth[fontSize]);
   const linesPerPage = Math.floor(pageHeight / lineHeight[fontSize]);
 
   // Split content into paragraphs
+  // Track global index
+  let globalIndex = 0;
   const paragraphs = content
     .split(/\n\n+/)
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
+    .map(p => {
+      const start = content.indexOf(p, globalIndex);
+      // If we can't find the exact paragraph (shouldn't happen with split), fallback
+      const actualStart = start !== -1 ? start : globalIndex;
+      globalIndex = actualStart + p.length;
+      return {
+        text: p.trim(),
+        start: actualStart,
+        end: actualStart + p.length
+      };
+    })
+    .filter(p => p.text.length > 0);
 
-  const pages: string[][] = [];
-  let currentPage: string[] = [];
+  const pages: TextChunk[][] = [];
+  let currentPage: TextChunk[] = [];
   let currentLineCount = 0;
 
   for (const paragraph of paragraphs) {
     // Estimate lines this paragraph will take (including spacing)
-    const estimatedLines = Math.ceil(paragraph.length / charsPerLine) + 1;
+    const estimatedLines = Math.ceil(paragraph.text.length / charsPerLine) + 1;
 
     if (currentLineCount + estimatedLines > linesPerPage) {
       // Start new page if paragraph doesn't fit
@@ -60,9 +76,10 @@ export function paginateContent(
     // Handle very long paragraphs that need to be split
     if (estimatedLines > linesPerPage) {
       // Split paragraph into chunks that fit on a page
-      const words = paragraph.split(' ');
+      const words = paragraph.text.split(' ');
       let chunk = '';
       let chunkLines = 0;
+      let currentChunkStart = paragraph.start;
 
       for (const word of words) {
         const testChunk = chunk + (chunk ? ' ' : '') + word;
@@ -70,10 +87,18 @@ export function paginateContent(
 
         if (testLines > linesPerPage - currentLineCount) {
           if (chunk) {
-            currentPage.push(chunk);
+            currentPage.push({
+              text: chunk,
+              startCharIndex: currentChunkStart,
+              endCharIndex: currentChunkStart + chunk.length,
+              isParagraphStart: currentChunkStart === paragraph.start
+            });
             pages.push(currentPage);
             currentPage = [];
             currentLineCount = 0;
+            
+            // Advance start index by chunk length + space (approximate)
+            currentChunkStart += chunk.length + 1; 
           }
           chunk = word;
           chunkLines = Math.ceil(word.length / charsPerLine);
@@ -84,11 +109,21 @@ export function paginateContent(
       }
 
       if (chunk) {
-        currentPage.push(chunk);
+        currentPage.push({
+          text: chunk,
+          startCharIndex: currentChunkStart,
+          endCharIndex: currentChunkStart + chunk.length,
+          isParagraphStart: currentChunkStart === paragraph.start
+        });
         currentLineCount += chunkLines + 1;
       }
     } else {
-      currentPage.push(paragraph);
+      currentPage.push({
+        text: paragraph.text,
+        startCharIndex: paragraph.start,
+        endCharIndex: paragraph.end,
+        isParagraphStart: true
+      });
       currentLineCount += estimatedLines;
     }
   }
@@ -148,8 +183,8 @@ export function getSpreadPages(
   currentChapter: number,
   currentPage: number // 0-indexed page within chapter
 ): {
-  leftPage: string[];
-  rightPage: string[];
+  leftPage: TextChunk[];
+  rightPage: TextChunk[];
   leftPageNumber: number;
   rightPageNumber: number;
   totalPagesInChapter: number;
@@ -185,23 +220,76 @@ export function getSpreadPages(
 
 // Component to render page content
 interface PageContentProps {
-  paragraphs: string[];
+  content: TextChunk[];
   fontSize: FontSize;
   textColor: string;
   showChapterHeader?: boolean;
   chapterTitle?: string;
   accentColor?: string;
+  audioTimestamps?: { word: string; start: number; end: number }[] | null;
+  currentAudioTime?: number;
+  isAudioPlaying?: boolean;
 }
 
 export const PageContent: React.FC<PageContentProps> = ({
-  paragraphs,
+  content,
   fontSize,
   textColor,
   showChapterHeader = false,
   chapterTitle = '',
   accentColor = '#d97706',
+  audioTimestamps,
+  currentAudioTime = 0,
+  isAudioPlaying = false
 }) => {
   const fontConfig = FONT_SIZE_CONFIG[fontSize];
+
+  // Helper to check if a word matches current timestamp
+  // We use a heuristic since we don't have perfect character mapping from backend
+  const renderInteractiveText = (chunk: TextChunk) => {
+    if (!isAudioPlaying || !audioTimestamps) return chunk.text;
+    
+    // Find valid timestamps for current time window
+    // We look for a word that starts <= now and ends >= now
+    const activeTimestamp = audioTimestamps.find(
+      t => currentAudioTime >= t.start && currentAudioTime <= t.end
+    );
+    
+    if (!activeTimestamp) return chunk.text;
+    
+    // Clean words for comparison
+    const activeWordClean = activeTimestamp.word.trim().toLowerCase().replace(/[^\w]/g, "");
+    if (!activeWordClean) return chunk.text;
+
+    // Split paragraph into words while preserving delimiters/spaces
+    const parts = chunk.text.split(/(\s+)/);
+    
+    // We need to find which occurrence of the word is the active one
+    // This is hard without global indices. 
+    // Simplified approach: Highlight ALL occurrences of the word in the current view? No, confusing.
+    // Better approach: Since we don't have char indices in timestamps yet (future improvement),
+    // we highlight if the word matches. 
+    // Ideally we would sync the "current word index" from audio player state.
+    
+    return parts.map((part, i) => {
+      const partClean = part.trim().toLowerCase().replace(/[^\w]/g, "");
+      
+      // Strict matching for now
+      const isMatch = partClean === activeWordClean;
+      
+      if (isMatch) {
+        return (
+          <span 
+            key={i} 
+            className="bg-yellow-300 dark:bg-yellow-600/60 text-black dark:text-white rounded px-0.5 shadow-sm transition-all duration-75"
+          >
+            {part}
+          </span>
+        );
+      }
+      return part;
+    });
+  };
 
   return (
     <div className="h-full flex flex-col">
@@ -220,21 +308,21 @@ export const PageContent: React.FC<PageContentProps> = ({
       )}
 
       <div className="flex-1 overflow-hidden">
-        {paragraphs.map((paragraph, index) => (
+        {content.map((chunk, index) => (
           <p
             key={index}
             className={`mb-5 text-justify ${fontConfig.className} ${fontConfig.lineHeight}`}
             style={{
               color: textColor,
               fontFamily: '"EB Garamond", "Crimson Pro", Georgia, serif',
-              textIndent: index > 0 ? '2.5em' : '0',
+              textIndent: chunk.isParagraphStart ? '2.5em' : '0',
               hyphens: 'auto',
               WebkitHyphens: 'auto',
               wordBreak: 'break-word',
               letterSpacing: '0.01em',
             }}
           >
-            {paragraph}
+            {renderInteractiveText(chunk)}
           </p>
         ))}
       </div>

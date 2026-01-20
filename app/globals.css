@@ -408,3 +408,28 @@ body * {
     box-shadow: none !important;
   }
 }
+
+/* ===== AUDIO TEXT HIGHLIGHTING STYLES ===== */
+/* 
+ * These styles use ONLY background colors to highlight text
+ * WITHOUT causing any layout shifts.
+ * All words are always wrapped in spans to prevent DOM changes.
+ */
+
+/* Base paragraph styling for audio sync */
+.audio-paragraph {
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Every word gets this class - smooth transitions between states */
+.audio-word {
+  transition: background-color 0.15s ease-out, color 0.15s ease-out;
+}
+
+/* Disable transitions for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .audio-paragraph,
+  .audio-word {
+    transition: none;
+  }
+}

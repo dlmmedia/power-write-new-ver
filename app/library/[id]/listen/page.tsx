@@ -61,6 +61,7 @@ export default function ListenPage() {
         audioUrl: ch.audioUrl,
         audioDuration: ch.audioDuration,
         audioMetadata: ch.audioMetadata,
+        audioTimestamps: ch.audioTimestamps || null,
       }));
 
       setBook({

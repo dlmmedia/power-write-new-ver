@@ -82,6 +82,7 @@ export const bookChapters = pgTable("book_chapters", {
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"), // Duration in seconds
   audioMetadata: jsonb("audio_metadata"), // { voice, speed, model, generatedAt, fileSize }
+  audioTimestamps: jsonb("audio_timestamps"), // Array of { word: string, start: number, end: number }
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -229,6 +230,7 @@ export const generatedBooksRelations = relations(generatedBooks, ({ one, many })
   }),
   coverGallery: many(coverGallery),
   chapterImages: many(chapterImages),
+  videoExportJobs: many(videoExportJobs),
 }));
 
 export const bookChaptersRelations = relations(bookChapters, ({ one, many }) => ({
@@ -320,6 +322,48 @@ export const chapterImagesRelations = relations(chapterImages, ({ one }) => ({
   }),
 }));
 
+// Video export jobs table - tracks video generation progress
+export const videoExportJobs = pgTable("video_export_jobs", {
+  id: serial("id").primaryKey(),
+  bookId: integer("book_id").notNull().references(() => generatedBooks.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: varchar("status").notNull().default("pending"), // pending, rendering, stitching, complete, failed, cancelled
+  scope: varchar("scope").notNull().default("full"), // chapter, full
+  chapterNumber: integer("chapter_number"), // Only set if scope is 'chapter'
+  theme: varchar("theme").default("day"), // day, night, sepia, focus
+  // Progress tracking
+  currentPhase: varchar("current_phase").default("initializing"), // initializing, rendering_frames, stitching, uploading, complete
+  currentChapter: integer("current_chapter").default(0),
+  totalChapters: integer("total_chapters").default(0),
+  currentFrame: integer("current_frame").default(0),
+  totalFrames: integer("total_frames").default(0),
+  progress: integer("progress").default(0), // 0-100 percentage
+  // Output
+  outputUrl: text("output_url"), // Final video URL in Vercel Blob
+  outputSize: integer("output_size"), // File size in bytes
+  outputDuration: integer("output_duration"), // Video duration in seconds
+  // Frame storage
+  framesManifest: jsonb("frames_manifest"), // Array of frame URLs and timing info
+  // Error handling
+  error: text("error"),
+  retryCount: integer("retry_count").default(0),
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
+
+export const videoExportJobsRelations = relations(videoExportJobs, ({ one }) => ({
+  book: one(generatedBooks, {
+    fields: [videoExportJobs.bookId],
+    references: [generatedBooks.id],
+  }),
+  user: one(users, {
+    fields: [videoExportJobs.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert and select types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -397,3 +441,12 @@ export const insertChapterImageSchema = createInsertSchema(chapterImages).omit({
 });
 export type InsertChapterImage = z.infer<typeof insertChapterImageSchema>;
 export type ChapterImageDB = typeof chapterImages.$inferSelect;
+
+export const insertVideoExportJobSchema = createInsertSchema(videoExportJobs).omit({
+  id: true,
+  createdAt: true,
+  startedAt: true,
+  completedAt: true,
+});
+export type InsertVideoExportJob = z.infer<typeof insertVideoExportJobSchema>;
+export type VideoExportJob = typeof videoExportJobs.$inferSelect;

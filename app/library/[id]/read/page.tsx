@@ -65,13 +65,25 @@ function ReadPageContent() {
     setError(null);
     
     try {
-      // Use simpler request without cache-busting for faster response
-      const response = await fetch(`/api/books/${bookId}`, {
-        next: { revalidate: 0 },
+      // Use cache-busting + no-store to avoid stale/edge cached failures
+      const timestamp = Date.now();
+      const response = await fetch(`/api/books/${bookId}?_t=${timestamp}`, {
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch book');
+        let details = '';
+        try {
+          const text = await response.text();
+          details = text ? ` - ${text.slice(0, 400)}` : '';
+        } catch {
+          // ignore
+        }
+        throw new Error(`Failed to fetch book (${response.status} ${response.statusText})${details}`);
       }
 
       const data = await response.json();
@@ -92,6 +104,7 @@ function ReadPageContent() {
           status: ch.status || 'draft',
           audioUrl: ch.audioUrl,
           audioDuration: ch.audioDuration,
+          audioTimestamps: ch.audioTimestamps || null,
         }));
 
       if (chapters.length === 0) {
