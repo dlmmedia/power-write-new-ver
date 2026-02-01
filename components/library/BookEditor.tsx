@@ -32,6 +32,7 @@ interface BookEditorProps {
   author: string;
   genre?: string;
   chapters: Chapter[];
+  initialChapterIndex?: number;
   onClose?: () => void;
   onSave?: (updatedChapters: Chapter[]) => void;
   modelId?: string; // Model to use for AI chapter generation
@@ -59,12 +60,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   author,
   genre = 'Fiction',
   chapters: initialChapters,
+  initialChapterIndex = 0,
   onClose,
   onSave,
   modelId,
 }) => {
   const [chapters, setChapters] = useState<Chapter[]>(initialChapters);
-  const [currentChapterIndex, setCurrentChapterIndex] = useState(0);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(initialChapterIndex);
   const [isSaving, setIsSaving] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -382,44 +384,41 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   };
 
   const applyFormatting = (type: 'bold' | 'italic' | 'underline' | 'quote' | 'list') => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
+    // Get the current selection from the contentEditable editor
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      return;
+    }
 
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selectedText = currentChapter.content.substring(start, end);
-
+    const selectedText = selection.toString();
     if (!selectedText) {
       alert('Please select text to format');
       return;
     }
 
-    saveToHistory();
-    let formattedText = '';
+    // For bold, italic, underline - use document.execCommand which works with contentEditable
     switch (type) {
       case 'bold':
-        formattedText = `**${selectedText}**`;
+        document.execCommand('bold', false);
         break;
       case 'italic':
-        formattedText = `*${selectedText}*`;
+        document.execCommand('italic', false);
         break;
       case 'underline':
-        formattedText = `__${selectedText}__`;
+        document.execCommand('underline', false);
         break;
       case 'quote':
-        formattedText = `> ${selectedText}`;
+        // For quote formatting, wrap selection in blockquote-like styling
+        document.execCommand('formatBlock', false, 'blockquote');
         break;
       case 'list':
-        formattedText = selectedText.split('\n').map(line => `• ${line}`).join('\n');
+        // For list formatting, insert unordered list
+        document.execCommand('insertUnorderedList', false);
         break;
     }
 
-    const newContent = 
-      currentChapter.content.substring(0, start) + 
-      formattedText + 
-      currentChapter.content.substring(end);
-    
-    updateChapterContent(newContent, false);
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true);
   };
 
   // Find and Replace functions
@@ -1109,7 +1108,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => applyFormatting('bold')}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss from contentEditable
+              applyFormatting('bold');
+            }}
             title="Bold (Ctrl+B)"
           >
             <strong>B</strong>
@@ -1117,7 +1119,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => applyFormatting('italic')}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss from contentEditable
+              applyFormatting('italic');
+            }}
             title="Italic (Ctrl+I)"
           >
             <em>I</em>
@@ -1125,7 +1130,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => applyFormatting('underline')}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss from contentEditable
+              applyFormatting('underline');
+            }}
             title="Underline"
           >
             <u>U</u>
@@ -1134,7 +1142,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => applyFormatting('quote')}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss from contentEditable
+              applyFormatting('quote');
+            }}
             title="Quote"
           >
             &quot; &quot;
@@ -1142,7 +1153,10 @@ export const BookEditor: React.FC<BookEditorProps> = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => applyFormatting('list')}
+            onMouseDown={(e) => {
+              e.preventDefault(); // Prevent focus loss from contentEditable
+              applyFormatting('list');
+            }}
             title="Bullet list"
           >
             •••

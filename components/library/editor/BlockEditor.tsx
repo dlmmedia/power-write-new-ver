@@ -23,6 +23,115 @@ import { DividerBlockComponent } from './DividerBlock';
 import { ImagePopover } from './ImagePopover';
 import { BookImageType, ImagePlacement, ImageSize } from '@/lib/types/book-images';
 
+// Memoized paragraph content component - prevents re-render when hover state changes
+interface ParagraphContentProps {
+  blockId: string;
+  content: string;
+  fontSize: 'sm' | 'base' | 'lg' | 'xl';
+  isFocused: boolean;
+  isReadOnly: boolean;
+  onFocus: () => void;
+  onBlur: (newContent: string) => void;
+  onEnterKey: (cursorPos: number, content: string) => void;
+  onBackspaceAtStart: () => void;
+  onArrowUp: () => void;
+  onArrowDown: () => void;
+  blockRef: (el: HTMLDivElement | null) => void;
+}
+
+const ParagraphContent = React.memo<ParagraphContentProps>(({
+  blockId,
+  content,
+  fontSize,
+  isFocused,
+  isReadOnly,
+  onFocus,
+  onBlur,
+  onEnterKey,
+  onBackspaceAtStart,
+  onArrowUp,
+  onArrowDown,
+  blockRef,
+}) => {
+  const fontSizeClasses = {
+    sm: 'text-sm',
+    base: 'text-base',
+    lg: 'text-lg',
+    xl: 'text-xl',
+  };
+
+  const elRef = useRef<HTMLDivElement>(null);
+
+  // Set initial content only once, not on every render
+  useEffect(() => {
+    if (elRef.current && elRef.current.innerHTML !== content) {
+      // Only update if content is different and we're not focused (user not typing)
+      if (document.activeElement !== elRef.current) {
+        elRef.current.innerHTML = content || '<br>';
+      }
+    }
+  }, [content]);
+
+  return (
+    <div
+      ref={(el) => {
+        elRef.current = el;
+        blockRef(el);
+      }}
+      contentEditable={!isReadOnly}
+      suppressContentEditableWarning
+      className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif outline-none min-h-[1.5em] py-1 px-1 rounded transition-colors ${
+        isFocused ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''
+      }`}
+      style={{ fontFamily: 'Georgia, serif' }}
+      onFocus={onFocus}
+      onBlur={(e) => {
+        const newContent = e.currentTarget.textContent || '';
+        onBlur(newContent);
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          const selection = window.getSelection();
+          const cursorPos = selection?.anchorOffset || 0;
+          onEnterKey(cursorPos, e.currentTarget.textContent || '');
+        } else if (e.key === 'Backspace') {
+          const selection = window.getSelection();
+          if (selection?.anchorOffset === 0 && selection?.focusOffset === 0) {
+            e.preventDefault();
+            onBackspaceAtStart();
+          }
+        } else if (e.key === 'ArrowUp' && e.currentTarget.textContent) {
+          const selection = window.getSelection();
+          if (selection?.anchorOffset === 0) {
+            e.preventDefault();
+            onArrowUp();
+          }
+        } else if (e.key === 'ArrowDown' && e.currentTarget.textContent) {
+          const selection = window.getSelection();
+          const len = e.currentTarget.textContent?.length || 0;
+          if (selection?.anchorOffset === len) {
+            e.preventDefault();
+            onArrowDown();
+          }
+        }
+      }}
+      dangerouslySetInnerHTML={{ __html: content || '<br>' }}
+    />
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render if content or essential props change
+  // Ignore focus state changes to preserve selection
+  return (
+    prevProps.blockId === nextProps.blockId &&
+    prevProps.content === nextProps.content &&
+    prevProps.fontSize === nextProps.fontSize &&
+    prevProps.isReadOnly === nextProps.isReadOnly
+  );
+});
+
+ParagraphContent.displayName = 'ParagraphContent';
+
 interface BlockEditorProps {
   content: string;
   images: ChapterImage[];
@@ -387,52 +496,26 @@ export const BlockEditor: React.FC<BlockEditorProps> = ({
               />
             )}
             
-            {/* Paragraph content */}
-            <div
-              ref={(el) => {
-                if (el) blockRefs.current.set(block.id, el);
-              }}
-              contentEditable={!isReadOnly}
-              suppressContentEditableWarning
-              className={`${fontSizeClasses[fontSize]} leading-relaxed font-serif outline-none min-h-[1.5em] py-1 px-1 rounded transition-colors ${
-                isFocused ? 'bg-yellow-50/50 dark:bg-yellow-900/10' : ''
-              }`}
-              style={{ fontFamily: 'Georgia, serif' }}
+            {/* Paragraph content - memoized to preserve selection during hover */}
+            <ParagraphContent
+              blockId={block.id}
+              content={block.content}
+              fontSize={fontSize}
+              isFocused={isFocused}
+              isReadOnly={isReadOnly}
               onFocus={() => setFocusedBlockId(block.id)}
-              onBlur={(e) => {
-                const newContent = e.currentTarget.textContent || '';
+              onBlur={(newContent) => {
                 if (newContent !== block.content) {
                   handleBlockChange(block.id, newContent);
                 }
               }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  const selection = window.getSelection();
-                  const cursorPos = selection?.anchorOffset || 0;
-                  handleEnterKey(block.id, cursorPos, e.currentTarget.textContent || '');
-                } else if (e.key === 'Backspace') {
-                  const selection = window.getSelection();
-                  if (selection?.anchorOffset === 0 && selection?.focusOffset === 0) {
-                    e.preventDefault();
-                    handleBackspaceAtStart(block.id);
-                  }
-                } else if (e.key === 'ArrowUp' && e.currentTarget.textContent) {
-                  const selection = window.getSelection();
-                  if (selection?.anchorOffset === 0) {
-                    e.preventDefault();
-                    handleArrowNavigation(block.id, 'up');
-                  }
-                } else if (e.key === 'ArrowDown' && e.currentTarget.textContent) {
-                  const selection = window.getSelection();
-                  const len = e.currentTarget.textContent?.length || 0;
-                  if (selection?.anchorOffset === len) {
-                    e.preventDefault();
-                    handleArrowNavigation(block.id, 'down');
-                  }
-                }
+              onEnterKey={(cursorPos, content) => handleEnterKey(block.id, cursorPos, content)}
+              onBackspaceAtStart={() => handleBackspaceAtStart(block.id)}
+              onArrowUp={() => handleArrowNavigation(block.id, 'up')}
+              onArrowDown={() => handleArrowNavigation(block.id, 'down')}
+              blockRef={(el) => {
+                if (el) blockRefs.current.set(block.id, el);
               }}
-              dangerouslySetInnerHTML={{ __html: block.content || '<br>' }}
             />
           </div>
         );

@@ -799,6 +799,7 @@ export default function BookDetailPage() {
         author={book.author}
         genre={book.genre}
         chapters={book.chapters}
+        initialChapterIndex={initialChapterIndex}
         onClose={() => {
           setIsEditing(false);
           fetchBookDetail(); // Refresh book data
