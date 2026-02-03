@@ -6,12 +6,8 @@ export const BLOCKED_BOOK_TITLES = [
   // Variants seen from unwanted auto-population
   'Sparta reconstructed, reverberations',
   'Sparta reconstructed reverberations',
-  'Sparta Reconstructed. Reverberations An Interview with AI',
   'masters',
   "mastering life's rhythms",
-  'interview with AI',
-  'Interview with AI',
-  'An Interview with AI',
   'AI consumer guide',
 ] as const;
 
