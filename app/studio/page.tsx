@@ -128,7 +128,8 @@ function StudioPageContent() {
   ];
 
   // Incremental book generation with progress tracking
-  const handleGenerateBook = useCallback(async () => {
+  // Optional continuationBookId allows resuming from a streaming failure
+  const handleGenerateBook = useCallback(async (continuationBookId?: number) => {
     if (!canGenerate) {
       triggerUpgradeModal('generate-book');
       return;
@@ -149,30 +150,41 @@ function StudioPageContent() {
     const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
     const totalChapters = workingOutline.chapters.length;
 
-    const confirmed = confirm(
-      `Generate full book: "${workingOutline.title}"?\n\n` +
-      `This will generate ${totalChapters} chapters using ${chapterModel}.\n` +
-      `The book will be generated in batches to ensure reliable completion.\n\n` +
-      `Continue?`
-    );
+    // Skip confirmation if continuing from a streaming failure
+    if (!continuationBookId) {
+      const confirmed = confirm(
+        `Generate full book: "${workingOutline.title}"?\n\n` +
+        `This will generate ${totalChapters} chapters using ${chapterModel}.\n` +
+        `The book will be generated in batches to ensure reliable completion.\n\n` +
+        `Continue?`
+      );
 
-    if (!confirmed) return;
+      if (!confirmed) return;
+    }
 
     setIsGenerating(true);
     setGenerationType('book');
     setShowBookModal(true); // Show modal immediately with stable state
     abortControllerRef.current = new AbortController();
 
-    // Initialize progress
-    setGenerationProgress({
-      phase: 'creating',
-      chaptersCompleted: 0,
-      totalChapters,
-      progress: 0,
-      message: 'Creating book...',
-    });
+    // Initialize progress (keep existing progress if continuing)
+    if (!continuationBookId) {
+      setGenerationProgress({
+        phase: 'creating',
+        chaptersCompleted: 0,
+        totalChapters,
+        progress: 0,
+        message: 'Creating book...',
+      });
+    } else {
+      setGenerationProgress(prev => ({
+        ...prev,
+        phase: 'generating',
+        message: 'Connection interrupted. Continuing generation...',
+      }));
+    }
 
-    let currentBookId: number | undefined;
+    let currentBookId: number | undefined = continuationBookId;
     let consecutiveErrors = 0;
     const maxConsecutiveErrors = 3;
 
@@ -416,6 +428,7 @@ function StudioPageContent() {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      let streamCompleted = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -426,6 +439,9 @@ function StudioPageContent() {
         buffer = lines.pop() || '';
 
         for (const line of lines) {
+          // Skip heartbeat comments (keep-alive pings from server)
+          if (line.startsWith(':')) continue;
+
           if (line.startsWith('event:')) {
             const eventType = line.replace('event:', '').trim();
             continue;
@@ -476,6 +492,7 @@ function StudioPageContent() {
                 }));
               } else if (data.chaptersCompleted !== undefined && data.totalWords !== undefined) {
                 // Completion
+                streamCompleted = true;
                 setGenerationProgress(prev => ({
                   ...prev,
                   phase: 'completed',
@@ -520,10 +537,55 @@ function StudioPageContent() {
           }
         }
       }
+
+      // Detect premature stream end - if the stream ended without a completion event,
+      // the server connection was likely killed (Railway proxy timeout, Node.js timeout, etc.)
+      // Auto-recover by switching to incremental mode which uses separate requests per batch
+      if (!streamCompleted && generationProgressRef.current.bookId) {
+        const savedBookId = generationProgressRef.current.bookId;
+        console.log(`[Studio] Stream ended prematurely for book ${savedBookId}. Switching to incremental mode...`);
+        
+        setGenerationProgress(prev => ({
+          ...prev,
+          message: 'Connection interrupted. Continuing generation...',
+        }));
+
+        // Small delay then continue with incremental mode
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Reset state for incremental handler to take over
+        setIsGenerating(false);
+        setGenerationType('none');
+        abortControllerRef.current = null;
+        
+        // Continue with incremental mode using the saved bookId
+        handleGenerateBook(savedBookId);
+        return;
+      }
     } catch (error) {
       console.error('Streaming generation error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
+      // If the stream failed with a bookId, auto-recover with incremental mode
+      if (generationProgressRef.current.bookId && !errorMessage.includes('cancelled')) {
+        const savedBookId = generationProgressRef.current.bookId;
+        console.log(`[Studio] Stream error for book ${savedBookId}. Switching to incremental mode...`);
+        
+        setGenerationProgress(prev => ({
+          ...prev,
+          message: 'Connection interrupted. Continuing generation...',
+        }));
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        setIsGenerating(false);
+        setGenerationType('none');
+        abortControllerRef.current = null;
+        
+        handleGenerateBook(savedBookId);
+        return;
+      }
+
       setGenerationProgress(prev => ({
         ...prev,
         phase: 'error',
@@ -556,7 +618,7 @@ function StudioPageContent() {
         }
       }, 500);
     }
-  }, [outline, config, router, refreshBooks]);
+  }, [outline, config, router, refreshBooks, handleGenerateBook]);
 
   // Handle generate book click - check for outline first
   const handleGenerateBookClick = useCallback(() => {
@@ -564,13 +626,25 @@ function StudioPageContent() {
       setShowNoOutlineConfirm(true);
       return;
     }
-    // Use streaming for real-time updates when enabled
+
+    // Auto-switch to incremental mode for books with >12 chapters
+    // Streaming SSE connections can be killed by Railway's proxy or Node.js
+    // after ~300 seconds, which is roughly the time for 12 chapters.
+    // Incremental mode uses separate HTTP requests per batch and is immune to this.
+    const totalChapters = outline.chapters?.length || config.content?.numChapters || 10;
+    if (totalChapters > 12) {
+      console.log(`[Studio] ${totalChapters} chapters requested — using incremental mode for reliability`);
+      handleGenerateBook();
+      return;
+    }
+
+    // Use streaming for real-time updates when enabled (for smaller books)
     if (useStreaming) {
       handleGenerateBookStreaming();
     } else {
       handleGenerateBook();
     }
-  }, [outline, useStreaming, handleGenerateBook, handleGenerateBookStreaming]);
+  }, [outline, config, useStreaming, handleGenerateBook, handleGenerateBookStreaming]);
 
   const handleAutoPopulate = () => {
     if (!selectedReferenceId) {

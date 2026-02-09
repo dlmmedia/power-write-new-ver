@@ -123,8 +123,39 @@ export async function POST(request: NextRequest) {
   }
 
   // Create readable stream for SSE
+  let cancelled = false;
+  let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+
   const stream = new ReadableStream({
     async start(controller) {
+      // Safe enqueue helper - prevents "Controller is already closed" errors
+      // when Railway's proxy or Node.js kills the SSE connection mid-generation
+      const safeEnqueue = (data: Uint8Array): boolean => {
+        if (cancelled) return false;
+        try {
+          controller.enqueue(data);
+          return true;
+        } catch (err) {
+          console.warn('[Stream] Controller closed, cannot enqueue:', err instanceof Error ? err.message : err);
+          cancelled = true;
+          return false;
+        }
+      };
+
+      // Start heartbeat to prevent Railway proxy idle timeout (sends SSE comment every 25s)
+      heartbeatInterval = setInterval(() => {
+        if (cancelled) {
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          return;
+        }
+        try {
+          controller.enqueue(encoder.encode(': heartbeat\n\n'));
+        } catch {
+          cancelled = true;
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+        }
+      }, 25000);
+
       try {
 
         // Determine model - prioritize user selection over speed-based defaults
@@ -143,7 +174,7 @@ export async function POST(request: NextRequest) {
         const aiService = new AIService(config.aiSettings?.model, chapterModel);
 
         // Send initial event
-        controller.enqueue(encoder.encode(createSSEMessage('start', {
+        safeEnqueue(encoder.encode(createSSEMessage('start', {
           phase: 'starting',
           totalChapters,
           model: chapterModel,
@@ -175,7 +206,7 @@ export async function POST(request: NextRequest) {
           });
           currentBookId = book.id;
 
-          controller.enqueue(encoder.encode(createSSEMessage('book_created', {
+          safeEnqueue(encoder.encode(createSSEMessage('book_created', {
             bookId: currentBookId,
             title: outline.title,
             message: 'Book record created',
@@ -195,12 +226,13 @@ export async function POST(request: NextRequest) {
         }
 
         if (chaptersToGenerate.length === 0) {
-          controller.enqueue(encoder.encode(createSSEMessage('complete', {
+          safeEnqueue(encoder.encode(createSSEMessage('complete', {
             bookId: currentBookId,
             chaptersCompleted: totalChapters,
             message: 'All chapters already generated',
           })));
-          controller.close();
+          if (heartbeatInterval) clearInterval(heartbeatInterval);
+          if (!cancelled) controller.close();
           return;
         }
 
@@ -220,7 +252,7 @@ export async function POST(request: NextRequest) {
         for (let batchStart = 0; batchStart < chaptersToGenerate.length; batchStart += CHAPTERS_PER_BATCH) {
           const batchChapterNumbers = chaptersToGenerate.slice(batchStart, batchStart + CHAPTERS_PER_BATCH);
 
-          controller.enqueue(encoder.encode(createSSEMessage('batch_start', {
+          safeEnqueue(encoder.encode(createSSEMessage('batch_start', {
             batch: Math.floor(batchStart / CHAPTERS_PER_BATCH) + 1,
             chapters: batchChapterNumbers,
             message: `Starting batch: chapters ${batchChapterNumbers.join(', ')}`,
@@ -255,8 +287,10 @@ export async function POST(request: NextRequest) {
                 chapterModel,
                 bibliographyConfig,
                 // Progress callback for each chapter completion
+                // Uses safeEnqueue to prevent "Controller is already closed" crashes
+                // that would kill the entire Promise.all and lose generated chapters
                 (chapterNum, chapter) => {
-                  controller.enqueue(encoder.encode(createSSEMessage('chapter_progress', {
+                  safeEnqueue(encoder.encode(createSSEMessage('chapter_progress', {
                     chapterNumber: chapterNum,
                     title: chapter.title,
                     wordCount: chapter.wordCount,
@@ -273,7 +307,7 @@ export async function POST(request: NextRequest) {
               }));
             } catch (error) {
               console.error('Parallel batch failed:', error);
-              controller.enqueue(encoder.encode(createSSEMessage('batch_error', {
+              safeEnqueue(encoder.encode(createSSEMessage('batch_error', {
                 batch: Math.floor(batchStart / CHAPTERS_PER_BATCH) + 1,
                 error: error instanceof Error ? error.message : 'Unknown error',
                 message: 'Batch failed, attempting sequential fallback...',
@@ -282,14 +316,14 @@ export async function POST(request: NextRequest) {
               // Fall back to sequential
               generatedChapters = await generateSequentialBatch(
                 aiService, outline, batchChapterNumbers, previousContext,
-                chapterModel, bibliographyConfig, controller, encoder
+                chapterModel, bibliographyConfig, safeEnqueue, encoder
               );
             }
           } else {
             // Sequential generation
             generatedChapters = await generateSequentialBatch(
               aiService, outline, batchChapterNumbers, previousContext,
-              chapterModel, bibliographyConfig, controller, encoder
+              chapterModel, bibliographyConfig, safeEnqueue, encoder
             );
           }
 
@@ -331,7 +365,7 @@ export async function POST(request: NextRequest) {
               } as any,
             });
 
-            controller.enqueue(encoder.encode(createSSEMessage('batch_complete', {
+            safeEnqueue(encoder.encode(createSSEMessage('batch_complete', {
               batch: Math.floor(batchStart / CHAPTERS_PER_BATCH) + 1,
               chaptersCompleted: completedCount,
               totalChapters,
@@ -344,7 +378,7 @@ export async function POST(request: NextRequest) {
         }
 
         // All chapters generated - generate covers
-        controller.enqueue(encoder.encode(createSSEMessage('covers_start', {
+        safeEnqueue(encoder.encode(createSSEMessage('covers_start', {
           message: 'Generating book covers...',
         })));
 
@@ -359,14 +393,14 @@ export async function POST(request: NextRequest) {
             outline.description,
             'vivid'
           );
-          controller.enqueue(encoder.encode(createSSEMessage('cover_complete', {
+          safeEnqueue(encoder.encode(createSSEMessage('cover_complete', {
             type: 'front',
             url: coverUrl,
             message: 'Front cover generated',
           })));
         } catch (error) {
           console.error('Failed to generate front cover:', error);
-          controller.enqueue(encoder.encode(createSSEMessage('cover_error', {
+          safeEnqueue(encoder.encode(createSSEMessage('cover_error', {
             type: 'front',
             error: error instanceof Error ? error.message : 'Unknown error',
           })));
@@ -382,14 +416,14 @@ export async function POST(request: NextRequest) {
             undefined, // use default image model
             { showPowerWriteBranding: false, showTagline: false } // don't show author branding
           );
-          controller.enqueue(encoder.encode(createSSEMessage('cover_complete', {
+          safeEnqueue(encoder.encode(createSSEMessage('cover_complete', {
             type: 'back',
             url: backCoverUrl,
             message: 'Back cover generated',
           })));
         } catch (error) {
           console.error('Failed to generate back cover:', error);
-          controller.enqueue(encoder.encode(createSSEMessage('cover_error', {
+          safeEnqueue(encoder.encode(createSSEMessage('cover_error', {
             type: 'back',
             error: error instanceof Error ? error.message : 'Unknown error',
           })));
@@ -415,7 +449,7 @@ export async function POST(request: NextRequest) {
         });
 
         // Send completion event
-        controller.enqueue(encoder.encode(createSSEMessage('complete', {
+        safeEnqueue(encoder.encode(createSSEMessage('complete', {
           bookId: currentBookId,
           title: outline.title,
           author: outline.author,
@@ -426,15 +460,23 @@ export async function POST(request: NextRequest) {
           message: 'Book generation complete!',
         })));
 
-        controller.close();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (!cancelled) controller.close();
       } catch (error) {
         console.error('Stream generation error:', error);
-        controller.enqueue(encoder.encode(createSSEMessage('error', {
+        safeEnqueue(encoder.encode(createSSEMessage('error', {
           error: error instanceof Error ? error.message : 'Unknown error',
           message: 'Generation failed',
         })));
-        controller.close();
+        if (heartbeatInterval) clearInterval(heartbeatInterval);
+        if (!cancelled) controller.close();
       }
+    },
+    cancel() {
+      // Called when the client disconnects or Railway kills the connection
+      console.log('[Stream] Client disconnected or connection killed');
+      cancelled = true;
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
     },
   });
 
@@ -456,7 +498,7 @@ async function generateSequentialBatch(
   previousContext: string,
   chapterModel: string,
   bibliographyConfig: BibliographyGenerationConfig | undefined,
-  controller: ReadableStreamDefaultController,
+  safeEnqueue: (data: Uint8Array) => boolean,
   encoder: TextEncoder
 ): Promise<Array<{ title: string; content: string; wordCount: number; chapterNumber: number }>> {
   const generatedChapters: Array<{
@@ -497,7 +539,7 @@ async function generateSequentialBatch(
         }))
       ]);
 
-      controller.enqueue(encoder.encode(createSSEMessage('chapter_progress', {
+      safeEnqueue(encoder.encode(createSSEMessage('chapter_progress', {
         chapterNumber: chapterNum,
         title: chapter.title,
         wordCount,
@@ -505,7 +547,7 @@ async function generateSequentialBatch(
       })));
     } catch (error) {
       console.error(`Failed to generate chapter ${chapterNum}:`, error);
-      controller.enqueue(encoder.encode(createSSEMessage('chapter_error', {
+      safeEnqueue(encoder.encode(createSSEMessage('chapter_error', {
         chapterNumber: chapterNum,
         error: error instanceof Error ? error.message : 'Unknown error',
       })));

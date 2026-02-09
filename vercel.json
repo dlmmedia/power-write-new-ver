@@ -1,7 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "_comment": "This project is deployed on Railway. These settings only apply if redeployed to Vercel.",
   "functions": {
     "app/api/generate/**/*.ts": {
-      "maxDuration": 300
+      "maxDuration": 900
     },
     "app/api/books/export/route.ts": {
       "maxDuration": 60
