@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, type ComponentType } from 'react';
+import { useState, useEffect, type ComponentType, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Book, Check, FileText, GraduationCap, Ruler, Sparkles, Square } from 'lucide-react';
+import { Book, Check, FileText, GraduationCap, Ruler, Sparkles, Square, Library, RulerIcon, Type, BookOpen, File, Layers, Download, Palette, Baby, Theater, Star, MessageCircle, User, Sprout, Briefcase, Settings, ChefHat, Coffee, Scroll, Zap, Image, Crown, Flame, Wrench, ClipboardList } from 'lucide-react';
 import { useBookPublishingSettings } from '@/lib/store/publishing-store';
 import { 
   BookType, 
@@ -26,38 +26,38 @@ interface PublishingSettingsProps {
 
 type Tab = 'presets' | 'book-type' | 'page-size' | 'typography' | 'margins' | 'chapters' | 'headers' | 'front-matter' | 'export';
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'presets', label: 'Presets', icon: '✨' },
-  { id: 'book-type', label: 'Book Type', icon: '📚' },
-  { id: 'page-size', label: 'Page Size', icon: '📐' },
-  { id: 'typography', label: 'Typography', icon: '📝' },
-  { id: 'margins', label: 'Margins', icon: '📏' },
-  { id: 'chapters', label: 'Chapters', icon: '📖' },
-  { id: 'headers', label: 'Headers', icon: '📄' },
-  { id: 'front-matter', label: 'Front/Back', icon: '📑' },
-  { id: 'export', label: 'Export', icon: '💾' },
+const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
+  { id: 'presets', label: 'Presets', icon: <Sparkles className="w-4 h-4" /> },
+  { id: 'book-type', label: 'Book Type', icon: <Library className="w-4 h-4" /> },
+  { id: 'page-size', label: 'Page Size', icon: <Ruler className="w-4 h-4" /> },
+  { id: 'typography', label: 'Typography', icon: <Type className="w-4 h-4" /> },
+  { id: 'margins', label: 'Margins', icon: <RulerIcon className="w-4 h-4" /> },
+  { id: 'chapters', label: 'Chapters', icon: <BookOpen className="w-4 h-4" /> },
+  { id: 'headers', label: 'Headers', icon: <FileText className="w-4 h-4" /> },
+  { id: 'front-matter', label: 'Front/Back', icon: <Layers className="w-4 h-4" /> },
+  { id: 'export', label: 'Export', icon: <Download className="w-4 h-4" /> },
 ];
 
-const BOOK_TYPE_OPTIONS: { id: BookType; label: string; icon: string; description: string }[] = [
-  { id: 'novel', label: 'Novel', icon: '📖', description: 'Standard fiction, 60k-100k words' },
-  { id: 'novella', label: 'Novella', icon: '📕', description: 'Shorter fiction, 17k-40k words' },
-  { id: 'short-story-collection', label: 'Short Stories', icon: '📚', description: 'Anthology collection' },
-  { id: 'picture-book', label: 'Picture Book', icon: '🎨', description: "Children's illustrated" },
-  { id: 'storybook', label: 'Storybook', icon: '👶', description: "Children's chapter book" },
-  { id: 'young-adult', label: 'Young Adult', icon: '🎭', description: 'YA fiction' },
-  { id: 'middle-grade', label: 'Middle Grade', icon: '🌟', description: 'Ages 8-12' },
-  { id: 'memoir', label: 'Memoir', icon: '💭', description: 'Personal memoir' },
-  { id: 'biography', label: 'Biography', icon: '👤', description: 'Life story' },
-  { id: 'self-help', label: 'Self-Help', icon: '🌱', description: 'Personal development' },
-  { id: 'business', label: 'Business', icon: '💼', description: 'Professional/business' },
-  { id: 'technical', label: 'Technical', icon: '⚙️', description: 'Technical manual' },
-  { id: 'textbook', label: 'Textbook', icon: '🎓', description: 'Educational' },
-  { id: 'cookbook', label: 'Cookbook', icon: '🍳', description: 'Recipe book' },
-  { id: 'poetry', label: 'Poetry', icon: '✨', description: 'Poetry collection' },
-  { id: 'art-book', label: 'Art Book', icon: '🖼️', description: 'Photography/art' },
-  { id: 'coffee-table-book', label: 'Coffee Table', icon: '☕', description: 'Large format visual' },
-  { id: 'academic', label: 'Academic', icon: '📜', description: 'Academic paper/thesis' },
-  { id: 'custom', label: 'Custom', icon: '⚡', description: 'Custom format' },
+const BOOK_TYPE_OPTIONS: { id: BookType; label: string; icon: ReactNode; description: string }[] = [
+  { id: 'novel', label: 'Novel', icon: <BookOpen className="w-6 h-6" />, description: 'Standard fiction, 60k-100k words' },
+  { id: 'novella', label: 'Novella', icon: <Book className="w-6 h-6" />, description: 'Shorter fiction, 17k-40k words' },
+  { id: 'short-story-collection', label: 'Short Stories', icon: <Library className="w-6 h-6" />, description: 'Anthology collection' },
+  { id: 'picture-book', label: 'Picture Book', icon: <Palette className="w-6 h-6" />, description: "Children's illustrated" },
+  { id: 'storybook', label: 'Storybook', icon: <Baby className="w-6 h-6" />, description: "Children's chapter book" },
+  { id: 'young-adult', label: 'Young Adult', icon: <Theater className="w-6 h-6" />, description: 'YA fiction' },
+  { id: 'middle-grade', label: 'Middle Grade', icon: <Star className="w-6 h-6" />, description: 'Ages 8-12' },
+  { id: 'memoir', label: 'Memoir', icon: <MessageCircle className="w-6 h-6" />, description: 'Personal memoir' },
+  { id: 'biography', label: 'Biography', icon: <User className="w-6 h-6" />, description: 'Life story' },
+  { id: 'self-help', label: 'Self-Help', icon: <Sprout className="w-6 h-6" />, description: 'Personal development' },
+  { id: 'business', label: 'Business', icon: <Briefcase className="w-6 h-6" />, description: 'Professional/business' },
+  { id: 'technical', label: 'Technical', icon: <Settings className="w-6 h-6" />, description: 'Technical manual' },
+  { id: 'textbook', label: 'Textbook', icon: <GraduationCap className="w-6 h-6" />, description: 'Educational' },
+  { id: 'cookbook', label: 'Cookbook', icon: <ChefHat className="w-6 h-6" />, description: 'Recipe book' },
+  { id: 'poetry', label: 'Poetry', icon: <Sparkles className="w-6 h-6" />, description: 'Poetry collection' },
+  { id: 'art-book', label: 'Art Book', icon: <Image className="w-6 h-6" />, description: 'Photography/art' },
+  { id: 'coffee-table-book', label: 'Coffee Table', icon: <Coffee className="w-6 h-6" />, description: 'Large format visual' },
+  { id: 'academic', label: 'Academic', icon: <Scroll className="w-6 h-6" />, description: 'Academic paper/thesis' },
+  { id: 'custom', label: 'Custom', icon: <Zap className="w-6 h-6" />, description: 'Custom format' },
 ];
 
 const PRESET_ICON: Record<string, ComponentType<{ className?: string }>> = {
@@ -120,7 +120,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <span className="text-2xl">📚</span>
+              <Library className="w-6 h-6" />
               Publishing Settings
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -173,7 +173,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                   : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <span>{tab.icon}</span>
+              <span className="flex items-center">{tab.icon}</span>
               {tab.label}
             </button>
           ))}
@@ -286,7 +286,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                           : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300 dark:hover:border-yellow-600 bg-white dark:bg-gray-800'
                       }`}
                     >
-                      <div className="text-2xl mb-2">{option.icon}</div>
+                      <div className="mb-2 text-gray-700 dark:text-gray-300">{option.icon}</div>
                       <div className="font-medium text-gray-900 dark:text-white text-sm">
                         {option.label}
                       </div>
@@ -317,15 +317,15 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                             : 'border-gray-200 dark:border-gray-700 hover:border-yellow-300'
                         }`}
                       >
-                        <div className="text-xl mb-1">
-                          {preset === 'classic' && '📜'}
-                          {preset === 'modern' && '✨'}
-                          {preset === 'minimal' && '⚡'}
-                          {preset === 'elegant' && '👑'}
-                          {preset === 'bold' && '💥'}
-                          {preset === 'academic' && '🎓'}
-                          {preset === 'childrens' && '🌈'}
-                          {preset === 'custom' && '🔧'}
+                        <div className="mb-1 flex justify-center text-gray-700 dark:text-gray-300">
+                          {preset === 'classic' && <Scroll className="w-5 h-5" />}
+                          {preset === 'modern' && <Sparkles className="w-5 h-5" />}
+                          {preset === 'minimal' && <Zap className="w-5 h-5" />}
+                          {preset === 'elegant' && <Crown className="w-5 h-5" />}
+                          {preset === 'bold' && <Flame className="w-5 h-5" />}
+                          {preset === 'academic' && <GraduationCap className="w-5 h-5" />}
+                          {preset === 'childrens' && <Palette className="w-5 h-5" />}
+                          {preset === 'custom' && <Wrench className="w-5 h-5" />}
                         </div>
                         <div className="text-xs font-medium text-gray-900 dark:text-white capitalize">
                           {preset}
@@ -463,7 +463,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                      <span className="text-lg">📄</span>
+                      <FileText className="w-5 h-5" />
                       Page Header
                     </h4>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -508,7 +508,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                      <span className="text-lg">📃</span>
+                      <FileText className="w-5 h-5" />
                       Page Footer
                     </h4>
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -630,7 +630,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                 {/* Front Matter */}
                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <span className="text-lg">📑</span>
+                    <Layers className="w-5 h-5" />
                     Front Matter
                   </h4>
                   
@@ -672,7 +672,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                 {/* Back Matter */}
                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <span className="text-lg">📚</span>
+                    <Library className="w-5 h-5" />
                     Back Matter
                   </h4>
                   
@@ -728,7 +728,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                 {/* PDF Settings */}
                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <span className="text-lg">📄</span>
+                    <FileText className="w-5 h-5" />
                     PDF Export
                   </h4>
                   
@@ -846,7 +846,7 @@ export function PublishingSettings({ bookId, bookTitle, onSave }: PublishingSett
                 {/* Metadata */}
                 <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
                   <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                    <span className="text-lg">📋</span>
+                    <ClipboardList className="w-5 h-5" />
                     Book Metadata
                   </h4>
                   

@@ -1,6 +1,7 @@
 'use client';
 
 import { MarginSettings as MarginSettingsType, MARGIN_PRESETS } from '@/lib/types/publishing';
+import { Library, Palette, Ruler, Wrench, Square, Maximize2, Minimize2 } from 'lucide-react';
 
 interface MarginSettingsProps {
   settings: MarginSettingsType;
@@ -22,7 +23,7 @@ export function MarginSettings({
       {/* Preset Selection */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">📏</span>
+          <Ruler className="w-5 h-5" />
           Margin Presets
         </h4>
         
@@ -40,12 +41,12 @@ export function MarginSettings({
                 }`}
               >
                 <div className="text-lg mb-1">
-                  {preset === 'tight' && '⊡'}
-                  {preset === 'normal' && '⊞'}
-                  {preset === 'comfortable' && '⊟'}
-                  {preset === 'wide' && '⬜'}
-                  {preset === 'academic' && '📚'}
-                  {preset === 'picture-book' && '🎨'}
+                  {preset === 'tight' && <Minimize2 className="w-4 h-4" />}
+                  {preset === 'normal' && <Square className="w-4 h-4" />}
+                  {preset === 'comfortable' && <Maximize2 className="w-4 h-4" />}
+                  {preset === 'wide' && <Maximize2 className="w-5 h-5" />}
+                  {preset === 'academic' && <Library className="w-4 h-4 inline" />}
+                  {preset === 'picture-book' && <Palette className="w-4 h-4 inline" />}
                 </div>
                 <div className="text-xs font-medium text-gray-900 dark:text-white capitalize">
                   {preset.replace('-', ' ')}
@@ -62,7 +63,7 @@ export function MarginSettings({
       {/* Custom Margin Controls */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">🔧</span>
+          <Wrench className="w-5 h-5" />
           Custom Margins (inches)
         </h4>
         
@@ -133,7 +134,7 @@ export function MarginSettings({
       {/* Mirror Margins & Bleed */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">📐</span>
+          <Ruler className="w-5 h-5" />
           Advanced Options
         </h4>
         

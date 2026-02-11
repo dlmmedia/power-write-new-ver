@@ -24,7 +24,7 @@ export const READING_THEMES: Record<ReadingTheme, ThemeConfig> = {
     accentColor: '#d97706',
     spineColor: '#92400e',
     shadowColor: 'rgba(0, 0, 0, 0.15)',
-    icon: '☀️',
+    icon: 'sun',
   },
   night: {
     name: 'Night',
@@ -34,7 +34,7 @@ export const READING_THEMES: Record<ReadingTheme, ThemeConfig> = {
     accentColor: '#fbbf24',
     spineColor: '#1f2937',
     shadowColor: 'rgba(0, 0, 0, 0.4)',
-    icon: '🌙',
+    icon: 'moon',
   },
   sepia: {
     name: 'Sepia',
@@ -44,7 +44,7 @@ export const READING_THEMES: Record<ReadingTheme, ThemeConfig> = {
     accentColor: '#b45309',
     spineColor: '#78350f',
     shadowColor: 'rgba(120, 53, 15, 0.2)',
-    icon: '📜',
+    icon: 'scroll',
   },
   focus: {
     name: 'Focus',
@@ -54,7 +54,7 @@ export const READING_THEMES: Record<ReadingTheme, ThemeConfig> = {
     accentColor: '#a3a3a3',
     spineColor: '#404040',
     shadowColor: 'rgba(0, 0, 0, 0.3)',
-    icon: '🎯',
+    icon: 'target',
   },
 };
 
@@ -252,9 +252,9 @@ export const FONT_SIZE_CONFIG: Record<FontSize, {
 
 // Ambient sound configurations
 export const AMBIENT_SOUNDS: { id: AmbientSoundType; name: string; icon: string; file: string }[] = [
-  { id: 'fireplace', name: 'Fireplace', icon: '🔥', file: '/sounds/ambiance-fireplace.mp3' },
-  { id: 'rain', name: 'Rain', icon: '🌧️', file: '/sounds/ambiance-rain.mp3' },
-  { id: 'library', name: 'Library', icon: '📚', file: '/sounds/ambiance-library.mp3' },
+  { id: 'fireplace', name: 'Fireplace', icon: 'flame', file: '/sounds/ambiance-fireplace.mp3' },
+  { id: 'rain', name: 'Rain', icon: 'cloud-rain', file: '/sounds/ambiance-rain.mp3' },
+  { id: 'library', name: 'Library', icon: 'library', file: '/sounds/ambiance-library.mp3' },
 ];
 
 export const PAGE_TURN_SOUND = '/sounds/page-turn.mp3';

@@ -11,6 +11,7 @@ import { getDemoUserId } from '@/lib/services/demo-account';
 import { Reference, BibliographyConfig } from '@/lib/types/bibliography';
 import { BookImageType, ImagePlacement } from '@/lib/types/book-images';
 import { sanitizeForReading } from '@/lib/utils/text-sanitizer';
+import { Headphones, Mic, User, Users, Check, AlertTriangle, BookOpen, Library, Edit3, Pencil, Download, X, Image } from 'lucide-react';
 
 interface ChapterImage {
   id: number;
@@ -479,12 +480,12 @@ export const BookReader: React.FC<BookReaderProps> = ({
                   </>
                 ) : currentChapter.audioUrl ? (
                   <>
-                    <span>🎧</span>
+                    <Headphones className="w-4 h-4" />
                     <span className="text-sm">{showAudioPlayer ? 'Hide Player' : 'Play Audio'}</span>
                   </>
                 ) : (
                   <>
-                    <span>🎙️</span>
+                    <Mic className="w-4 h-4" />
                     <span className="text-sm">Read Aloud</span>
                   </>
                 )}
@@ -501,7 +502,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                     <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-amber-500 rounded-xl flex items-center justify-center">
-                          <span className="text-white text-lg">🎙️</span>
+                          <Mic className="w-5 h-5 text-white" />
                         </div>
                         <div>
                           <h3 className="font-bold text-gray-900 dark:text-white">
@@ -527,15 +528,15 @@ export const BookReader: React.FC<BookReaderProps> = ({
                         >
                           <div className="flex items-center gap-3">
                             <div className={`w-11 h-11 rounded-xl flex items-center justify-center bg-gradient-to-br ${voice.gradient} shadow-md`}>
-                              <span className="text-white text-lg">
-                                {voice.gender === 'feminine' ? '👩' : voice.gender === 'masculine' ? '👨' : '🎭'}
-                              </span>
+                              <User className="w-5 h-5 text-white" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-gray-900 dark:text-white">{voice.name}</span>
                                 {selectedVoice === voice.id && (
-                                  <span className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-xs text-black font-bold">✓</span>
+                                  <span className="w-5 h-5 bg-yellow-400 rounded-full flex items-center justify-center text-black">
+                                    <Check className="w-3 h-3" />
+                                  </span>
                                 )}
                               </div>
                               <div className="text-xs font-medium text-yellow-600 dark:text-yellow-400">{voice.title}</div>
@@ -561,9 +562,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                       <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-gray-50 to-white dark:from-gray-800 dark:to-gray-900">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center bg-gradient-to-br ${selectedVoiceInfo.gradient} shadow-md`}>
-                            <span className="text-white">
-                              {selectedVoiceInfo.gender === 'feminine' ? '👩' : selectedVoiceInfo.gender === 'masculine' ? '👨' : '🎭'}
-                            </span>
+                            <User className="w-4 h-4 text-white" />
                           </div>
                           <div className="flex-1">
                             <div className="font-bold text-gray-900 dark:text-white text-sm">{selectedVoiceInfo.name}</div>
@@ -610,7 +609,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                       {currentChapter.audioUrl && (
                         <div className="mb-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                           <p className="text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                            <span>⚠️</span>
+                            <AlertTriangle className="w-3.5 h-3.5 inline" />
                             <span>This will replace the existing audio with the new voice.</span>
                           </p>
                         </div>
@@ -624,7 +623,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                             : 'bg-gradient-to-r from-yellow-400 to-amber-500 hover:from-yellow-300 hover:to-amber-400 shadow-yellow-500/20 hover:shadow-yellow-500/30'
                         }`}
                       >
-                        <span>🎙️</span>
+                        <Mic className="w-4 h-4 inline" />
                         <span>{currentChapter.audioUrl ? 'Regenerate' : 'Generate'} {selectedVoiceInfo ? `with ${selectedVoiceInfo.name}` : ''}</span>
                       </button>
                     </div>
@@ -640,7 +639,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                 className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg transition-colors font-medium"
                 title="Edit this book"
               >
-                <span>✏️</span>
+                <Pencil className="w-4 h-4" />
                 <span className="text-sm">Edit</span>
               </button>
             )}
@@ -652,8 +651,8 @@ export const BookReader: React.FC<BookReaderProps> = ({
             >
               <span className="text-sm">
                 {showBibliography 
-                  ? `📚 Bibliography` 
-                  : `Chapter ${currentChapter.number} of ${chaptersData.length}${hasBibliography ? ' (+📚)' : ''}`
+                  ? <><Library className="w-4 h-4 inline" /> Bibliography</>
+                  : <>Chapter {currentChapter.number} of {chaptersData.length}{hasBibliography ? <> (+<Library className="w-3.5 h-3.5 inline" />)</> : ''}</>
                 }
               </span>
               <span className="text-xs">{showChapterList ? '▲' : '▼'}</span>
@@ -689,7 +688,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-2">
                         {chapter.wordCount.toLocaleString()} words
                         {chapter.audioUrl && (
-                          <span className="text-green-500" title="Audio available">🎧 Audio</span>
+                          <span className="text-green-500 flex items-center gap-1" title="Audio available"><Headphones className="w-3.5 h-3.5 inline" /> Audio</span>
                         )}
                       </div>
                     </div>
@@ -713,7 +712,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                     <div className="flex items-center justify-between">
                       <div>
                         <div className="font-medium text-sm flex items-center gap-2">
-                          <span>📚</span> Bibliography
+                          <Library className="w-4 h-4 inline" /> Bibliography
                         </div>
                         <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
                           {bibliography?.references?.length || 0} references
@@ -755,7 +754,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
 
                 <div className="text-center text-sm text-gray-600 dark:text-gray-400">
                   <div className="flex items-center gap-2 justify-center">
-                    <span>📚</span> Bibliography
+                    <Library className="w-4 h-4 inline" /> Bibliography
                   </div>
                   <div className="text-xs mt-1">
                     {bibliography?.references?.length || 0} references • {bibliography?.config?.citationStyle} style
@@ -779,7 +778,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center text-white">
-                          🎧
+                          <Headphones className="w-5 h-5 text-white" />
                         </div>
                         <div>
                           <h4 className="font-semibold text-gray-900 dark:text-white text-sm">
@@ -798,14 +797,14 @@ export const BookReader: React.FC<BookReaderProps> = ({
                           className="p-2 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors"
                           title="Download audio"
                         >
-                          ⬇️
+                          <Download className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => setShowAudioPlayer(false)}
                           className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-colors text-gray-500"
                           title="Hide player"
                         >
-                          ✕
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -831,7 +830,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                   </Badge>
                   {currentChapter.audioUrl && (
                     <Badge variant="success" size="sm">
-                      🎧 Audio Available
+                      <Headphones className="w-3.5 h-3.5 inline" /> Audio Available
                     </Badge>
                   )}
                 </div>
@@ -843,7 +842,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                   {currentChapter.audioDuration && (
                     <>
                       <span>•</span>
-                      <span>🎧 {Math.floor(currentChapter.audioDuration / 60)}:{(currentChapter.audioDuration % 60).toString().padStart(2, '0')} listen</span>
+                      <span className="flex items-center gap-1"><Headphones className="w-3.5 h-3.5 inline" /> {Math.floor(currentChapter.audioDuration / 60)}:{(currentChapter.audioDuration % 60).toString().padStart(2, '0')} listen</span>
                     </>
                   )}
                 </div>
@@ -876,7 +875,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
               {/* Images indicator */}
               {currentChapterImages.length > 0 && (
                 <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
-                  🖼️ {currentChapterImages.length} image{currentChapterImages.length !== 1 ? 's' : ''} in this chapter
+                  <Image className="w-3.5 h-3.5 inline" /> {currentChapterImages.length} image{currentChapterImages.length !== 1 ? 's' : ''} in this chapter
                 </div>
               )}
 
@@ -919,7 +918,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-600 dark:text-gray-400">
               {showBibliography ? (
-                <>Viewing: <span className="text-gray-900 dark:text-white font-medium">📚 Bibliography</span></>
+                <>Viewing: <span className="text-gray-900 dark:text-white font-medium"><Library className="w-4 h-4 inline" /> Bibliography</span></>
               ) : (
                 <>Reading: <span className="text-gray-900 dark:text-white font-medium">{currentChapter.title}</span></>
               )}
@@ -929,7 +928,7 @@ export const BookReader: React.FC<BookReaderProps> = ({
                 onClick={() => setShowAudioPlayer(true)}
                 className="text-green-500 hover:text-green-400 text-sm flex items-center gap-1"
               >
-                🎧 Play Audio
+                <Headphones className="w-3.5 h-3.5 inline" /> Play Audio
               </button>
             )}
           </div>

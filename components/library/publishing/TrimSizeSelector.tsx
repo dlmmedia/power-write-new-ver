@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { BookOpen } from 'lucide-react';
 import { TRIM_SIZES, TrimSize } from '@/lib/types/publishing';
 
 interface TrimSizeSelectorProps {
@@ -135,8 +136,8 @@ export function TrimSizeSelector({
               maxHeight: '100px',
             }}
           >
-            <div className="w-full h-full flex items-center justify-center text-xs text-gray-400 dark:text-gray-500">
-              📖
+            <div className="w-full h-full flex items-center justify-center text-gray-400 dark:text-gray-500">
+              <BookOpen className="w-4 h-4" />
             </div>
           </div>
           <div>

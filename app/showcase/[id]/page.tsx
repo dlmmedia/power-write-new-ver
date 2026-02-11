@@ -413,7 +413,7 @@ export default function ShowcaseBookDetailPage() {
               <div className="flex justify-between items-center mb-6">
                 <div>
                   <h3 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
-                    <span className="text-yellow-600 dark:text-yellow-400">📚</span>
+                    <Library className="w-5 h-5 inline text-yellow-600 dark:text-yellow-400" />
                     All Chapters
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -422,7 +422,7 @@ export default function ShowcaseBookDetailPage() {
                 </div>
                 {book.chapters && book.chapters.length > 0 && (
                   <Button variant="primary" onClick={startReading}>
-                    📖 Start Reading
+                    <BookOpen className="w-4 h-4 inline mr-1" /> Start Reading
                   </Button>
                 )}
               </div>

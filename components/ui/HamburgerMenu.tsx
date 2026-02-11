@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { X, Sun, Moon, Download, Settings, HelpCircle, Info, Trash2 } from 'lucide-react';
+import { X, Sun, Moon, Monitor, Download, Settings, HelpCircle, Info, Trash2 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import type { LucideIcon } from 'lucide-react';
 
@@ -54,8 +54,8 @@ export function HamburgerMenu({ isOpen, onClose, onInstallClick, showInstallButt
   const menuItems: MenuItem[] = [
     {
       id: 'theme',
-      label: theme === 'dark' ? 'Light Mode' : 'Dark Mode',
-      icon: theme === 'dark' ? Sun : Moon,
+      label: theme === 'dark' ? 'Light Mode' : theme === 'light' ? 'System Mode' : 'Dark Mode',
+      icon: theme === 'dark' ? Sun : theme === 'light' ? Monitor : Moon,
       onClick: () => {
         toggleTheme();
       },

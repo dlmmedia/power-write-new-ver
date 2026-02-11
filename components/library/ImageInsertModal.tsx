@@ -11,6 +11,7 @@ import {
   IMAGE_STYLE_INFO,
   GENRE_IMAGE_STYLES,
 } from '@/lib/types/book-images';
+import { X, Sparkles, Link2, Upload, Loader2 } from 'lucide-react';
 
 interface ImageInsertModalProps {
   bookId: number;
@@ -336,7 +337,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xl"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
 
@@ -351,7 +352,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
               }`}
             >
-              ✨ AI Generate
+              <Sparkles className="w-4 h-4 inline mr-1" /> AI Generate
             </button>
             <button
               onClick={() => setMode('file')}
@@ -361,7 +362,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
               }`}
             >
-              📤 Upload File
+              <Upload className="w-4 h-4 inline mr-1" /> Upload File
             </button>
             <button
               onClick={() => setMode('upload')}
@@ -371,7 +372,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
               }`}
             >
-              🔗 Use URL
+              <Link2 className="w-3.5 h-3.5 inline mr-1" /> Use URL
             </button>
           </div>
         </div>
@@ -522,7 +523,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="text-4xl">📤</div>
+                    <Upload className="w-10 h-10 text-gray-400" />
                     <div>
                       <p className="font-medium text-gray-900 dark:text-white">
                         Drop an image here or click to browse
@@ -678,11 +679,11 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
             >
               {isGenerating ? (
                 <>
-                  <span className="animate-spin mr-2">⏳</span>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2 inline" />
                   Generating...
                 </>
               ) : (
-                <>✨ Generate Image</>
+                <><Sparkles className="w-4 h-4 inline mr-1" /> Generate Image</>
               )}
             </Button>
           ) : mode === 'file' ? (
@@ -693,11 +694,11 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
             >
               {isUploading ? (
                 <>
-                  <span className="animate-spin mr-2">⏳</span>
+                  <Loader2 className="w-4 h-4 animate-spin mr-2 inline" />
                   Uploading...
                 </>
               ) : (
-                <>📤 Upload Image</>
+                <><Upload className="w-4 h-4 inline mr-1" /> Upload Image</>
               )}
             </Button>
           ) : (
@@ -706,7 +707,7 @@ export const ImageInsertModal: React.FC<ImageInsertModalProps> = ({
               onClick={handleUpload}
               disabled={!uploadUrl}
             >
-              🔗 Insert Image
+              <Link2 className="w-3.5 h-3.5 inline mr-1" /> Insert Image
             </Button>
           )}
         </div>

@@ -2,8 +2,15 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { X, Sun, Moon, Scroll, Target, Check } from 'lucide-react';
 import { ReadingTheme, ThemeSelectorProps, READING_THEMES, FontSize, FONT_SIZE_CONFIG } from './types';
+
+const THEME_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  sun: Sun,
+  moon: Moon,
+  scroll: Scroll,
+  target: Target,
+};
 
 interface ExtendedThemeSelectorProps extends ThemeSelectorProps {
   currentFontSize: FontSize;
@@ -97,7 +104,10 @@ export const ThemeSelector: React.FC<ExtendedThemeSelectorProps> = ({
                         color: config.accentColor,
                       }}
                     >
-                      <span className="text-2xl">{config.icon}</span>
+                      {(() => {
+                        const IconComp = THEME_ICONS[config.icon];
+                        return IconComp ? <IconComp className="w-6 h-6" /> : <span className="text-2xl">{config.icon}</span>;
+                      })()}
                       <span 
                         className="text-xs font-medium"
                         style={{ color: config.textColor }}
@@ -110,7 +120,7 @@ export const ThemeSelector: React.FC<ExtendedThemeSelectorProps> = ({
                           className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[10px]"
                           style={{ background: config.accentColor, color: config.pageBackground }}
                         >
-                          ✓
+                          <Check className="w-3 h-3" />
                         </motion.div>
                       )}
                     </button>

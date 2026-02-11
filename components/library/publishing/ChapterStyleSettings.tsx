@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { ChapterSettings } from '@/lib/types/publishing';
 import { getGoogleFontUrl } from '@/lib/utils/font-mapping';
+import { BookOpen, File, Palette, Image, FileText, Zap, Pencil, Sparkles, Ruler } from 'lucide-react';
 
 interface ChapterStyleSettingsProps {
   settings: ChapterSettings;
@@ -103,17 +104,17 @@ export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSetting
       {/* Chapter Opening Style */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">📖</span>
+          <BookOpen className="w-4 h-4 inline" />
           Chapter Opening Style
         </h4>
         
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {([
-            { id: 'simple', label: 'Simple', icon: '📄', desc: 'Clean, minimal design' },
-            { id: 'decorated', label: 'Decorated', icon: '🎨', desc: 'With ornaments' },
-            { id: 'illustrated', label: 'Illustrated', icon: '🖼️', desc: 'Space for images' },
-            { id: 'full-page', label: 'Full Page', icon: '📃', desc: 'Title on own page' },
-            { id: 'minimal', label: 'Minimal', icon: '⚡', desc: 'Ultra-clean' },
+            { id: 'simple', label: 'Simple', icon: <File className="w-4 h-4 inline" />, desc: 'Clean, minimal design' },
+            { id: 'decorated', label: 'Decorated', icon: <Palette className="w-4 h-4 inline" />, desc: 'With ornaments' },
+            { id: 'illustrated', label: 'Illustrated', icon: <Image className="w-4 h-4 inline" />, desc: 'Space for images' },
+            { id: 'full-page', label: 'Full Page', icon: <FileText className="w-4 h-4 inline" />, desc: 'Title on own page' },
+            { id: 'minimal', label: 'Minimal', icon: <Zap className="w-4 h-4 inline" />, desc: 'Ultra-clean' },
           ] as const).map(style => (
             <button
               key={style.id}
@@ -216,7 +217,7 @@ export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSetting
       {/* Chapter Title Styling */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">✏️</span>
+          <Pencil className="w-4 h-4 inline" />
           Chapter Title Style
         </h4>
         
@@ -263,7 +264,7 @@ export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSetting
       {/* Page Position Settings */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">📐</span>
+          <Ruler className="w-5 h-5" />
           Page Positioning
         </h4>
         
@@ -324,7 +325,7 @@ export function ChapterStyleSettings({ settings, onUpdate }: ChapterStyleSetting
       {/* Ornaments */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">✨</span>
+          <Sparkles className="w-4 h-4 inline" />
           Decorative Elements
         </h4>
         

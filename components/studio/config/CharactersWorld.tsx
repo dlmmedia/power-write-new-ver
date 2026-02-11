@@ -8,6 +8,7 @@ import { useStudioStore } from '@/lib/store/studio-store';
 import { useBookStore } from '@/lib/store/book-store';
 import { isNonFiction } from '@/lib/utils/book-type';
 import { useState, useMemo } from 'react';
+import { Lightbulb, Library, Globe, MessageCircle } from 'lucide-react';
 
 interface Character {
   id: string;
@@ -66,27 +67,27 @@ export function CharactersWorld() {
     updateConfig({ characterList: updated });
   };
 
-  const getRoleColor = (role: string) => {
+  const getRoleBadge = (role: string) => {
     switch (role) {
-      case 'protagonist': return 'bg-yellow-400 text-black';
-      case 'antagonist': return 'bg-red-400 text-black';
-      case 'supporting': return 'bg-blue-400 text-black';
-      default: return 'bg-gray-400 text-black';
+      case 'protagonist': return 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 ring-1 ring-yellow-500/20';
+      case 'antagonist': return 'bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 ring-1 ring-red-500/20';
+      case 'supporting': return 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 ring-1 ring-blue-500/20';
+      default: return 'bg-gray-50 dark:bg-gray-800 text-gray-600 dark:text-gray-400 ring-1 ring-gray-500/20';
     }
   };
 
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-xl font-bold mb-4">Characters & World-Building</h3>
-        <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Characters & World-Building</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Define your characters, setting, and world details to create a rich narrative foundation.
         </p>
       </div>
 
       {/* Setting/World */}
-      <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-4">
-        <h4 className="font-bold text-lg">Setting & World</h4>
+      <div className="space-y-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Setting & World</p>
 
         <div>
           <Label htmlFor="setting">Primary Setting *</Label>
@@ -101,7 +102,7 @@ export function CharactersWorld() {
             })}
             placeholder="e.g., Victorian London, Mars Colony 2157, Small-town America"
           />
-          <p className="text-xs text-gray-500 mt-1">Where does your story take place?</p>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">Where does your story take place?</p>
         </div>
 
         <div>
@@ -131,9 +132,9 @@ export function CharactersWorld() {
               },
             })}
             placeholder="Describe unique aspects of your world: culture, technology, magic systems, social structures, politics, geography, etc."
-            rows={5}
+            rows={4}
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
             Include details about rules, customs, or unique elements that shape your story world
           </p>
         </div>
@@ -141,36 +142,36 @@ export function CharactersWorld() {
 
       {/* Characters Section - Only show for fiction */}
       {!bookIsNonFiction && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-6 space-y-4">
-          <h4 className="font-bold text-lg">Characters</h4>
+        <div className="space-y-4 pt-5 border-t border-gray-200/60 dark:border-gray-800/40">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Characters</p>
 
         {/* Character List */}
         {characters.length > 0 && (
-          <div className="space-y-3 mb-4">
+          <div className="space-y-2">
             {characters.map((character) => (
               <div
                 key={character.id}
-                className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 border border-gray-300 dark:border-gray-700"
+                className="bg-white dark:bg-gray-900/50 rounded-lg p-3.5 border border-gray-200/80 dark:border-gray-700/40 group"
               >
-                <div className="flex items-start justify-between mb-2">
+                <div className="flex items-start justify-between mb-1.5">
                   <div className="flex items-center gap-2">
-                    <h5 className="font-bold">{character.name}</h5>
-                    <span className={`text-xs px-2 py-1 rounded ${getRoleColor(character.role)}`}>
+                    <h5 className="text-sm font-medium text-gray-900 dark:text-white">{character.name}</h5>
+                    <span className={`text-[11px] font-medium px-2 py-0.5 rounded-md capitalize ${getRoleBadge(character.role)}`}>
                       {character.role}
                     </span>
                   </div>
                   <button
                     onClick={() => removeCharacter(character.id)}
-                    className="text-red-400 hover:text-red-300 text-sm"
+                    className="text-xs text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
                   >
                     Remove
                   </button>
                 </div>
                 {character.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{character.description}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">{character.description}</p>
                 )}
                 {character.traits && (
-                  <p className="text-xs text-gray-500">
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
                     <span className="font-medium">Traits:</span> {character.traits}
                   </p>
                 )}
@@ -180,8 +181,8 @@ export function CharactersWorld() {
         )}
 
         {/* Add Character Form */}
-        <div className="border border-gray-300 dark:border-gray-700 rounded-lg p-4 space-y-3">
-          <h5 className="font-medium text-sm text-gray-600 dark:text-gray-400">Add Character</h5>
+        <div className="bg-gray-50/80 dark:bg-gray-800/20 border border-gray-200/60 dark:border-gray-700/30 rounded-xl p-4 space-y-3">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">Add Character</p>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -200,7 +201,7 @@ export function CharactersWorld() {
                 id="char-role"
                 value={newCharacter.role || 'supporting'}
                 onChange={(e) => setNewCharacter({ ...newCharacter, role: e.target.value as Character['role'] })}
-                className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/60 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/30 focus:border-yellow-500/40 transition-shadow"
               >
                 <option value="protagonist">Protagonist</option>
                 <option value="antagonist">Antagonist</option>
@@ -241,20 +242,23 @@ export function CharactersWorld() {
           </Button>
         </div>
 
-          <p className="text-xs text-gray-500">
-            💡 Tip: Start with main characters. You can add supporting characters later as your story develops.
-          </p>
+          <div className="flex items-start gap-2 text-[11px] text-gray-400 dark:text-gray-500">
+            <Lightbulb className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+            <span>Start with main characters. You can add supporting characters later as your story develops.</span>
+          </div>
         </div>
       )}
       
       {/* Non-fiction notice */}
       {bookIsNonFiction && (
-        <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-6">
+        <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/30 rounded-xl p-5">
           <div className="flex items-start gap-3">
-            <div className="text-2xl">📚</div>
+            <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+              <Library className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
             <div>
-              <h4 className="font-bold text-blue-400 mb-2">Non-Fiction Mode</h4>
-              <p className="text-sm text-gray-700 dark:text-gray-300">
+              <h4 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-1">Non-Fiction Mode</h4>
+              <p className="text-xs text-blue-700 dark:text-blue-300/70">
                 Character development is disabled for non-fiction books. Focus on factual content, research, and informative chapters instead.
               </p>
             </div>
@@ -263,7 +267,7 @@ export function CharactersWorld() {
       )}
 
       {/* Themes */}
-      <div>
+      <div className="pt-5 border-t border-gray-200/60 dark:border-gray-800/40">
         <Label htmlFor="themes">Themes & Messages</Label>
         <Textarea
           id="themes"
@@ -277,7 +281,7 @@ export function CharactersWorld() {
           placeholder="What themes or messages do you want to explore? e.g., redemption, love vs. duty, power and corruption, identity..."
           rows={3}
         />
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-1">
           These themes will be woven throughout the narrative (comma-separated)
         </p>
       </div>
@@ -304,17 +308,29 @@ export function CharactersWorld() {
 
       {/* Summary */}
       {(characters.length > 0 || config.setting?.locationDetails) && (
-        <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
-          <h4 className="font-medium text-yellow-400 mb-2">Story Foundation Summary</h4>
-          <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
+        <div className="bg-gray-50/80 dark:bg-gray-800/30 rounded-xl p-4 border border-gray-200/40 dark:border-gray-700/20">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">Story Foundation</p>
+          <div className="space-y-2 text-sm">
             {config.setting?.locationDetails && (
-              <p>🌍 <span className="text-gray-600 dark:text-gray-400">Setting:</span> {config.setting.locationDetails}</p>
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-gray-500 dark:text-gray-400">Setting:</span>
+                <span className="text-gray-900 dark:text-white font-medium">{config.setting.locationDetails}</span>
+              </div>
             )}
             {characters.length > 0 && (
-              <p>👥 <span className="text-gray-600 dark:text-gray-400">Characters:</span> {characters.length} defined</p>
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400 text-xs">👥</span>
+                <span className="text-gray-500 dark:text-gray-400">Characters:</span>
+                <span className="text-gray-900 dark:text-white font-medium">{characters.length} defined</span>
+              </div>
             )}
             {config.themes?.primary && config.themes.primary.length > 0 && (
-              <p>💭 <span className="text-gray-600 dark:text-gray-400">Themes:</span> {config.themes.primary.length} specified</p>
+              <div className="flex items-center gap-2">
+                <MessageCircle className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-gray-500 dark:text-gray-400">Themes:</span>
+                <span className="text-gray-900 dark:text-white font-medium">{config.themes.primary.length} specified</span>
+              </div>
             )}
           </div>
         </div>

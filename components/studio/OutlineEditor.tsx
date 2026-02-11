@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { ChapterOutline } from '@/lib/types/generation';
+import { Check, X, Pencil, Clipboard } from 'lucide-react';
 
 interface EditingCharacter {
   index: number;
@@ -405,14 +406,14 @@ export const OutlineEditor: React.FC = () => {
                 className="p-1 text-green-500 hover:text-green-600"
                 title="Save"
               >
-                ✓
+                <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsEditingTitle(false)}
                 className="p-1 text-gray-500 hover:text-gray-600"
                 title="Cancel"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
@@ -422,7 +423,7 @@ export const OutlineEditor: React.FC = () => {
               title="Click to edit title"
             >
               {outline.title}
-              <span className="opacity-0 group-hover:opacity-100 text-sm text-gray-400 transition-opacity">✎</span>
+              <span className="opacity-0 group-hover:opacity-100 text-sm text-gray-400 transition-opacity"><Pencil className="w-3.5 h-3.5" /></span>
             </h2>
           )}
 
@@ -446,14 +447,14 @@ export const OutlineEditor: React.FC = () => {
                 className="p-1 text-green-500 hover:text-green-600 text-sm"
                 title="Save"
               >
-                ✓
+                <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => setIsEditingAuthor(false)}
                 className="p-1 text-gray-500 hover:text-gray-600 text-sm"
                 title="Cancel"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
@@ -463,7 +464,7 @@ export const OutlineEditor: React.FC = () => {
               title="Click to edit author"
             >
               by {outline.author}
-              <span className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 transition-opacity">✎</span>
+              <span className="opacity-0 group-hover:opacity-100 text-xs text-gray-400 transition-opacity"><Pencil className="w-3.5 h-3.5" /></span>
             </p>
           )}
         </div>
@@ -534,7 +535,7 @@ export const OutlineEditor: React.FC = () => {
               className="text-sm text-gray-500 hover:text-yellow-400 transition-colors"
               title="Edit description"
             >
-              ✎ Edit
+              <Pencil className="w-3.5 h-3.5" /> Edit
             </button>
           )}
         </div>
@@ -595,7 +596,7 @@ export const OutlineEditor: React.FC = () => {
                     className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-500 text-xs transition-opacity"
                     title="Remove theme"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ))
@@ -625,7 +626,7 @@ export const OutlineEditor: React.FC = () => {
                 className="p-1 text-green-500 hover:text-green-600"
                 title="Add"
               >
-                ✓
+                <Check className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={() => {
@@ -635,7 +636,7 @@ export const OutlineEditor: React.FC = () => {
                 className="p-1 text-gray-500 hover:text-gray-600"
                 title="Cancel"
               >
-                ✕
+                <X className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
@@ -670,14 +671,14 @@ export const OutlineEditor: React.FC = () => {
                       className="p-1 text-gray-500 hover:text-yellow-400"
                       title="Edit"
                     >
-                      ✎
+                      <Pencil className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => handleDeleteCharacter(idx)}
                       className="p-1 text-gray-500 hover:text-red-400"
                       title="Delete"
                     >
-                      ✕
+                      <X className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -741,14 +742,14 @@ export const OutlineEditor: React.FC = () => {
                     className="p-2 text-[var(--text-secondary)] hover:text-yellow-400"
                     title="Edit"
                   >
-                    ✎
+                    <Pencil className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => handleDeleteChapter(chapter.number)}
                     className="p-2 text-[var(--text-secondary)] hover:text-red-400"
                     title="Delete"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -891,13 +892,13 @@ const OutlineHistoryPanel: React.FC<{
     <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-semibold text-[var(--text-primary)] flex items-center gap-2">
-          <span>📋</span> Saved Outlines
+          <Clipboard className="w-4 h-4 inline" /> Saved Outlines
         </h3>
         <button
           onClick={onClose}
           className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
         >
-          ✕
+          <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
@@ -944,7 +945,7 @@ const OutlineHistoryPanel: React.FC<{
                   className="px-2 py-1 text-red-500 hover:text-red-600 text-xs"
                   title="Delete"
                 >
-                  ✕
+                  <X className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>

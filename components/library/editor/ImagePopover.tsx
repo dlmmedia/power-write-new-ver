@@ -3,6 +3,7 @@
 import React, { useRef, useEffect } from 'react';
 import { ChapterImage } from './types';
 import { ImagePlacement, ImageSize, IMAGE_SIZE_INFO } from '@/lib/types/book-images';
+import { AlignLeft, AlignCenter, AlignRight } from 'lucide-react';
 
 interface ImagePopoverProps {
   image: ChapterImage;
@@ -53,10 +54,10 @@ export const ImagePopover: React.FC<ImagePopoverProps> = ({
   const currentAlign = image.placement || 'center';
   
   const sizeOptions: ImageSize[] = ['small', 'medium', 'large', 'full'];
-  const alignOptions: { value: ImagePlacement; icon: string; label: string }[] = [
-    { value: 'float-left', icon: '⬅️', label: 'Left' },
-    { value: 'center', icon: '⬜', label: 'Center' },
-    { value: 'float-right', icon: '➡️', label: 'Right' },
+  const alignOptions: { value: ImagePlacement; icon: React.ReactNode; label: string }[] = [
+    { value: 'float-left', icon: <AlignLeft className="w-3.5 h-3.5" />, label: 'Left' },
+    { value: 'center', icon: <AlignCenter className="w-3.5 h-3.5" />, label: 'Center' },
+    { value: 'float-right', icon: <AlignRight className="w-3.5 h-3.5" />, label: 'Right' },
   ];
   
   return (

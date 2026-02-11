@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect } from 'react';
 import { motion, AnimatePresence, useSpring, useTransform } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { Book3DProps, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
 import { AudioTextHighlighter } from './AudioTextHighlighter';
 
@@ -225,7 +225,7 @@ export const Book3D: React.FC<Book3DProps> = ({
               className="h-full flex items-center justify-center"
               style={{ color: `${themeConfig.textColor}40` }}
             >
-              <span className="text-4xl">📖</span>
+              <BookOpen className="w-10 h-10" />
             </div>
           )}
         </div>
@@ -395,7 +395,7 @@ export const Book3D: React.FC<Book3DProps> = ({
                       className="h-full flex items-center justify-center"
                       style={{ color: themeConfig.textColor }}
                     >
-                      <span className="text-5xl opacity-15">📖</span>
+                      <BookOpen className="w-12 h-12 opacity-15" />
                     </div>
                   )}
                 </div>
@@ -491,7 +491,7 @@ export const Book3D: React.FC<Book3DProps> = ({
                       className="h-full flex items-center justify-center"
                       style={{ color: themeConfig.textColor }}
                     >
-                      <span className="text-5xl opacity-15">📖</span>
+                      <BookOpen className="w-12 h-12 opacity-15" />
                     </div>
                   )}
                 </div>

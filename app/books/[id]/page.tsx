@@ -7,6 +7,7 @@ import { BookResult } from '@/lib/services/google-books';
 import { useBookStore } from '@/lib/store/book-store';
 import { convertToSelectedBook } from '@/lib/utils/book-helpers';
 import { Button } from '@/components/ui/Button';
+import { Library, BookOpen, Check, Star } from 'lucide-react';
 
 export default function BookDetailPage() {
   const params = useParams();
@@ -58,7 +59,7 @@ export default function BookDetailPage() {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
-          <div className="text-4xl mb-4">📚</div>
+          <Library className="w-10 h-10 mx-auto mb-4" />
           <p className="text-gray-400">Loading book details...</p>
         </div>
       </div>
@@ -106,7 +107,7 @@ export default function BookDetailPage() {
               ) : (
                 <div className="w-full aspect-[2/3] bg-gray-800 rounded-lg flex items-center justify-center">
                   <div className="text-center">
-                    <div className="text-6xl mb-4">📖</div>
+                    <BookOpen className="w-16 h-16 mx-auto mb-4" />
                     <p className="text-gray-500">No Cover Available</p>
                   </div>
                 </div>
@@ -120,7 +121,7 @@ export default function BookDetailPage() {
                   onClick={handleToggleSelect}
                   className="w-full"
                 >
-                  {isSelected ? '✓ Selected as Reference' : '+ Select as Reference'}
+                  {isSelected ? <><Check className="w-4 h-4 inline mr-1" /> Selected as Reference</> : '+ Select as Reference'}
                 </Button>
                 <Button
                   variant="outline"
@@ -148,7 +149,7 @@ export default function BookDetailPage() {
             <div className="flex flex-wrap gap-4 items-center">
               {book.averageRating && (
                 <div className="flex items-center gap-2 bg-yellow-400 text-black px-4 py-2 rounded-full font-bold">
-                  ⭐ {book.averageRating.toFixed(1)}
+                  <Star className="w-4 h-4 inline text-yellow-400 fill-yellow-400" /> {book.averageRating.toFixed(1)}
                   {book.ratingsCount && (
                     <span className="text-sm">({book.ratingsCount.toLocaleString()} ratings)</span>
                   )}

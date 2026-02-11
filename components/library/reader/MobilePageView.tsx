@@ -2,7 +2,7 @@
 
 import React, { useCallback } from 'react';
 import { motion, AnimatePresence, PanInfo, useReducedMotion } from 'framer-motion';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import { ReadingTheme, FontSize, READING_THEMES, FONT_SIZE_CONFIG, TextChunk, AudioTimestamp } from './types';
 import { AudioTextHighlighter } from './AudioTextHighlighter';
 
@@ -156,7 +156,7 @@ export const MobilePageView: React.FC<MobilePageViewProps> = ({
                 className="h-full flex items-center justify-center"
                 style={{ color: `${themeConfig.textColor}40` }}
               >
-                <span className="text-4xl">📖</span>
+                <BookOpen className="w-10 h-10" />
               </div>
             )}
           </motion.div>

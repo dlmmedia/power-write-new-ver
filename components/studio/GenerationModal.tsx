@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, memo } from 'react';
+import { Search, Ruler, Pencil, CheckCircle, XCircle, Library, PenTool, Palette, AlertTriangle, Sparkles, Zap, FileText, Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 // Progress state for book generation
@@ -74,12 +75,12 @@ export const OutlineGenerationModal = memo(function OutlineGenerationModal({
             />
             {/* Center icon */}
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-4xl animate-bounce" style={{ willChange: 'transform' }}>
-                {progress.phase === 'analyzing' && '🔍'}
-                {progress.phase === 'structuring' && '📐'}
-                {progress.phase === 'detailing' && '✏️'}
-                {progress.phase === 'completed' && '✅'}
-                {progress.phase === 'error' && '❌'}
+              <span className="animate-bounce" style={{ willChange: 'transform' }}>
+                {progress.phase === 'analyzing' && <Search className="w-10 h-10 text-yellow-500" />}
+                {progress.phase === 'structuring' && <Ruler className="w-10 h-10 text-yellow-500" />}
+                {progress.phase === 'detailing' && <Pencil className="w-10 h-10 text-yellow-500" />}
+                {progress.phase === 'completed' && <CheckCircle className="w-10 h-10 text-green-500" />}
+                {progress.phase === 'error' && <XCircle className="w-10 h-10 text-red-500" />}
               </span>
             </div>
           </div>
@@ -120,7 +121,7 @@ export const OutlineGenerationModal = memo(function OutlineGenerationModal({
               progress.phase === 'analyzing' ? 'bg-yellow-400 text-black animate-pulse' : 
               'bg-gray-200 dark:bg-gray-700'
             }`}>
-              {progress.progress >= 30 ? '✓' : '1'}
+              {progress.progress >= 30 ? <Check className="w-3 h-3" /> : '1'}
             </span>
             <span>Analyze book configuration</span>
           </div>
@@ -130,7 +131,7 @@ export const OutlineGenerationModal = memo(function OutlineGenerationModal({
               progress.phase === 'structuring' ? 'bg-yellow-400 text-black animate-pulse' : 
               'bg-gray-200 dark:bg-gray-700'
             }`}>
-              {progress.progress >= 65 ? '✓' : '2'}
+              {progress.progress >= 65 ? <Check className="w-3 h-3" /> : '2'}
             </span>
             <span>Structure chapter flow</span>
           </div>
@@ -140,7 +141,7 @@ export const OutlineGenerationModal = memo(function OutlineGenerationModal({
               progress.phase === 'detailing' ? 'bg-yellow-400 text-black animate-pulse' : 
               'bg-gray-200 dark:bg-gray-700'
             }`}>
-              {progress.phase === 'completed' ? '✓' : '3'}
+              {progress.phase === 'completed' ? <Check className="w-3 h-3" /> : '3'}
             </span>
             <span>Generate chapter details</span>
           </div>
@@ -155,7 +156,7 @@ export const OutlineGenerationModal = memo(function OutlineGenerationModal({
         {progress.phase === 'completed' && (
           <div className="mt-4 p-3 bg-green-50 dark:bg-green-900/30 rounded-lg text-center">
             <p className="text-green-700 dark:text-green-400 font-medium">
-              ✨ Your outline is ready! Switching to outline view...
+              <Sparkles className="w-4 h-4 inline mr-1" /> Your outline is ready! Switching to outline view...
             </p>
           </div>
         )}
@@ -206,14 +207,14 @@ export const BookGenerationModal = memo(function BookGenerationModal({
             {/* Center icon */}
             <div className="absolute inset-0 flex items-center justify-center">
               <span 
-                className={`text-4xl ${isGenerating ? 'animate-bounce' : ''}`}
+                className={`${isGenerating ? 'animate-bounce' : ''}`}
                 style={{ willChange: isGenerating ? 'transform' : 'auto' }}
               >
-                {progress.phase === 'creating' && '📚'}
-                {progress.phase === 'generating' && '✍️'}
-                {progress.phase === 'cover' && '🎨'}
-                {progress.phase === 'completed' && '✅'}
-                {progress.phase === 'error' && '⚠️'}
+                {progress.phase === 'creating' && <Library className="w-10 h-10 text-yellow-500" />}
+                {progress.phase === 'generating' && <PenTool className="w-10 h-10 text-yellow-500" />}
+                {progress.phase === 'cover' && <Palette className="w-10 h-10 text-yellow-500" />}
+                {progress.phase === 'completed' && <CheckCircle className="w-10 h-10 text-green-500" />}
+                {progress.phase === 'error' && <AlertTriangle className="w-10 h-10 text-red-500" />}
               </span>
             </div>
           </div>
@@ -232,7 +233,7 @@ export const BookGenerationModal = memo(function BookGenerationModal({
                   ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
                   : 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
               }`}>
-                {progress.isParallel ? '⚡ Parallel Mode' : '📝 Sequential Mode'}
+                {progress.isParallel ? <><Zap className="w-3 h-3 inline mr-0.5" /> Parallel Mode</> : <><FileText className="w-3 h-3 inline mr-0.5" /> Sequential Mode</>}
               </span>
               {progress.modelUsed && (
                 <span className="px-2 py-0.5 text-xs bg-gray-100 dark:bg-gray-800 rounded-full text-gray-600 dark:text-gray-400">

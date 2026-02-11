@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -100,6 +100,9 @@ import {
   Save,
   X,
   Video,
+  Check,
+  AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 // AudiobookPlayer is dynamically imported above
 import type { AudiobookChapter } from '@/components/library/AudiobookPlayer';
@@ -199,6 +202,16 @@ export default function BookDetailPage() {
   const [editedSynopsis, setEditedSynopsis] = useState('');
   const [isSavingSynopsis, setIsSavingSynopsis] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  // Toast notification state
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 3000);
+  }, []);
+
+  // Delete confirmation modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleStatusChange = async (status: ProductionStatus) => {
     if (isUpdatingStatus || !bookId) return;
@@ -304,7 +317,7 @@ export default function BookDetailPage() {
           window.URL.revokeObjectURL(url);
         }, 100);
         
-        alert(`✓ Successfully exported as ${format.toUpperCase()}`);
+        showToast(`Successfully exported as ${format.toUpperCase()}`);
       } else {
         // Log response details for debugging
         console.error('Export failed with status:', response.status, response.statusText);
@@ -379,17 +392,14 @@ export default function BookDetailPage() {
     }
   };
 
-  const handleDeleteBook = async () => {
+  const handleDeleteBook = () => {
     if (!book) return;
+    setShowDeleteConfirm(true);
+  };
 
-    const confirmed = confirm(
-      `⚠️ Delete "${book.title}"?\n\n` +
-      'This action cannot be undone. All chapters, audio, and associated data will be permanently deleted.\n\n' +
-      'Are you sure you want to continue?'
-    );
-
-    if (!confirmed) return;
-
+  const confirmDeleteBook = async () => {
+    if (!book) return;
+    setShowDeleteConfirm(false);
     setIsDeleting(true);
     try {
       const response = await fetch(`/api/books/${book.id}`, {
@@ -398,7 +408,7 @@ export default function BookDetailPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert('✓ Book deleted successfully');
+        showToast('Book deleted successfully');
         router.push('/library');
       } else {
         alert('Failed to delete book: ' + (data.error || 'Unknown error'));
@@ -438,7 +448,7 @@ export default function BookDetailPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(`✓ Book ${action.toLowerCase()}d successfully`);
+        showToast(`Book ${action.toLowerCase()}d successfully`);
         // Refresh book data
         await fetchBookDetail();
       } else {
@@ -479,7 +489,7 @@ export default function BookDetailPage() {
 
       const data = await response.json();
       if (data.success && data.book) {
-        alert('✓ Book duplicated successfully!');
+        showToast('Book duplicated successfully!');
         // Navigate to the new book
         router.push(`/library/${data.book.id}`);
       } else {
@@ -523,7 +533,7 @@ export default function BookDetailPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(`✓ Book ${isCurrentlyPublic ? 'removed from' : 'added to'} showcase successfully!`);
+        showToast(`Book ${isCurrentlyPublic ? 'removed from' : 'added to'} showcase successfully!`);
         // Update local state
         setBook(prev => prev ? { ...prev, isPublic: !isCurrentlyPublic } : null);
       } else {
@@ -897,7 +907,7 @@ export default function BookDetailPage() {
                       >
                         {isExporting ? (
                           <>
-                            <span className="animate-spin mr-2">⏳</span>
+                            <Loader2 className="w-4 h-4 animate-spin mr-2 inline" />
                             Exporting...
                           </>
                         ) : (
@@ -1025,24 +1035,24 @@ export default function BookDetailPage() {
 
         <div className="mt-6">
           {activeTab === 'overview' && (
-            <div className="space-y-6">
-              {/* Hero Section with Book Info - Modern Design */}
+            <div className="space-y-8">
+              {/* Hero Section — clean, editorial layout */}
               <motion.div 
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="relative overflow-hidden bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-900 dark:to-gray-950 rounded-2xl border border-gray-200/80 dark:border-gray-800/80 shadow-sm"
+                transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="relative overflow-hidden bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)]"
               >
-                {/* Subtle decorative accent */}
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-yellow-400 via-amber-500 to-yellow-500" />
+                {/* Top accent bar */}
+                <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-[var(--accent)] via-amber-500 to-[var(--accent)]" />
                 
-                <div className="p-6 md:p-8">
-                  <div className="flex flex-col lg:flex-row gap-8">
-                    {/* Book Cover - Flip Card with hover effect */}
+                <div className="p-6 md:p-10">
+                  <div className="flex flex-col lg:flex-row gap-10">
+                    {/* Book Cover */}
                     <motion.div
                       whileHover={{ scale: 1.02 }}
                       transition={{ duration: 0.3 }}
-                      className="flex-shrink-0"
+                      className="flex-shrink-0 self-center lg:self-start"
                     >
                       <FlipBookCover
                         title={book.title}
@@ -1060,18 +1070,17 @@ export default function BookDetailPage() {
                     </motion.div>
 
                     {/* Book Details */}
-                    <div className="flex-1 space-y-5">
+                    <div className="flex-1 min-w-0 space-y-6">
                       {/* Title & Author */}
                       <div>
                         {/* Editable Title */}
                         {isEditingTitle ? (
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-3">
                             <input
                               type="text"
                               value={editedTitle}
                               onChange={(e) => setEditedTitle(e.target.value)}
-                              className="flex-1 text-2xl md:text-3xl font-bold px-3 py-1.5 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-                              style={{ fontFamily: 'var(--font-header)' }}
+                              className="flex-1 text-2xl md:text-3xl font-bold px-3 py-2 bg-[var(--input-bg)] border-2 border-[var(--accent)] rounded-xl text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
                               placeholder="Enter book title"
                               autoFocus
                               onKeyDown={(e) => {
@@ -1085,10 +1094,10 @@ export default function BookDetailPage() {
                             <button
                               onClick={handleSaveTitle}
                               disabled={isSavingTitle || !editedTitle.trim()}
-                              className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
+                              className="p-2.5 text-[var(--success)] hover:bg-[var(--success-light)] rounded-lg transition-colors disabled:opacity-50"
                               title="Save"
                             >
-                              {isSavingTitle ? <span className="animate-spin">⏳</span> : <Save className="w-5 h-5" />}
+                              {isSavingTitle ? <span className="animate-spin">&#9203;</span> : <Save className="w-5 h-5" />}
                             </button>
                             <button
                               onClick={() => {
@@ -1096,7 +1105,7 @@ export default function BookDetailPage() {
                                 setEditedTitle(book.title);
                               }}
                               disabled={isSavingTitle}
-                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                              className="p-2.5 text-[var(--text-muted)] hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
                               title="Cancel"
                             >
                               <X className="w-5 h-5" />
@@ -1104,12 +1113,12 @@ export default function BookDetailPage() {
                           </div>
                         ) : (
                           <motion.div 
-                            initial={{ opacity: 0, x: -10 }}
+                            initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.1 }}
-                            className="group flex items-center gap-2 mb-1"
+                            className="group flex items-baseline gap-3 mb-1"
                           >
-                            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white" style={{ fontFamily: 'var(--font-header)' }}>
+                            <h2 className="text-2xl md:text-3xl font-bold text-[var(--text-primary)] tracking-tight leading-tight">
                               {book.title}
                             </h2>
                             <button
@@ -1117,7 +1126,7 @@ export default function BookDetailPage() {
                                 setEditedTitle(book.title);
                                 setIsEditingTitle(true);
                               }}
-                              className="p-1.5 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              className="p-1.5 text-[var(--text-muted)] hover:text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-all hover:bg-[var(--accent-surface)] rounded-md"
                               title="Edit title"
                             >
                               <Edit3 className="w-4 h-4" />
@@ -1128,12 +1137,12 @@ export default function BookDetailPage() {
                         {/* Editable Author */}
                         {isEditingAuthor ? (
                           <div className="flex items-center gap-2">
-                            <span className="text-lg text-gray-600 dark:text-gray-400">by</span>
+                            <span className="text-base text-[var(--text-secondary)]">by</span>
                             <input
                               type="text"
                               value={editedAuthor}
                               onChange={(e) => setEditedAuthor(e.target.value)}
-                              className="flex-1 text-lg px-3 py-1 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                              className="flex-1 text-base px-3 py-1.5 bg-[var(--input-bg)] border-2 border-[var(--accent)] rounded-lg text-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                               placeholder="Enter author name"
                               autoFocus
                               onKeyDown={(e) => {
@@ -1147,10 +1156,10 @@ export default function BookDetailPage() {
                             <button
                               onClick={handleSaveAuthor}
                               disabled={isSavingAuthor || !editedAuthor.trim()}
-                              className="p-2 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 rounded-lg transition-colors disabled:opacity-50"
+                              className="p-2 text-[var(--success)] hover:bg-[var(--success-light)] rounded-lg transition-colors disabled:opacity-50"
                               title="Save"
                             >
-                              {isSavingAuthor ? <span className="animate-spin">⏳</span> : <Save className="w-5 h-5" />}
+                              {isSavingAuthor ? <span className="animate-spin">&#9203;</span> : <Save className="w-5 h-5" />}
                             </button>
                             <button
                               onClick={() => {
@@ -1158,7 +1167,7 @@ export default function BookDetailPage() {
                                 setEditedAuthor(book.author);
                               }}
                               disabled={isSavingAuthor}
-                              className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                              className="p-2 text-[var(--text-muted)] hover:bg-[var(--surface-hover)] rounded-lg transition-colors"
                               title="Cancel"
                             >
                               <X className="w-5 h-5" />
@@ -1166,18 +1175,18 @@ export default function BookDetailPage() {
                           </div>
                         ) : (
                           <motion.div 
-                            initial={{ opacity: 0, x: -10 }}
+                            initial={{ opacity: 0, x: -8 }}
                             animate={{ opacity: 1, x: 0 }}
                             transition={{ delay: 0.15 }}
                             className="group flex items-center gap-2"
                           >
-                            <p className="text-lg text-gray-600 dark:text-gray-400">by {book.author}</p>
+                            <p className="text-base text-[var(--text-secondary)]">by <span className="font-medium">{book.author}</span></p>
                             <button
                               onClick={() => {
                                 setEditedAuthor(book.author);
                                 setIsEditingAuthor(true);
                               }}
-                              className="p-1 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              className="p-1 text-[var(--text-muted)] hover:text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-all hover:bg-[var(--accent-surface)] rounded-md"
                               title="Edit author"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -1189,61 +1198,63 @@ export default function BookDetailPage() {
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           transition={{ delay: 0.2 }}
-                          className="text-sm text-gray-500 dark:text-gray-500 mt-2"
+                          className="text-sm text-[var(--text-muted)] mt-2"
                         >
                           Created {new Date(book.createdAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
                         </motion.p>
                       </div>
 
-                      {/* Compact Stats Pills */}
+                      {/* Stats Row — clean card grid */}
                       <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.25 }}
-                        className="flex flex-wrap gap-2"
+                        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
                       >
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
-                          <BookOpen className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400" />
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <div className="flex flex-col items-center gap-1 px-4 py-3 bg-[var(--background-secondary)] rounded-xl border border-[var(--border)]">
+                          <BookOpen className="w-4 h-4 text-[var(--accent)]" />
+                          <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">
                             <AnimatedNumber value={book.metadata.chapters} />
                           </span>
-                          <span className="text-xs text-gray-500">chapters</span>
+                          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Chapters</span>
                         </div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
-                          <FileText className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <div className="flex flex-col items-center gap-1 px-4 py-3 bg-[var(--background-secondary)] rounded-xl border border-[var(--border)]">
+                          <FileText className="w-4 h-4 text-[var(--info)]" />
+                          <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">
                             <AnimatedNumber value={book.metadata.wordCount} format="locale" />
                           </span>
-                          <span className="text-xs text-gray-500">words</span>
+                          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Words</span>
                         </div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700">
-                          <Clock className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                        <div className="flex flex-col items-center gap-1 px-4 py-3 bg-[var(--background-secondary)] rounded-xl border border-[var(--border)]">
+                          <Clock className="w-4 h-4 text-purple-500" />
+                          <span className="text-lg font-bold text-[var(--text-primary)] tabular-nums">
                             ~<AnimatedNumber value={Math.ceil(book.metadata.wordCount / 200)} />
                           </span>
-                          <span className="text-xs text-gray-500">min read</span>
+                          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Min Read</span>
                         </div>
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-yellow-50 dark:bg-yellow-900/20 rounded-full border border-yellow-200 dark:border-yellow-800/50">
-                          <span className="text-sm font-medium text-yellow-700 dark:text-yellow-400">{book.genre}</span>
+                        <div className="flex flex-col items-center gap-1 px-4 py-3 bg-[var(--accent-surface)] rounded-xl border border-[var(--accent)]/20">
+                          <Sparkles className="w-4 h-4 text-[var(--accent)]" />
+                          <span className="text-sm font-bold text-[var(--accent-text)]">{book.genre}</span>
+                          <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--text-muted)]">Genre</span>
                         </div>
                       </motion.div>
 
-                      {/* Synopsis - Collapsible style */}
+                      {/* Synopsis */}
                       <motion.div 
-                        initial={{ opacity: 0, y: 10 }}
+                        initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.3 }}
-                        className="pt-4 border-t border-gray-200 dark:border-gray-800"
+                        className="pt-5 border-t border-[var(--border)]"
                       >
-                        <div className="group flex items-center justify-between mb-2">
-                          <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">Synopsis</h4>
+                        <div className="group flex items-center justify-between mb-2.5">
+                          <h4 className="text-xs font-semibold uppercase tracking-widest text-[var(--text-muted)]">Synopsis</h4>
                           {!isEditingSynopsis && (
                             <button
                               onClick={() => {
                                 setEditedSynopsis(book.metadata.description || '');
                                 setIsEditingSynopsis(true);
                               }}
-                              className="p-1 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded"
+                              className="p-1 text-[var(--text-muted)] hover:text-[var(--accent)] opacity-0 group-hover:opacity-100 transition-all hover:bg-[var(--accent-surface)] rounded-md"
                               title="Edit synopsis"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
@@ -1251,630 +1262,11 @@ export default function BookDetailPage() {
                           )}
                         </div>
                         {isEditingSynopsis ? (
-                          <div className="space-y-2">
+                          <div className="space-y-3">
                             <textarea
                               value={editedSynopsis}
                               onChange={(e) => setEditedSynopsis(e.target.value)}
-                              className="w-full px-3 py-2 bg-white dark:bg-gray-800 border-2 border-yellow-400 rounded-lg text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-y min-h-[80px] text-sm"
-                              placeholder="Enter book synopsis..."
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Escape') {
-                                  setIsEditingSynopsis(false);
-                                  setEditedSynopsis(book.metadata.description || '');
-                                }
-                              }}
-                            />
-                            <div className="flex items-center gap-2">
-                              <button
-                                onClick={handleSaveSynopsis}
-                                disabled={isSavingSynopsis}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-black rounded-lg text-xs font-medium transition-colors disabled:opacity-50"
-                              >
-                                {isSavingSynopsis ? <span className="animate-spin">⏳</span> : <Save className="w-3.5 h-3.5" />}
-                                Save
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setIsEditingSynopsis(false);
-                                  setEditedSynopsis(book.metadata.description || '');
-                                }}
-                                disabled={isSavingSynopsis}
-                                className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg text-xs font-medium transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <p className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed line-clamp-3">
-                            {book.metadata.description || <span className="italic text-gray-400">Click edit to add a synopsis...</span>}
-                          </p>
-                        )}
-                      </motion.div>
-
-                      {/* Primary CTA */}
-                      {book.chapters && book.chapters.length > 0 && (
-                        <motion.div 
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.35 }}
-                          className="pt-4"
-                        >
-                          <Button 
-                            variant="primary" 
-                            size="lg" 
-                            onClick={startReading} 
-                            className="w-full sm:w-auto flex items-center justify-center gap-2 shadow-lg shadow-yellow-500/20"
-                          >
-                            <Book className="w-5 h-5" />
-                            Start Reading
-                          </Button>
-                        </motion.div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-
-              {/* Recent Chapters Preview */}
-              {book.chapters && book.chapters.length > 0 && (
-                <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
-                      <BookOpen className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                      Chapter Preview
-                    </h3>
-                    <Button variant="outline" size="sm" onClick={() => setActiveTab('workspace')}>
-                      View All →
-                    </Button>
-                  </div>
-                  <div className="space-y-3">
-                    {book.chapters.slice(0, 3).map((chapter, idx) => (
-                      <div
-                        key={chapter.id}
-                        className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all group"
-                      >
-                        <div className="flex items-start justify-between mb-2">
-                          <div 
-                            className="flex items-center gap-3 flex-1 cursor-pointer"
-                            onClick={() => openEditorAtChapter(idx)}
-                          >
-                            <span className="text-yellow-600 dark:text-yellow-400 font-bold text-lg">Ch. {chapter.number}</span>
-                            <h4 className="font-bold text-gray-900 dark:text-white">{chapter.title}</h4>
-                          </div>
-                          {/* Reorder buttons */}
-                          <div className="flex items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMoveChapter(chapter.id, 'up');
-                              }}
-                              disabled={chapter.number === 1 || isReorderingChapters}
-                              className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                              title="Move up"
-                            >
-                              <ChevronUp className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleMoveChapter(chapter.id, 'down');
-                              }}
-                              disabled={chapter.number === book.chapters.length || isReorderingChapters}
-                              className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                              title="Move down"
-                            >
-                              <ChevronDown className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                        <div 
-                          className="cursor-pointer"
-                          onClick={() => openEditorAtChapter(idx)}
-                        >
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                            {chapter.wordCount.toLocaleString()} words • ~{Math.ceil(chapter.wordCount / 200)} min read
-                          </p>
-                          {chapter.content && (
-                            <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2 italic">
-                              {chapter.content.substring(0, 200)}...
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'workspace' && (
-            <div className="space-y-4">
-              {/* Workspace Mode Toggle */}
-              <div className="flex items-center justify-between mb-4">
-                <WorkspaceModeSwitcher 
-                  mode={workspaceMode} 
-                  onChange={(newMode) => {
-                    if (newMode === 'read') {
-                      setWorkspaceMode(newMode);
-                      setInitialChapterIndex(0);
-                      setIsReading(true);
-                    } else {
-                      // Edit requires Pro
-                      if (!isProUser) {
-                        triggerUpgradeModal('edit-book');
-                        return;
-                      }
-                      setWorkspaceMode(newMode);
-                      setIsEditing(true);
-                    }
-                  }} 
-                />
-              </div>
-
-              {/* Chapter List */}
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="text-2xl font-bold flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
-                    <span className="text-yellow-600 dark:text-yellow-400">📚</span>
-                    All Chapters
-                  </h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    {book.chapters?.length || 0} chapters • {book.metadata.wordCount.toLocaleString()} total words
-                    {book.chapters && book.chapters.length > 1 && (
-                      <span className="ml-2 text-yellow-600 dark:text-yellow-500">
-                        • Hover to reorder
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              {book.chapters && book.chapters.length > 0 ? (
-                <div className="space-y-3">
-                  {book.chapters.map((chapter, idx) => (
-                    <div
-                      key={chapter.id}
-                      className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-5 hover:border-yellow-400 dark:hover:border-yellow-500 transition-all group"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            {/* Reorder Controls */}
-                            <div className="flex flex-col gap-0.5 opacity-50 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMoveChapter(chapter.id, 'up');
-                                }}
-                                disabled={chapter.number === 1 || isReorderingChapters}
-                                className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                                title="Move up"
-                              >
-                                <ChevronUp className="w-4 h-4" />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleMoveChapter(chapter.id, 'down');
-                                }}
-                                disabled={chapter.number === book.chapters.length || isReorderingChapters}
-                                className="p-1.5 rounded-md bg-yellow-100/50 dark:bg-yellow-900/30 border border-yellow-300 dark:border-yellow-700 text-yellow-700 dark:text-yellow-400 hover:text-yellow-900 dark:hover:text-yellow-300 hover:bg-yellow-200 dark:hover:bg-yellow-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
-                                title="Move down"
-                              >
-                                <ChevronDown className="w-4 h-4" />
-                              </button>
-                            </div>
-                            <div 
-                              className="bg-yellow-400 dark:bg-yellow-500 text-black font-bold rounded-full w-10 h-10 flex items-center justify-center text-sm cursor-pointer"
-                              onClick={() => openEditorAtChapter(idx)}
-                            >
-                              {chapter.number}
-                            </div>
-                            <div 
-                              className="flex-1 cursor-pointer"
-                              onClick={() => openEditorAtChapter(idx)}
-                            >
-                              <h4 className="font-bold text-lg text-gray-900 dark:text-white group-hover:text-yellow-600 dark:group-hover:text-yellow-400 transition-colors">
-                                {chapter.title}
-                              </h4>
-                              <div className="flex items-center gap-4 mt-1">
-                                <span className="text-sm text-gray-600 dark:text-gray-400">
-                                  {chapter.wordCount.toLocaleString()} words
-                                </span>
-                                <span className="text-sm text-gray-600 dark:text-gray-400">
-                                  ~{Math.ceil(chapter.wordCount / 200)} min read
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          {chapter.content && (
-                            <div 
-                              className="mt-3 pl-13 cursor-pointer"
-                              onClick={() => openEditorAtChapter(idx)}
-                            >
-                              <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 leading-relaxed italic">
-                                "{chapter.content.substring(0, 250).trim()}..."
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                        <div 
-                          className="ml-4 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                          onClick={() => openEditorAtChapter(idx)}
-                        >
-                          <div className="text-yellow-600 dark:text-yellow-400 text-2xl">→</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-16 bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-xl border border-gray-300 dark:border-gray-800">
-                  <div className="mb-4 flex justify-center">
-                    <div className="bg-gray-200 dark:bg-gray-800 p-4 rounded-full">
-                      <PenTool className="w-10 h-10 text-gray-400" />
-                    </div>
-                  </div>
-                  <p className="text-gray-600 dark:text-gray-400 text-lg mb-2">No chapters yet</p>
-                  <p className="text-gray-500 dark:text-gray-500 text-sm mb-6 max-w-md mx-auto">
-                    Generate your book in the Studio to create chapters that will appear here.
-                  </p>
-                  <Button variant="primary" onClick={() => router.push('/studio')}>Go to Studio</Button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {activeTab === 'manage' && (
-            <div className="space-y-6">
-              {/* Sub-navigation for manage tab */}
-              <div className="flex items-center gap-2 border-b border-gray-200 dark:border-gray-800 pb-4">
-                {(['cover', 'publishing', 'settings'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setManageSubTab(tab)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      manageSubTab === tab
-                        ? 'bg-yellow-400 text-black'
-                        : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {tab === 'cover' && '🎨 Cover'}
-                    {tab === 'publishing' && '📤 Publishing'}
-                    {tab === 'settings' && '⚙️ Settings'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Cover Sub-tab */}
-              {manageSubTab === 'cover' && (
-                <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                  <h3 className="text-2xl font-bold mb-6 flex items-center gap-2" style={{ fontFamily: 'var(--font-nav)' }}>
-                    <span className="text-yellow-600 dark:text-yellow-400">🎨</span>
-                    Book Cover
-                  </h3>
-              {isProUser ? (
-                <CoverGenerator
-                  bookId={book.id}
-                  title={book.title}
-                  author={book.author}
-                  genre={book.genre}
-                  description={book.metadata.description || ''}
-                  targetAudience="General"
-                  themes={[]}
-                  currentCoverUrl={book.coverUrl}
-                  currentBackCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
-                  onCoverGenerated={(coverUrl, metadata) => {
-                    // Update local state with new cover
-                    setBook(prev => prev ? { ...prev, coverUrl } : null);
-                    // Show success message
-                    alert('✓ Front cover generated successfully!');
-                  }}
-                  onBackCoverGenerated={(backCoverUrl, metadata) => {
-                    // Update local state with new back cover
-                    setBook(prev => prev ? { 
-                      ...prev, 
-                      backCoverUrl,
-                      metadata: { ...prev.metadata, backCoverUrl }
-                    } : null);
-                    // Show success message
-                    alert('✓ Back cover generated successfully!');
-                  }}
-                />
-              ) : (
-                <div className="text-center py-16 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-200 dark:border-purple-800">
-                  <div className="mb-6">
-                    <div className="w-20 h-20 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-xl shadow-purple-500/30">
-                      <Lock className="w-10 h-10 text-white" />
-                    </div>
-                  </div>
-                  <h4 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Cover Generation is a Pro Feature</h4>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
-                    Upgrade to Pro to generate beautiful AI-powered book covers for your books.
-                  </p>
-                  <button
-                    onClick={() => triggerUpgradeModal('generate-cover')}
-                    className="px-8 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/30 flex items-center gap-2 mx-auto"
-                  >
-                    <Sparkles className="w-5 h-5" />
-                    Upgrade to Pro
-                  </button>
-                  
-                  {/* Show existing cover if available */}
-                  {book.coverUrl && (
-                    <div className="mt-8 pt-8 border-t border-purple-200 dark:border-purple-800">
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Current Cover (View Only)</p>
-                      <div className="w-48 h-72 mx-auto rounded-lg overflow-hidden shadow-lg">
-                        <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-              </div>
-              )}
-
-              {/* Publishing Sub-tab */}
-              {manageSubTab === 'publishing' && (
-                isProUser ? (
-                  <PublishingSettings
-                    bookId={book.id}
-                    bookTitle={book.title}
-                    onSave={() => {
-                      fetchBookDetail();
-                    }}
-                  />
-                ) : (
-                  <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 rounded-lg border border-purple-200 dark:border-purple-800 p-8 text-center">
-                    <Lock className="w-12 h-12 mx-auto text-purple-500 mb-4" />
-                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Pro Feature</h4>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
-                      Publishing settings require Pro access
-                    </p>
-                    <button
-                      onClick={() => triggerUpgradeModal('publishing-settings')}
-                      className="px-6 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all"
-                    >
-                      Upgrade to Pro
-                    </button>
-                  </div>
-                )
-              )}
-
-              {/* Settings Sub-tab */}
-              {manageSubTab === 'settings' && (
-                <div className="space-y-6">
-                  {/* Public Showcase Section */}
-                  <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 rounded-lg border border-yellow-200 dark:border-yellow-700 p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-4">
-                        <div className="p-3 bg-yellow-100 dark:bg-yellow-800/50 rounded-lg">
-                          <Globe className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-                        </div>
-                        <div>
-                          <h4 className="text-lg font-bold text-gray-900 dark:text-white">Public Showcase</h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            Share your book with the world in our public showcase
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleToggleShowcase}
-                        disabled={isTogglingShowcase}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                          book.isPublic
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-900/50'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {isTogglingShowcase ? (
-                          <span className="animate-spin">⏳</span>
-                        ) : book.isPublic ? (
-                          <>
-                            <Eye className="w-4 h-4" />
-                            Public
-                          </>
-                        ) : (
-                          <>
-                            <EyeOff className="w-4 h-4" />
-                            Private
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Book Information - Editable */}
-                  <div className="bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-800 p-6">
-                    <h4 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
-                      Book Information
-                    </h4>
-                    
-                    <div className="space-y-4">
-                      {/* Production Status Field */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Production Status
-                        </label>
-                        <select
-                          value={book.productionStatus || 'draft'}
-                          onChange={(e) => handleStatusChange(e.target.value as ProductionStatus)}
-                          disabled={isUpdatingStatus}
-                          className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent disabled:opacity-50"
-                        >
-                          <option value="draft">Draft</option>
-                          <option value="in-progress">In Progress</option>
-                          <option value="content-complete">Content Complete</option>
-                          <option value="audio-pending">Audio Pending</option>
-                          <option value="published">Published</option>
-                        </select>
-                        <p className="mt-1 text-xs text-gray-500">
-                          Update the status to track your progress in the library.
-                        </p>
-                      </div>
-
-                      {/* Title Field */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Book Title
-                        </label>
-                        {isEditingTitle ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={editedTitle}
-                              onChange={(e) => setEditedTitle(e.target.value)}
-                              className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                              placeholder="Enter book title"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveTitle();
-                                if (e.key === 'Escape') {
-                                  setIsEditingTitle(false);
-                                  setEditedTitle(book.title);
-                                }
-                              }}
-                            />
-                            <Button
-                              variant="primary"
-                              onClick={handleSaveTitle}
-                              disabled={isSavingTitle || !editedTitle.trim()}
-                              className="flex items-center gap-2"
-                            >
-                              {isSavingTitle ? (
-                                <>
-                                  <span className="animate-spin">⏳</span>
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <Save className="w-4 h-4" />
-                                  Save
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setIsEditingTitle(false);
-                                setEditedTitle(book.title);
-                              }}
-                              disabled={isSavingTitle}
-                              className="flex items-center gap-2"
-                            >
-                              <X className="w-4 h-4" />
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3">
-                            <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
-                              {book.title}
-                            </span>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setEditedTitle(book.title);
-                                setIsEditingTitle(true);
-                              }}
-                              className="flex items-center gap-2"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                              Edit
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Author Field */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Author
-                        </label>
-                        {isEditingAuthor ? (
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={editedAuthor}
-                              onChange={(e) => setEditedAuthor(e.target.value)}
-                              className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
-                              placeholder="Enter author name"
-                              autoFocus
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') handleSaveAuthor();
-                                if (e.key === 'Escape') {
-                                  setIsEditingAuthor(false);
-                                  setEditedAuthor(book.author);
-                                }
-                              }}
-                            />
-                            <Button
-                              variant="primary"
-                              onClick={handleSaveAuthor}
-                              disabled={isSavingAuthor || !editedAuthor.trim()}
-                              className="flex items-center gap-2"
-                            >
-                              {isSavingAuthor ? (
-                                <>
-                                  <span className="animate-spin">⏳</span>
-                                  Saving...
-                                </>
-                              ) : (
-                                <>
-                                  <Save className="w-4 h-4" />
-                                  Save
-                                </>
-                              )}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setIsEditingAuthor(false);
-                                setEditedAuthor(book.author);
-                              }}
-                              disabled={isSavingAuthor}
-                              className="flex items-center gap-2"
-                            >
-                              <X className="w-4 h-4" />
-                              Cancel
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-3">
-                            <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white">
-                              {book.author}
-                            </span>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setEditedAuthor(book.author);
-                                setIsEditingAuthor(true);
-                              }}
-                              className="flex items-center gap-2"
-                            >
-                              <Edit3 className="w-4 h-4" />
-                              Edit
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Synopsis Field */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          Synopsis
-                        </label>
-                        {isEditingSynopsis ? (
-                          <div className="space-y-2">
-                            <textarea
-                              value={editedSynopsis}
-                              onChange={(e) => setEditedSynopsis(e.target.value)}
-                              className="w-full px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent resize-y min-h-[120px]"
+                              className="w-full px-4 py-3 bg-[var(--input-bg)] border-2 border-[var(--accent)] rounded-xl text-[var(--text-secondary)] text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-y min-h-[100px]"
                               placeholder="Enter book synopsis..."
                               autoFocus
                               onKeyDown={(e) => {
@@ -1887,50 +1279,615 @@ export default function BookDetailPage() {
                             <div className="flex items-center gap-2">
                               <Button
                                 variant="primary"
+                                size="sm"
                                 onClick={handleSaveSynopsis}
                                 disabled={isSavingSynopsis}
-                                className="flex items-center gap-2"
+                                leftIcon={isSavingSynopsis ? undefined : <Save className="w-3.5 h-3.5" />}
+                                isLoading={isSavingSynopsis}
                               >
-                                {isSavingSynopsis ? (
-                                  <>
-                                    <span className="animate-spin">⏳</span>
-                                    Saving...
-                                  </>
-                                ) : (
-                                  <>
-                                    <Save className="w-4 h-4" />
-                                    Save
-                                  </>
-                                )}
+                                Save
                               </Button>
                               <Button
-                                variant="outline"
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => {
                                   setIsEditingSynopsis(false);
                                   setEditedSynopsis(book.metadata.description || '');
                                 }}
                                 disabled={isSavingSynopsis}
-                                className="flex items-center gap-2"
+                                leftIcon={<X className="w-3.5 h-3.5" />}
                               >
-                                <X className="w-4 h-4" />
                                 Cancel
                               </Button>
                             </div>
                           </div>
                         ) : (
-                          <div className="flex items-start gap-3">
-                            <span className="flex-1 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white whitespace-pre-wrap min-h-[60px]">
-                              {book.metadata.description || <span className="text-gray-400 italic">No synopsis added</span>}
+                          <p className="text-sm text-[var(--text-secondary)] leading-relaxed line-clamp-4">
+                            {book.metadata.description || <span className="italic text-[var(--text-muted)]">Click edit to add a synopsis...</span>}
+                          </p>
+                        )}
+                      </motion.div>
+
+                      {/* Primary CTA */}
+                      {book.chapters && book.chapters.length > 0 && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.35 }}
+                          className="pt-2"
+                        >
+                          <Button 
+                            variant="primary" 
+                            size="lg" 
+                            onClick={startReading} 
+                            className="w-full sm:w-auto shadow-lg shadow-[var(--accent)]/20"
+                            leftIcon={<Book className="w-5 h-5" />}
+                          >
+                            Start Reading
+                          </Button>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+
+              {/* Chapters Preview — table-like clean list */}
+              {book.chapters && book.chapters.length > 0 && (
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2, duration: 0.4 }}
+                  className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] overflow-hidden"
+                >
+                  <div className="flex justify-between items-center px-6 py-5 border-b border-[var(--border)]">
+                    <div>
+                      <h3 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2.5">
+                        <BookOpen className="w-5 h-5 text-[var(--accent)]" />
+                        Chapter Preview
+                      </h3>
+                      <p className="text-sm text-[var(--text-muted)] mt-0.5">
+                        Showing first {Math.min(3, book.chapters.length)} of {book.chapters.length} chapters
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => setActiveTab('workspace')} rightIcon={<ChevronLeft className="w-4 h-4 rotate-180" />}>
+                      View All
+                    </Button>
+                  </div>
+                  <div className="divide-y divide-[var(--border)]">
+                    {book.chapters.slice(0, 3).map((chapter, idx) => (
+                      <div
+                        key={chapter.id}
+                        className="flex items-center gap-4 px-6 py-4 hover:bg-[var(--surface-hover)] transition-colors group cursor-pointer"
+                        onClick={() => openEditorAtChapter(idx)}
+                      >
+                        {/* Chapter number badge */}
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[var(--accent-surface)] flex items-center justify-center">
+                          <span className="text-sm font-bold text-[var(--accent-text)] tabular-nums">{chapter.number}</span>
+                        </div>
+                        
+                        {/* Chapter details */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--accent)] transition-colors">{chapter.title}</h4>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-xs text-[var(--text-muted)]">
+                              {chapter.wordCount.toLocaleString()} words
                             </span>
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setEditedSynopsis(book.metadata.description || '');
-                                setIsEditingSynopsis(true);
+                            <span className="text-xs text-[var(--text-muted)]">
+                              ~{Math.ceil(chapter.wordCount / 200)} min
+                            </span>
+                          </div>
+                          {chapter.content && (
+                            <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-1 italic">
+                              {chapter.content.substring(0, 150)}...
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Reorder controls */}
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveChapter(chapter.id, 'up');
+                            }}
+                            disabled={chapter.number === 1 || isReorderingChapters}
+                            className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveChapter(chapter.id, 'down');
+                            }}
+                            disabled={chapter.number === book.chapters.length || isReorderingChapters}
+                            className="p-1.5 rounded-md text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-4 h-4" />
+                          </button>
+                        </div>
+
+                        {/* Arrow indicator */}
+                        <ChevronLeft className="w-4 h-4 rotate-180 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'workspace' && (
+            <div className="space-y-6">
+              {/* Header bar with mode toggle and chapter count */}
+              <motion.div 
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[var(--card-bg)] rounded-xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] p-4"
+              >
+                <div className="flex items-center gap-4">
+                  <WorkspaceModeSwitcher 
+                    mode={workspaceMode} 
+                    onChange={(newMode) => {
+                      if (newMode === 'read') {
+                        setWorkspaceMode(newMode);
+                        setInitialChapterIndex(0);
+                        setIsReading(true);
+                      } else {
+                        if (!isProUser) {
+                          triggerUpgradeModal('edit-book');
+                          return;
+                        }
+                        setWorkspaceMode(newMode);
+                        setIsEditing(true);
+                      }
+                    }} 
+                  />
+                </div>
+                <div className="flex items-center gap-3 text-sm text-[var(--text-muted)]">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--background-secondary)] rounded-md border border-[var(--border)]">
+                    <BookOpen className="w-3.5 h-3.5" />
+                    {book.chapters?.length || 0} chapters
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[var(--background-secondary)] rounded-md border border-[var(--border)]">
+                    <FileText className="w-3.5 h-3.5" />
+                    {book.metadata.wordCount.toLocaleString()} words
+                  </span>
+                </div>
+              </motion.div>
+
+              {/* Chapter List */}
+              {book.chapters && book.chapters.length > 0 ? (
+                <motion.div 
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] overflow-hidden"
+                >
+                  <div className="divide-y divide-[var(--border)]">
+                    {book.chapters.map((chapter, idx) => (
+                      <div
+                        key={chapter.id}
+                        className="flex items-center gap-4 px-5 py-4 hover:bg-[var(--surface-hover)] transition-colors group cursor-pointer"
+                        onClick={() => openEditorAtChapter(idx)}
+                      >
+                        {/* Reorder controls — appear on hover */}
+                        <div className="flex flex-col gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveChapter(chapter.id, 'up');
+                            }}
+                            disabled={chapter.number === 1 || isReorderingChapters}
+                            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)] disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                            title="Move up"
+                          >
+                            <ChevronUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMoveChapter(chapter.id, 'down');
+                            }}
+                            disabled={chapter.number === book.chapters.length || isReorderingChapters}
+                            className="p-1 rounded text-[var(--text-muted)] hover:text-[var(--accent)] hover:bg-[var(--accent-surface)] disabled:opacity-20 disabled:cursor-not-allowed transition-all"
+                            title="Move down"
+                          >
+                            <ChevronDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Chapter number */}
+                        <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-[var(--accent-surface)] flex items-center justify-center border border-[var(--accent)]/15">
+                          <span className="text-sm font-bold text-[var(--accent-text)] tabular-nums">{chapter.number}</span>
+                        </div>
+
+                        {/* Chapter info */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--accent)] transition-colors">
+                            {chapter.title}
+                          </h4>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-xs text-[var(--text-muted)]">{chapter.wordCount.toLocaleString()} words</span>
+                            <span className="w-1 h-1 rounded-full bg-[var(--border-strong)]" />
+                            <span className="text-xs text-[var(--text-muted)]">~{Math.ceil(chapter.wordCount / 200)} min read</span>
+                          </div>
+                          {chapter.content && (
+                            <p className="text-xs text-[var(--text-muted)] line-clamp-1 mt-1.5 italic leading-relaxed">
+                              &ldquo;{chapter.content.substring(0, 200).trim()}&hellip;&rdquo;
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Arrow */}
+                        <ChevronLeft className="w-4 h-4 rotate-180 text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.div 
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center py-20 bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)]"
+                >
+                  <div className="mb-5 flex justify-center">
+                    <div className="bg-[var(--background-tertiary)] p-5 rounded-2xl">
+                      <PenTool className="w-10 h-10 text-[var(--text-muted)]" />
+                    </div>
+                  </div>
+                  <p className="text-[var(--text-primary)] text-lg font-semibold mb-1.5">No chapters yet</p>
+                  <p className="text-[var(--text-muted)] text-sm mb-8 max-w-sm mx-auto leading-relaxed">
+                    Generate your book in the Studio to create chapters that will appear here.
+                  </p>
+                  <Button variant="primary" onClick={() => router.push('/studio')} leftIcon={<Sparkles className="w-4 h-4" />}>
+                    Go to Studio
+                  </Button>
+                </motion.div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'manage' && (
+            <div className="space-y-6">
+              {/* Sub-navigation — segmented control style */}
+              <motion.div
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-[var(--card-bg)] rounded-xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] p-1.5 inline-flex gap-1"
+              >
+                {([
+                  { id: 'cover' as const, label: 'Cover', icon: <Edit3 className="w-4 h-4" /> },
+                  { id: 'publishing' as const, label: 'Publishing', icon: <FileText className="w-4 h-4" /> },
+                  { id: 'settings' as const, label: 'Settings', icon: <Activity className="w-4 h-4" /> },
+                ]).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setManageSubTab(tab.id)}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                      manageSubTab === tab.id
+                        ? 'bg-[var(--accent)] text-[var(--text-inverse)] shadow-sm'
+                        : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)]'
+                    }`}
+                  >
+                    {tab.icon}
+                    {tab.label}
+                  </button>
+                ))}
+              </motion.div>
+
+              {/* Cover Sub-tab */}
+              {manageSubTab === 'cover' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] overflow-hidden"
+                >
+                  <div className="px-6 py-5 border-b border-[var(--border)]">
+                    <h3 className="text-lg font-semibold text-[var(--text-primary)] flex items-center gap-2.5">
+                      <Edit3 className="w-5 h-5 text-[var(--accent)]" />
+                      Book Cover
+                    </h3>
+                    <p className="text-sm text-[var(--text-muted)] mt-1">
+                      Generate and manage AI-powered covers for your book
+                    </p>
+                  </div>
+                  <div className="p-6">
+                    {isProUser ? (
+                      <CoverGenerator
+                        bookId={book.id}
+                        title={book.title}
+                        author={book.author}
+                        genre={book.genre}
+                        description={book.metadata.description || ''}
+                        targetAudience="General"
+                        themes={[]}
+                        currentCoverUrl={book.coverUrl}
+                        currentBackCoverUrl={book.backCoverUrl || book.metadata.backCoverUrl}
+                        onCoverGenerated={(coverUrl, metadata) => {
+                          setBook(prev => prev ? { ...prev, coverUrl } : null);
+                          alert('Front cover generated successfully!');
+                        }}
+                        onBackCoverGenerated={(backCoverUrl, metadata) => {
+                          setBook(prev => prev ? { 
+                            ...prev, 
+                            backCoverUrl,
+                            metadata: { ...prev.metadata, backCoverUrl }
+                          } : null);
+                          alert('Back cover generated successfully!');
+                        }}
+                      />
+                    ) : (
+                      <div className="text-center py-16">
+                        <div className="mb-6">
+                          <div className="w-16 h-16 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                            <Lock className="w-8 h-8 text-white" />
+                          </div>
+                        </div>
+                        <h4 className="text-xl font-bold text-[var(--text-primary)] mb-2">Cover Generation</h4>
+                        <p className="text-[var(--text-muted)] mb-6 max-w-sm mx-auto text-sm leading-relaxed">
+                          Upgrade to Pro to generate beautiful AI-powered book covers for your books.
+                        </p>
+                        <button
+                          onClick={() => triggerUpgradeModal('generate-cover')}
+                          className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/20"
+                        >
+                          <Crown className="w-4 h-4" />
+                          Upgrade to Pro
+                        </button>
+                        
+                        {book.coverUrl && (
+                          <div className="mt-10 pt-8 border-t border-[var(--border)]">
+                            <p className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)] mb-4">Current Cover</p>
+                            <div className="w-44 h-64 mx-auto rounded-xl overflow-hidden shadow-[var(--shadow-md)] border border-[var(--border)]">
+                              <img src={book.coverUrl} alt={book.title} className="w-full h-full object-cover" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Publishing Sub-tab */}
+              {manageSubTab === 'publishing' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  {isProUser ? (
+                    <PublishingSettings
+                      bookId={book.id}
+                      bookTitle={book.title}
+                      onSave={() => {
+                        fetchBookDetail();
+                      }}
+                    />
+                  ) : (
+                    <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] p-10 text-center">
+                      <div className="mb-5">
+                        <div className="w-14 h-14 mx-auto bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+                          <Lock className="w-7 h-7 text-white" />
+                        </div>
+                      </div>
+                      <h4 className="text-lg font-bold text-[var(--text-primary)] mb-2">Publishing Settings</h4>
+                      <p className="text-[var(--text-muted)] mb-6 max-w-sm mx-auto text-sm leading-relaxed">
+                        Configure typography, margins, trim size, and export your book for publishing.
+                      </p>
+                      <button
+                        onClick={() => triggerUpgradeModal('publishing-settings')}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all shadow-lg shadow-purple-500/20"
+                      >
+                        <Crown className="w-4 h-4" />
+                        Upgrade to Pro
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              )}
+
+              {/* Settings Sub-tab */}
+              {manageSubTab === 'settings' && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="space-y-6"
+                >
+                  {/* Public Showcase — toggle card */}
+                  <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] p-6">
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-[var(--accent-surface)] flex items-center justify-center">
+                          <Globe className="w-5 h-5 text-[var(--accent)]" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-[var(--text-primary)]">Public Showcase</h4>
+                          <p className="text-sm text-[var(--text-muted)] mt-0.5">
+                            Share your book publicly in our showcase
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleToggleShowcase}
+                        disabled={isTogglingShowcase}
+                        className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 disabled:opacity-50 ${
+                          book.isPublic
+                            ? 'bg-[var(--success)]'
+                            : 'bg-[var(--background-tertiary)]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                            book.isPublic ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+                    {book.isPublic && (
+                      <div className="mt-3 ml-15 pl-4 border-l-2 border-[var(--success)]/30">
+                        <p className="text-xs text-[var(--success)] font-medium flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5" />
+                          Visible in public showcase
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Book Information */}
+                  <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--card-border)] shadow-[var(--shadow-sm)] overflow-hidden">
+                    <div className="px-6 py-5 border-b border-[var(--border)]">
+                      <h4 className="font-semibold text-[var(--text-primary)] flex items-center gap-2.5">
+                        <FileText className="w-5 h-5 text-[var(--accent)]" />
+                        Book Information
+                      </h4>
+                    </div>
+                    
+                    <div className="p-6 space-y-5">
+                      {/* Production Status */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                          Production Status
+                        </label>
+                        <select
+                          value={book.productionStatus || 'draft'}
+                          onChange={(e) => handleStatusChange(e.target.value as ProductionStatus)}
+                          disabled={isUpdatingStatus}
+                          className="w-full px-3.5 py-2.5 bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:border-transparent disabled:opacity-50 transition-colors"
+                        >
+                          <option value="draft">Draft</option>
+                          <option value="in-progress">In Progress</option>
+                          <option value="content-complete">Content Complete</option>
+                          <option value="audio-pending">Audio Pending</option>
+                          <option value="published">Published</option>
+                        </select>
+                        <p className="mt-1.5 text-xs text-[var(--text-muted)]">
+                          Track where you are in your writing process.
+                        </p>
+                      </div>
+
+                      <div className="border-t border-[var(--border-subtle)]" />
+
+                      {/* Title Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                          Book Title
+                        </label>
+                        {isEditingTitle ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editedTitle}
+                              onChange={(e) => setEditedTitle(e.target.value)}
+                              className="flex-1 px-3.5 py-2.5 bg-[var(--input-bg)] border-2 border-[var(--accent)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
+                              placeholder="Enter book title"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveTitle();
+                                if (e.key === 'Escape') {
+                                  setIsEditingTitle(false);
+                                  setEditedTitle(book.title);
+                                }
                               }}
-                              className="flex items-center gap-2"
-                            >
-                              <Edit3 className="w-4 h-4" />
+                            />
+                            <Button variant="primary" size="sm" onClick={handleSaveTitle} disabled={isSavingTitle || !editedTitle.trim()} isLoading={isSavingTitle} leftIcon={!isSavingTitle ? <Save className="w-3.5 h-3.5" /> : undefined}>
+                              Save
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => { setIsEditingTitle(false); setEditedTitle(book.title); }} disabled={isSavingTitle}>
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1 px-3.5 py-2.5 bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] text-sm">
+                              {book.title}
+                            </span>
+                            <Button variant="ghost" size="sm" onClick={() => { setEditedTitle(book.title); setIsEditingTitle(true); }} leftIcon={<Edit3 className="w-3.5 h-3.5" />}>
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Author Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                          Author
+                        </label>
+                        {isEditingAuthor ? (
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={editedAuthor}
+                              onChange={(e) => setEditedAuthor(e.target.value)}
+                              className="flex-1 px-3.5 py-2.5 bg-[var(--input-bg)] border-2 border-[var(--accent)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] focus:ring-offset-2 focus:ring-offset-[var(--background)]"
+                              placeholder="Enter author name"
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleSaveAuthor();
+                                if (e.key === 'Escape') {
+                                  setIsEditingAuthor(false);
+                                  setEditedAuthor(book.author);
+                                }
+                              }}
+                            />
+                            <Button variant="primary" size="sm" onClick={handleSaveAuthor} disabled={isSavingAuthor || !editedAuthor.trim()} isLoading={isSavingAuthor} leftIcon={!isSavingAuthor ? <Save className="w-3.5 h-3.5" /> : undefined}>
+                              Save
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => { setIsEditingAuthor(false); setEditedAuthor(book.author); }} disabled={isSavingAuthor}>
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <span className="flex-1 px-3.5 py-2.5 bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] text-sm">
+                              {book.author}
+                            </span>
+                            <Button variant="ghost" size="sm" onClick={() => { setEditedAuthor(book.author); setIsEditingAuthor(true); }} leftIcon={<Edit3 className="w-3.5 h-3.5" />}>
+                              Edit
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Synopsis Field */}
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
+                          Synopsis
+                        </label>
+                        {isEditingSynopsis ? (
+                          <div className="space-y-2.5">
+                            <textarea
+                              value={editedSynopsis}
+                              onChange={(e) => setEditedSynopsis(e.target.value)}
+                              className="w-full px-3.5 py-2.5 bg-[var(--input-bg)] border-2 border-[var(--accent)] rounded-lg text-[var(--text-primary)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)] resize-y min-h-[120px] leading-relaxed"
+                              placeholder="Enter book synopsis..."
+                              autoFocus
+                              onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                  setIsEditingSynopsis(false);
+                                  setEditedSynopsis(book.metadata.description || '');
+                                }
+                              }}
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button variant="primary" size="sm" onClick={handleSaveSynopsis} disabled={isSavingSynopsis} isLoading={isSavingSynopsis} leftIcon={!isSavingSynopsis ? <Save className="w-3.5 h-3.5" /> : undefined}>
+                                Save
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => { setIsEditingSynopsis(false); setEditedSynopsis(book.metadata.description || ''); }} disabled={isSavingSynopsis}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-2">
+                            <span className="flex-1 px-3.5 py-2.5 bg-[var(--background-secondary)] border border-[var(--border)] rounded-lg text-[var(--text-primary)] text-sm whitespace-pre-wrap min-h-[60px] leading-relaxed">
+                              {book.metadata.description || <span className="text-[var(--text-muted)] italic">No synopsis added</span>}
+                            </span>
+                            <Button variant="ghost" size="sm" onClick={() => { setEditedSynopsis(book.metadata.description || ''); setIsEditingSynopsis(true); }} leftIcon={<Edit3 className="w-3.5 h-3.5" />}>
                               Edit
                             </Button>
                           </div>
@@ -1939,10 +1896,10 @@ export default function BookDetailPage() {
 
                       {/* Genre (Read-only) */}
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1.5">
                           Genre
                         </label>
-                        <span className="block px-4 py-2 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-gray-600 dark:text-gray-400">
+                        <span className="block px-3.5 py-2.5 bg-[var(--background-tertiary)] border border-[var(--border-subtle)] rounded-lg text-[var(--text-muted)] text-sm">
                           {book.genre}
                         </span>
                       </div>
@@ -1950,44 +1907,61 @@ export default function BookDetailPage() {
                   </div>
 
                   {/* Danger Zone */}
-                  <div className="bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 rounded-lg border border-red-200 dark:border-red-800 p-6">
-                    <h4 className="text-lg font-bold text-red-700 dark:text-red-400 mb-4">Danger Zone</h4>
-                    <div className="flex flex-wrap gap-3">
-                      {isProUser ? (
-                        <Button 
-                          variant="outline" 
-                          onClick={handleDuplicateBook}
-                          disabled={isDuplicating}
-                        >
-                          {isDuplicating ? 'Duplicating...' : '📋 Duplicate Book'}
-                        </Button>
-                      ) : (
-                        <button
-                          onClick={() => triggerUpgradeModal('duplicate-book')}
-                          className="flex items-center gap-2 px-4 py-2 border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-lg text-sm hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
-                        >
-                          <Lock className="w-4 h-4" />
-                          Duplicate
-                        </button>
-                      )}
-                      <Button 
-                        variant="outline" 
-                        onClick={handleArchiveBook}
-                        disabled={isArchiving}
-                      >
-                        {isArchiving ? 'Archiving...' : '📦 Archive'}
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        onClick={handleDeleteBook}
-                        disabled={isDeleting}
-                        className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20"
-                      >
-                        {isDeleting ? 'Deleting...' : '🗑️ Delete Book'}
-                      </Button>
+                  <div className="bg-[var(--card-bg)] rounded-2xl border border-[var(--error)]/20 shadow-[var(--shadow-sm)] overflow-hidden">
+                    <div className="px-6 py-4 border-b border-[var(--error)]/10 bg-[var(--error-light)]/30">
+                      <h4 className="text-sm font-semibold text-[var(--error)] flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4" />
+                        Danger Zone
+                      </h4>
+                    </div>
+                    <div className="p-6">
+                      <div className="space-y-3">
+                        {/* Duplicate */}
+                        <div className="flex items-center justify-between py-3 border-b border-[var(--border-subtle)] last:border-0">
+                          <div>
+                            <p className="text-sm font-medium text-[var(--text-primary)]">Duplicate Book</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5">Create an identical copy of this book</p>
+                          </div>
+                          {isProUser ? (
+                            <Button variant="outline" size="sm" onClick={handleDuplicateBook} disabled={isDuplicating} isLoading={isDuplicating} leftIcon={!isDuplicating ? <Copy className="w-3.5 h-3.5" /> : undefined}>
+                              Duplicate
+                            </Button>
+                          ) : (
+                            <button
+                              onClick={() => triggerUpgradeModal('duplicate-book')}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-all"
+                            >
+                              <Crown className="w-3.5 h-3.5" />
+                              Pro
+                            </button>
+                          )}
+                        </div>
+                        
+                        {/* Archive */}
+                        <div className="flex items-center justify-between py-3 border-b border-[var(--border-subtle)] last:border-0">
+                          <div>
+                            <p className="text-sm font-medium text-[var(--text-primary)]">Archive Book</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5">Move this book to your archive</p>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={handleArchiveBook} disabled={isArchiving} isLoading={isArchiving} leftIcon={!isArchiving ? <Archive className="w-3.5 h-3.5" /> : undefined}>
+                            Archive
+                          </Button>
+                        </div>
+                        
+                        {/* Delete */}
+                        <div className="flex items-center justify-between py-3">
+                          <div>
+                            <p className="text-sm font-medium text-[var(--error)]">Delete Book</p>
+                            <p className="text-xs text-[var(--text-muted)] mt-0.5">Permanently delete this book and all its data</p>
+                          </div>
+                          <Button variant="danger" size="sm" onClick={handleDeleteBook} disabled={isDeleting} isLoading={isDeleting} leftIcon={!isDeleting ? <Trash2 className="w-3.5 h-3.5" /> : undefined}>
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )}
             </div>
           )}
@@ -2078,7 +2052,7 @@ export default function BookDetailPage() {
                 bookId={book.id}
                 bookTitle={book.title}
                 onSave={() => {
-                  alert('✓ Publishing settings saved successfully!');
+                  showToast('Publishing settings saved successfully!');
                 }}
               />
             ) : (
@@ -2159,6 +2133,51 @@ export default function BookDetailPage() {
             audioUrl: ch.audioUrl,
           }))}
         />
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[100] animate-in slide-in-from-bottom-4 fade-in duration-300">
+          <div className="flex items-center gap-2 px-4 py-3 bg-green-50 dark:bg-green-950/80 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200 rounded-xl shadow-lg backdrop-blur-sm">
+            <Check className="w-4 h-4 inline mr-1" />
+            <span className="text-sm font-medium">{toastMessage}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowDeleteConfirm(false)}
+          />
+          <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-6 max-w-md w-full animate-in zoom-in-95 fade-in duration-200">
+            <div className="text-center mb-4">
+              <AlertTriangle className="w-12 h-12 text-yellow-500 mx-auto" />
+            </div>
+            <h3 className="text-lg font-semibold text-center text-gray-900 dark:text-white mb-2">
+              Delete &ldquo;{book.title}&rdquo;?
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">
+              This action cannot be undone. All chapters, audio, and associated data will be permanently deleted.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors font-medium text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDeleteBook}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white transition-colors font-medium text-sm"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

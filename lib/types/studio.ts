@@ -303,7 +303,8 @@ export const NARRATIVE_STRUCTURES = [
 export const GENERATION_SPEED_OPTIONS = [
   {
     value: 'quality' as const,
-    label: '⭐ Quality',
+    icon: 'star',
+    label: 'Quality',
     description: 'Best writing quality with Claude Sonnet 4',
     model: 'anthropic/claude-sonnet-4',
     estimatedTime: '2-4 min per batch',
@@ -311,7 +312,8 @@ export const GENERATION_SPEED_OPTIONS = [
   },
   {
     value: 'balanced' as const,
-    label: '⚡ Balanced',
+    icon: 'zap',
+    label: 'Balanced',
     description: 'Fast generation with Gemini 2.5 Flash',
     model: 'google/gemini-2.5-flash-preview',
     estimatedTime: '30-60 sec per batch',
@@ -319,7 +321,8 @@ export const GENERATION_SPEED_OPTIONS = [
   },
   {
     value: 'fast' as const,
-    label: '🚀 Fast',
+    icon: 'rocket',
+    label: 'Fast',
     description: 'Fastest generation with Claude Haiku',
     model: 'anthropic/claude-3.5-haiku',
     estimatedTime: '15-30 sec per batch',

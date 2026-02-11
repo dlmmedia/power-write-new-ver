@@ -11,6 +11,7 @@ import {
   WebsiteReference,
   REFERENCE_TYPE_LABELS,
 } from '@/lib/types/bibliography';
+import { X } from 'lucide-react';
 
 interface ReferenceEditorProps {
   reference: Reference;
@@ -305,7 +306,7 @@ export const ReferenceEditor: React.FC<ReferenceEditorProps> = ({
                 onClick={() => removeAuthor(index)}
                 className="col-span-1 text-red-600 dark:text-red-400"
               >
-                ✕
+                <X className="w-4 h-4" />
               </Button>
             </div>
           ))}

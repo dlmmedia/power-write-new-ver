@@ -3,6 +3,7 @@
 import React from 'react';
 import { ImageBlock } from './types';
 import { IMAGE_TYPE_INFO, IMAGE_SIZE_INFO } from '@/lib/types/book-images';
+import { Image as ImageIcon } from 'lucide-react';
 
 interface ImageBlockComponentProps {
   block: ImageBlock;
@@ -72,7 +73,7 @@ export const ImageBlockComponent: React.FC<ImageBlockComponentProps> = ({
           <div className="absolute top-2 right-2 flex items-center gap-2">
             {/* Type badge */}
             <div className="px-2 py-1 bg-black/60 backdrop-blur-sm rounded-full text-white text-xs flex items-center gap-1">
-              <span>{IMAGE_TYPE_INFO[block.imageType]?.icon || '🖼️'}</span>
+              <span>{IMAGE_TYPE_INFO[block.imageType]?.icon || <ImageIcon className="w-4 h-4" />}</span>
               <span>{IMAGE_TYPE_INFO[block.imageType]?.name || 'Image'}</span>
             </div>
             

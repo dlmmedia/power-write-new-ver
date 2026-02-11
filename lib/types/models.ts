@@ -376,27 +376,27 @@ export const MODEL_CATEGORIES = {
   flagship: {
     name: 'Flagship Models',
     description: 'Most capable models for the best quality',
-    icon: '⭐',
+    icon: 'star',
   },
   creative: {
     name: 'Creative Writing',
     description: 'Optimized for storytelling and prose',
-    icon: '✍️',
+    icon: 'pen-tool',
   },
   fast: {
     name: 'Fast & Efficient',
     description: 'Quick iterations and outlines',
-    icon: '⚡',
+    icon: 'zap',
   },
   reasoning: {
     name: 'Reasoning Models',
     description: 'Complex plot logic and consistency',
-    icon: '🧠',
+    icon: 'brain',
   },
   specialized: {
     name: 'Specialized',
     description: 'Research and specific use cases',
-    icon: '🔬',
+    icon: 'microscope',
   },
 } as const;
 

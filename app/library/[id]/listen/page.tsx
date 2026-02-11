@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { AudiobookPlayer, AudiobookChapter } from '@/components/library/AudiobookPlayer';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 interface BookData {
   id: number;
@@ -105,7 +105,7 @@ export default function ListenPage() {
       <div className="fixed inset-0 bg-gradient-to-b from-gray-950 via-gray-900 to-black flex items-center justify-center">
         <div className="text-center px-8">
           <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">⚠️</span>
+            <AlertTriangle className="w-8 h-8 text-red-400" />
           </div>
           <h2 className="text-xl font-bold text-white mb-2">Unable to Load Audiobook</h2>
           <p className="text-gray-400 mb-6">{error || 'Book not found'}</p>

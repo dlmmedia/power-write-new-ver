@@ -2,6 +2,7 @@
 
 import React, { useMemo } from 'react';
 import { BookImageType, ImagePlacement, ImageSize, IMAGE_TYPE_INFO, IMAGE_SIZE_INFO } from '@/lib/types/book-images';
+import { Image } from 'lucide-react';
 
 interface ChapterImage {
   id: number;
@@ -103,7 +104,7 @@ export const ContentWithImages: React.FC<ContentWithImagesProps> = ({
             <div className="absolute bottom-0 left-0 right-0 p-3">
               <div className="flex items-center justify-between text-white">
                 <div className="flex items-center gap-2">
-                  <span className="text-lg">{IMAGE_TYPE_INFO[image.imageType]?.icon || '🖼️'}</span>
+                  <span className="text-lg">{IMAGE_TYPE_INFO[image.imageType]?.icon || <Image className="w-4 h-4 inline" />}</span>
                   <span className="text-sm font-medium">
                     {IMAGE_TYPE_INFO[image.imageType]?.name || 'Image'}
                   </span>
@@ -264,7 +265,7 @@ export const ImagePreviewStrip: React.FC<{
             className="w-12 h-12 object-cover rounded border-2 border-transparent hover:border-yellow-400 transition-colors"
           />
           <div className="absolute bottom-0 right-0 bg-black/60 text-white text-xs px-1 rounded-tl">
-            {IMAGE_TYPE_INFO[image.imageType]?.icon || '🖼️'}
+            {IMAGE_TYPE_INFO[image.imageType]?.icon || <Image className="w-4 h-4 inline" />}
           </div>
         </button>
       ))}

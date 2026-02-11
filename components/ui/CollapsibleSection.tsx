@@ -36,19 +36,19 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 
   const variantStyles = {
     default: {
-      container: 'bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800',
+      container: 'bg-[var(--card-bg)] rounded-xl border border-[var(--card-border)]',
       header: 'p-4',
       content: 'px-4 pb-5',
     },
     compact: {
-      container: 'bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800',
+      container: 'bg-[var(--background-secondary)] rounded-lg border border-[var(--border)]',
       header: 'px-3 py-2.5',
       content: 'px-3 pb-3',
     },
     card: {
-      container: 'bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm',
-      header: 'px-5 py-4',
-      content: 'px-5 pb-5',
+      container: 'bg-[var(--card-bg)] rounded-xl border border-[var(--card-border)] shadow-[var(--shadow-sm)]',
+      header: 'px-4 py-3.5',
+      content: 'px-4 pb-4',
     },
   };
 
@@ -59,7 +59,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
       <div
         className={clsx(
           'w-full flex items-center justify-between gap-3 text-left transition-colors',
-          'hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-t-xl',
+          'hover:bg-[var(--surface-hover)] rounded-t-xl',
           styles.header,
           headerClassName
         )}
@@ -78,7 +78,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className={clsx(
-                'font-semibold text-gray-900 dark:text-white truncate',
+                'font-semibold text-[var(--text-primary)] truncate',
                 variant === 'compact' ? 'text-sm' : 'text-base'
               )}>
                 {title}
@@ -86,7 +86,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
               {badge}
             </div>
             {subtitle && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+              <p className="text-xs text-[var(--text-muted)] truncate mt-0.5">
                 {subtitle}
               </p>
             )}
@@ -102,7 +102,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
           )}
           <button
             onClick={() => setIsOpen(!isOpen)}
-            className="p-1 -m-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+            className="p-1 -m-1 rounded-md hover:bg-[var(--surface-active)] transition-colors"
             type="button"
             aria-label={isOpen ? 'Collapse section' : 'Expand section'}
           >
@@ -110,7 +110,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
               animate={{ rotate: isOpen ? 180 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              <ChevronDown className="w-5 h-5 text-gray-400" />
+              <ChevronDown className="w-5 h-5 text-[var(--text-muted)]" />
             </motion.div>
           </button>
         </div>
@@ -152,9 +152,9 @@ export const CollapsibleItem: React.FC<CollapsibleItemProps> = ({
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
   return (
-    <div className={clsx('border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden', className)}>
+    <div className={clsx('border border-[var(--border)] rounded-lg overflow-hidden', className)}>
       <div
-        className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+        className="w-full flex items-center justify-between gap-2 p-3 text-left hover:bg-[var(--surface-hover)] transition-colors cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
         role="button"
         tabIndex={0}
@@ -179,7 +179,7 @@ export const CollapsibleItem: React.FC<CollapsibleItemProps> = ({
           transition={{ duration: 0.15 }}
           className="flex-shrink-0"
         >
-          <ChevronDown className="w-4 h-4 text-gray-400" />
+          <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
         </motion.div>
       </div>
       
@@ -192,7 +192,7 @@ export const CollapsibleItem: React.FC<CollapsibleItemProps> = ({
             transition={{ duration: 0.15 }}
             className="overflow-hidden"
           >
-            <div className="p-3 pt-0 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30">
+            <div className="p-3 pt-0 border-t border-[var(--border)] bg-[var(--background-secondary)]">
               {children}
             </div>
           </motion.div>

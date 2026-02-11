@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { TypographySettings as TypographySettingsType, BODY_FONTS, HEADING_FONTS } from '@/lib/types/publishing';
 import { getFontFamily, getGoogleFontUrl, getFontDisplayName } from '@/lib/utils/font-mapping';
+import { FileText, Settings } from 'lucide-react';
 
 interface TypographySettingsProps {
   settings: TypographySettingsType;
@@ -78,7 +79,7 @@ export function TypographySettings({ settings, onUpdate }: TypographySettingsPro
       {/* Body Text Settings */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">📝</span>
+          <FileText className="w-4 h-4 inline" />
           Body Text
         </h4>
         
@@ -384,7 +385,7 @@ export function TypographySettings({ settings, onUpdate }: TypographySettingsPro
       {/* Advanced Typography */}
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
         <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-          <span className="text-lg">⚙️</span>
+          <Settings className="w-4 h-4 inline" />
           Advanced Options
         </h4>
         

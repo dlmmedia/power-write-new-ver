@@ -108,7 +108,7 @@ export function AudioGeneratorCompact({
   userId,
   onAudioGenerated,
 }: AudioGeneratorCompactProps) {
-  const CHAPTER_TABLE_GRID = 'grid-cols-[44px,1fr,120px,132px]';
+  const CHAPTER_TABLE_GRID = 'grid-cols-[36px,1fr,90px,auto]';
   const [generationMode, setGenerationMode] = useState<'full' | 'chapters'>('chapters');
   const [selectedChapters, setSelectedChapters] = useState<number[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -892,24 +892,24 @@ export function AudioGeneratorCompact({
       </aside>
 
       {/* Main */}
-      <main className="flex-1 space-y-4">
+      <main className="flex-1 space-y-3">
       {/* Compact Status Header */}
-      <div className="bg-gradient-to-r from-amber-500/10 via-yellow-400/10 to-orange-500/10 dark:from-amber-900/20 dark:via-yellow-800/15 dark:to-orange-900/20 rounded-xl border border-yellow-400/30 p-5">
-        <div className="flex items-center justify-between gap-4">
+      <div className="bg-gradient-to-r from-amber-500/8 via-yellow-400/8 to-orange-500/8 dark:from-amber-900/15 dark:via-yellow-800/10 dark:to-orange-900/15 rounded-xl border border-amber-200/40 dark:border-amber-800/30 p-4">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-              <Headphones className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-lg flex items-center justify-center shadow-md shadow-amber-500/15">
+              <Headphones className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Audiobook Studio</h2>
-              <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
+              <h2 className="text-base font-bold text-gray-900 dark:text-white">Audiobook Studio</h2>
+              <div className="flex items-center gap-2.5 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                 <span className="flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                  {chaptersWithAudio}/{totalChapters} chapters
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                  <span className="tabular-nums">{chaptersWithAudio}/{totalChapters}</span> chapters
                 </span>
                 {totalAudioDuration > 0 && (
                   <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
+                    <Clock className="w-3 h-3" />
                     {formatDuration(totalAudioDuration)}
                   </span>
                 )}
@@ -923,16 +923,16 @@ export function AudioGeneratorCompact({
               size="sm"
               onClick={handleDownloadAllAudio}
               disabled={isDownloading}
-              className="flex items-center gap-2"
+              className="flex items-center gap-1.5 text-xs"
             >
               {isDownloading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   {downloadProgress}%
                 </>
               ) : (
                 <>
-                  <Archive className="w-4 h-4" />
+                  <Archive className="w-3.5 h-3.5" />
                   Download All
                 </>
               )}
@@ -941,9 +941,9 @@ export function AudioGeneratorCompact({
         </div>
         
         {/* Progress Bar */}
-        <div className="mt-4 h-2.5 bg-white/60 dark:bg-black/30 rounded-full overflow-hidden">
+        <div className="mt-3 h-2 bg-white/60 dark:bg-black/30 rounded-full overflow-hidden">
           <motion.div
-            className="h-full bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 rounded-full"
+            className="h-full bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 rounded-full"
             initial={{ width: 0 }}
             animate={{ width: `${audioCompletionPercent}%` }}
             transition={{ duration: 0.5 }}
@@ -954,7 +954,7 @@ export function AudioGeneratorCompact({
       {/* Banner */}
       {banner && (
         <div
-          className={`rounded-xl border p-4 ${
+          className={`rounded-lg border px-3.5 py-3 ${
             banner.type === 'success'
               ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800'
               : banner.type === 'error'
@@ -964,18 +964,18 @@ export function AudioGeneratorCompact({
               : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
           }`}
         >
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className="font-semibold text-gray-900 dark:text-white">{banner.title}</div>
-              {banner.message && <div className="text-sm text-gray-600 dark:text-gray-300 mt-1.5">{banner.message}</div>}
+              <div className="text-sm font-semibold text-gray-900 dark:text-white">{banner.title}</div>
+              {banner.message && <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">{banner.message}</div>}
             </div>
             <button
               type="button"
               onClick={() => setBanner(null)}
-              className="p-1.5 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 text-gray-500 transition-colors"
+              className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 text-gray-400 transition-colors"
               aria-label="Dismiss message"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -996,37 +996,42 @@ export function AudioGeneratorCompact({
         contentClassName="pt-1"
       >
         {/* Mode Toggle - Compact inline */}
-        <div className="flex items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Mode:</span>
-            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-100 dark:bg-gray-800">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-500 uppercase tracking-wide">Mode</span>
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-700 p-0.5 bg-gray-50 dark:bg-gray-800/80">
               <button
                 onClick={() => setGenerationMode('full')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
                   generationMode === 'full'
-                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm ring-1 ring-gray-200/60 dark:ring-gray-700/60'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                <Book className="w-3.5 h-3.5" />
+                <Book className="w-3 h-3" />
                 Full Book
               </button>
               <button
                 onClick={() => setGenerationMode('chapters')}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
                   generationMode === 'chapters'
-                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm ring-1 ring-gray-200/60 dark:ring-gray-700/60'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                 }`}
               >
-                <FileAudio className="w-3.5 h-3.5" />
+                <FileAudio className="w-3 h-3" />
                 By Chapter
               </button>
             </div>
           </div>
           {generationMode === 'chapters' && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              {totalChapters} chapters • <span className="text-green-600 dark:text-green-400">{chaptersWithAudio} with audio</span>
+            <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <span className="tabular-nums">{totalChapters} chapters</span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
+              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="w-3 h-3" />
+                {chaptersWithAudio} ready
+              </span>
             </div>
           )}
         </div>
@@ -1034,40 +1039,40 @@ export function AudioGeneratorCompact({
         {/* Chapter Selection */}
         {generationMode === 'chapters' && (
           <>
-            <div className="rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
               {/* Table Header with integrated selection controls */}
-              <div className="bg-gray-50 dark:bg-gray-800/60 border-b border-gray-200 dark:border-gray-700">
+              <div className="bg-gray-50/80 dark:bg-gray-800/40">
                 {/* Selection toolbar row */}
-                <div className="flex items-center justify-between gap-3 px-3 py-2.5 border-b border-gray-200/60 dark:border-gray-700/60">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-gray-200/80 dark:border-gray-700/60">
+                  <div className="flex items-center gap-1.5">
                     <input
                       ref={selectAllRef}
                       type="checkbox"
                       checked={isAllSelected}
                       onChange={() => (isAllSelected ? clearSelection() : setSelectedChapters(allChapterNumbers))}
-                      className="h-4 w-4 accent-yellow-500 rounded"
+                      className="h-3.5 w-3.5 accent-yellow-500 rounded cursor-pointer"
                       aria-label="Select all chapters"
                     />
-                    <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 min-w-[60px]">
                       {isAllSelected ? 'All selected' : isSomeSelected ? `${selectedChapters.length} selected` : 'Select:'}
                     </span>
-                    <div className="h-4 w-px bg-gray-300 dark:bg-gray-600 mx-1" />
-                    <div className="flex items-center gap-1">
+                    <div className="h-3 w-px bg-gray-200 dark:bg-gray-700" />
+                    <div className="flex items-center gap-0.5">
                       <button
                         onClick={selectAllChapters}
-                        className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        className="px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/70 dark:hover:bg-gray-700/70 rounded transition-colors"
                       >
                         All
                       </button>
                       <button
                         onClick={selectMissingAudio}
-                        className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        className="px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/70 dark:hover:bg-gray-700/70 rounded transition-colors"
                       >
                         Missing ({totalChapters - chaptersWithAudio})
                       </button>
                       <button
                         onClick={() => setSelectedChapters(chaptersData.filter(ch => ch.audioUrl).map(ch => ch.number))}
-                        className="px-2 py-1 text-xs font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                        className="px-1.5 py-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/70 dark:hover:bg-gray-700/70 rounded transition-colors"
                       >
                         Ready ({chaptersWithAudio})
                       </button>
@@ -1076,41 +1081,42 @@ export function AudioGeneratorCompact({
                   {selectedChapters.length > 0 && (
                     <button
                       onClick={clearSelection}
-                      className="px-2 py-1 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      className="px-1.5 py-0.5 text-[11px] font-medium text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
                     >
                       Clear
                     </button>
                   )}
                 </div>
                 {/* Column headers row */}
-                <div className={`grid ${CHAPTER_TABLE_GRID} items-center gap-3 px-3 h-9 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400`}>
+                <div className={`grid ${CHAPTER_TABLE_GRID} items-center gap-2 px-3 h-7 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 border-b border-gray-200/80 dark:border-gray-700/60`}>
                   <span></span>
                   <span>Chapter</span>
                   <span>Status</span>
-                  <span className="text-right pr-1">Actions</span>
+                  <span className="text-right">Actions</span>
                 </div>
               </div>
 
               {/* Chapter rows */}
-              <div className="max-h-[400px] overflow-y-auto divide-y divide-gray-100 dark:divide-gray-800">
-                {chaptersData.map((chapter) => {
+              <div className="max-h-[380px] overflow-y-auto">
+                {chaptersData.map((chapter, idx) => {
                   const isSelected = selectedChapters.includes(chapter.number);
                   const hasAudio = !!chapter.audioUrl;
                   const isExpanded = expandedChapter === chapter.number;
                   const estMinutes = Math.ceil(chapter.wordCount / 150);
+                  const isLast = idx === chaptersData.length - 1;
 
                   return (
                     <div
                       key={chapter.id}
-                      className={`transition-colors ${isSelected ? 'bg-yellow-50/80 dark:bg-yellow-900/15' : 'bg-white dark:bg-gray-900/50 hover:bg-gray-50 dark:hover:bg-gray-800/40'}`}
+                      className={`transition-colors duration-150 ${!isLast ? 'border-b border-gray-100 dark:border-gray-800/60' : ''} ${isSelected ? 'bg-yellow-50/60 dark:bg-yellow-900/10' : 'bg-white dark:bg-gray-900/30 hover:bg-gray-50/80 dark:hover:bg-gray-800/30'}`}
                     >
-                      <div className={`grid ${CHAPTER_TABLE_GRID} gap-3 items-center px-3 py-2.5`}>
+                      <div className={`grid ${CHAPTER_TABLE_GRID} gap-2 items-center px-3 py-1.5`}>
                         <div className="flex items-center justify-center">
                           <input
                             type="checkbox"
                             checked={isSelected}
                             onChange={() => toggleChapterSelection(chapter.number)}
-                            className="h-4 w-4 accent-yellow-500 rounded"
+                            className="h-3.5 w-3.5 accent-yellow-500 rounded cursor-pointer"
                             aria-label={`Select Chapter ${chapter.number}`}
                           />
                         </div>
@@ -1118,49 +1124,52 @@ export function AudioGeneratorCompact({
                         <button
                           type="button"
                           onClick={() => toggleChapterSelection(chapter.number)}
-                          className="min-w-0 text-left group"
+                          className="min-w-0 text-left group py-0.5"
                           aria-label={`Toggle selection for Chapter ${chapter.number}`}
                         >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="text-[11px] font-semibold text-yellow-700 dark:text-yellow-500 bg-yellow-100 dark:bg-yellow-900/30 px-1.5 py-0.5 rounded flex-shrink-0">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[10px] font-bold text-amber-600/80 dark:text-amber-500/80 bg-amber-50 dark:bg-amber-900/20 w-5 h-5 rounded flex items-center justify-center flex-shrink-0 tabular-nums">
                               {chapter.number}
                             </span>
-                            <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            <span className="text-[13px] font-medium text-gray-800 dark:text-gray-200 truncate leading-tight group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                               {chapter.title}
                             </span>
                           </div>
-                          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {chapter.wordCount.toLocaleString()} words
+                          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-400 dark:text-gray-500 pl-[26px]">
+                            <span className="tabular-nums">{chapter.wordCount.toLocaleString()} words</span>
                             {chapter.audioDuration && (
-                              <span className="text-green-600 dark:text-green-400 ml-2">
-                                {formatDuration(chapter.audioDuration)}
-                              </span>
+                              <>
+                                <span className="text-gray-300 dark:text-gray-600">·</span>
+                                <span className="text-emerald-500 dark:text-emerald-400 tabular-nums">
+                                  {formatDuration(chapter.audioDuration)}
+                                </span>
+                              </>
                             )}
                           </div>
                         </button>
 
                         <div className="flex items-center">
                           {hasAudio ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">
-                              <CheckCircle2 className="w-3 h-3" /> Ready
+                            <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-md text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-900/25 text-emerald-600 dark:text-emerald-400 ring-1 ring-emerald-200/50 dark:ring-emerald-800/40">
+                              <CheckCircle2 className="w-2.5 h-2.5" /> Ready
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                              <Clock className="w-3 h-3" /> Pending
+                            <span className="inline-flex items-center gap-1 px-1.5 py-px rounded-md text-[10px] font-medium bg-gray-50 dark:bg-gray-800/60 text-gray-400 dark:text-gray-500 ring-1 ring-gray-200/50 dark:ring-gray-700/40">
+                              <Clock className="w-2.5 h-2.5" /> Pending
                             </span>
                           )}
                         </div>
 
-                        <div className="flex items-center justify-end gap-1">
+                        <div className="flex items-center justify-end gap-0.5">
                           {hasAudio && (
                             <button
                               type="button"
                               onClick={() => setExpandedChapter(isExpanded ? null : chapter.number)}
-                              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 transition-colors"
+                              className={`p-1 rounded-md transition-colors ${isExpanded ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500'}`}
                               aria-label={isExpanded ? `Hide player` : `Play`}
                               title={isExpanded ? 'Hide player' : 'Play'}
                             >
-                              {isExpanded ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                              {isExpanded ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                             </button>
                           )}
 
@@ -1168,18 +1177,18 @@ export function AudioGeneratorCompact({
                             type="button"
                             onClick={() => handleGenerateSingleChapter(chapter.number)}
                             disabled={isGenerating || !selectedVoice}
-                            className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 ${
+                            className={`p-1 rounded-md transition-colors disabled:opacity-30 ${
                               hasAudio
-                                ? 'hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400'
-                                : 'hover:bg-purple-50 dark:hover:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                ? 'hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-500 dark:text-blue-400'
+                                : 'hover:bg-violet-50 dark:hover:bg-violet-900/20 text-violet-500 dark:text-violet-400'
                             }`}
                             aria-label={hasAudio ? `Regenerate` : `Generate`}
                             title={hasAudio ? 'Regenerate' : 'Generate'}
                           >
                             {hasAudio ? (
-                              <RefreshCw className={`w-4 h-4 ${isGenerating && generatingChapter === chapter.number ? 'animate-spin' : ''}`} />
+                              <RefreshCw className={`w-3.5 h-3.5 ${isGenerating && generatingChapter === chapter.number ? 'animate-spin' : ''}`} />
                             ) : (
-                              <Zap className="w-4 h-4" />
+                              <Zap className="w-3.5 h-3.5" />
                             )}
                           </button>
 
@@ -1187,18 +1196,18 @@ export function AudioGeneratorCompact({
                             <button
                               type="button"
                               onClick={() => handleDownloadChapter(chapter.audioUrl!, chapter.number, chapter.title)}
-                              className="p-1.5 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 text-green-600 dark:text-green-400 transition-colors"
+                              className="p-1 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-emerald-500 dark:text-emerald-400 transition-colors"
                               aria-label={`Download`}
                               title="Download"
                             >
-                              <Download className="w-4 h-4" />
+                              <Download className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>
                       </div>
 
                       {hasAudio && isExpanded && chapter.audioUrl && (
-                        <div className="px-3 pb-3 pt-1 bg-gray-50 dark:bg-gray-800/30 border-t border-gray-100 dark:border-gray-700">
+                        <div className="px-3 pb-2 pt-1 bg-gray-50/80 dark:bg-gray-800/20 border-t border-gray-100 dark:border-gray-800/60">
                           <AudioPlayer audioUrl={chapter.audioUrl} showMiniControls={true} />
                         </div>
                       )}
@@ -1212,57 +1221,57 @@ export function AudioGeneratorCompact({
       </CollapsibleSection>
 
       {/* Sticky Action Bar */}
-      <div className="sticky bottom-4 z-20 mt-2">
-        <div className="bg-gradient-to-r from-yellow-400 via-amber-400 to-orange-400 rounded-2xl p-[2px] shadow-xl shadow-yellow-500/15">
-          <div className="bg-white dark:bg-gray-900 rounded-[14px] p-5">
-            <div className="flex items-start justify-between gap-4 mb-4">
+      <div className="sticky bottom-4 z-20 mt-3">
+        <div className="bg-gradient-to-r from-amber-400 via-yellow-400 to-orange-400 rounded-xl p-[1.5px] shadow-lg shadow-amber-500/10">
+          <div className="bg-white dark:bg-gray-900 rounded-[10px] p-4">
+            <div className="flex items-center justify-between gap-4 mb-3">
               <div className="min-w-0">
-                <div className="text-base font-semibold text-gray-900 dark:text-white">
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">
                   {generationMode === 'full' ? 'Full audiobook' : `${selectedChapters.length} chapter${selectedChapters.length !== 1 ? 's' : ''} selected`}
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {selectedVoiceInfo ? (
-                    <>Narrator: <span className="font-medium text-gray-700 dark:text-gray-300">{selectedVoiceInfo.name}</span> • {selectedSpeed}x • {selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}</>
+                    <>Narrator: <span className="font-medium text-gray-700 dark:text-gray-300">{selectedVoiceInfo.name}</span> · {selectedSpeed}x · {selectedQuality === 'tts-1-hd' ? 'HD' : 'Standard'}</>
                   ) : (
-                    <>Narrator: <span className="font-medium text-red-600 dark:text-red-400">Select a voice</span></>
+                    <>Narrator: <span className="font-medium text-red-500 dark:text-red-400">Select a voice</span></>
                   )}
                 </div>
               </div>
               <div className="text-right flex-shrink-0">
-                <div className="text-xl font-bold text-yellow-600 dark:text-yellow-500">~{estimatedDuration()} min</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">estimated duration</div>
+                <div className="text-lg font-bold text-amber-600 dark:text-amber-500 tabular-nums">~{estimatedDuration()} min</div>
+                <div className="text-[10px] text-gray-400 dark:text-gray-500 uppercase tracking-wide">est. duration</div>
               </div>
             </div>
 
             {generationMode === 'chapters' && !isGenerating && selectedChaptersWithAudioCount > 0 && (
-              <div className="mb-4 text-sm rounded-lg border border-yellow-200 dark:border-yellow-700 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-2.5 text-yellow-800 dark:text-yellow-200">
-                <span className="font-medium">Overwrite notice:</span> {selectedChaptersWithAudioCount} selected chapter{selectedChaptersWithAudioCount !== 1 ? 's' : ''} already have audio and will be replaced.
+              <div className="mb-3 text-xs rounded-lg border border-amber-200/60 dark:border-amber-700/40 bg-amber-50/50 dark:bg-amber-900/10 px-3 py-2 text-amber-700 dark:text-amber-300">
+                <span className="font-semibold">Overwrite notice:</span> {selectedChaptersWithAudioCount} selected chapter{selectedChaptersWithAudioCount !== 1 ? 's' : ''} already have audio and will be replaced.
               </div>
             )}
 
             {isGenerating && (
-              <div className="mb-4 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2.5 text-gray-700 dark:text-gray-200">
+              <div className="mb-3 text-xs rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 px-3 py-2 text-gray-600 dark:text-gray-300">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Loader2 className="w-4 h-4 animate-spin flex-shrink-0 text-yellow-500" />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0 text-amber-500" />
                     <span className="truncate">{generationProgress || 'Generating...'}</span>
                   </div>
                   {generatingChapter && (
-                    <span className="text-gray-500 dark:text-gray-400 flex-shrink-0 font-medium">Ch. {generatingChapter}</span>
+                    <span className="text-gray-400 dark:text-gray-500 flex-shrink-0 font-semibold tabular-nums">Ch. {generatingChapter}</span>
                   )}
                 </div>
               </div>
             )}
 
-            <div className={`grid gap-3 ${isGenerating ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-2 ${isGenerating ? 'grid-cols-2' : 'grid-cols-1'}`}>
               <Button
                 variant="primary"
                 onClick={handleGenerate}
                 disabled={!canGenerate || isGenerating}
-                className="w-full py-3.5 font-bold text-base"
+                className="w-full py-3 font-bold text-sm"
               >
-                <span className="flex items-center justify-center gap-2.5">
-                  <Mic className="w-5 h-5" />
+                <span className="flex items-center justify-center gap-2">
+                  <Mic className="w-4 h-4" />
                   {generationMode === 'full' ? 'Generate Full Audiobook' : 'Generate Selected Chapters'}
                 </span>
               </Button>
@@ -1271,7 +1280,7 @@ export function AudioGeneratorCompact({
                 <Button
                   variant="outline"
                   onClick={cancelGeneration}
-                  className="w-full py-3.5 font-bold text-base"
+                  className="w-full py-3 font-bold text-sm"
                 >
                   Cancel
                 </Button>

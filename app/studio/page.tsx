@@ -32,7 +32,7 @@ import {
   type GenerationProgress,
   type OutlineProgress 
 } from '@/components/studio/GenerationModal';
-import { Lock, Crown, Sparkles } from 'lucide-react';
+import { Lock, Crown, Sparkles, FileText, BookOpen, PenTool, Globe, Image, Search, Library, Bot, Paperclip, Target, Check, X, AlertTriangle, Lightbulb } from 'lucide-react';
 
 type UserTier = 'free' | 'pro';
 
@@ -116,15 +116,15 @@ function StudioPageContent() {
   const canGenerate = isProUser;
 
   const tabs = [
-    { id: 'prompt' as ConfigTab, label: 'Smart Prompt', icon: '✨' },
-    { id: 'basic' as ConfigTab, label: 'Basic Info', icon: '📝' },
-    { id: 'content' as ConfigTab, label: 'Content', icon: '📖' },
-    { id: 'style' as ConfigTab, label: 'Style', icon: '✍️' },
-    { id: 'characters' as ConfigTab, label: 'Characters', icon: '🌍' },
-    { id: 'images' as ConfigTab, label: 'Book Images', icon: '🖼️' },
-    { id: 'references' as ConfigTab, label: 'Reference Books', icon: '🔍' },
-    { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: '📚' },
-    { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: '🤖' },
+    { id: 'prompt' as ConfigTab, label: 'Smart Prompt', icon: <Sparkles className="w-4 h-4" /> },
+    { id: 'basic' as ConfigTab, label: 'Basic Info', icon: <FileText className="w-4 h-4" /> },
+    { id: 'content' as ConfigTab, label: 'Content', icon: <BookOpen className="w-4 h-4" /> },
+    { id: 'style' as ConfigTab, label: 'Style', icon: <PenTool className="w-4 h-4" /> },
+    { id: 'characters' as ConfigTab, label: 'Characters', icon: <Globe className="w-4 h-4" /> },
+    { id: 'images' as ConfigTab, label: 'Book Images', icon: <Image className="w-4 h-4" /> },
+    { id: 'references' as ConfigTab, label: 'Reference Books', icon: <Search className="w-4 h-4" /> },
+    { id: 'bibliography' as ConfigTab, label: 'Bibliography', icon: <Library className="w-4 h-4" /> },
+    { id: 'advanced' as ConfigTab, label: 'Advanced & AI', icon: <Bot className="w-4 h-4" /> },
   ];
 
   // Incremental book generation with progress tracking
@@ -789,12 +789,18 @@ function StudioPageContent() {
       <UpgradeBanner variant="full" dismissible={false} />
 
       {/* Page Toolbar */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
-        <div className="container mx-auto px-4 py-4">
+      <header className="border-b border-gray-200/80 dark:border-gray-800/60 bg-white/90 dark:bg-gray-950/90 backdrop-blur-xl sticky top-16 z-30">
+        <div className="container mx-auto px-4 lg:px-6 py-3">
           {/* Desktop Header */}
           <div className="hidden md:flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>Book Studio</h1>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-yellow-500/10 dark:bg-yellow-400/10 flex items-center justify-center">
+                  <Sparkles className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <h1 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white">Book Studio</h1>
+              </div>
+              <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
               <button
                 onClick={() => {
                   if (config.basicInfo?.title || outline) {
@@ -805,19 +811,19 @@ function StudioPageContent() {
                   setActiveTab('prompt');
                   setViewMode('config');
                 }}
-                className="text-yellow-600 hover:text-yellow-500 text-sm font-medium transition-colors"
+                className="flex items-center gap-1.5 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
                 title="Start a new book"
               >
-                + New
+                <span className="text-lg leading-none">+</span> New Project
               </button>
               {/* Tier indicator */}
               {!isProUser && (
                 <button
                   onClick={() => triggerUpgradeModal('generate-book')}
-                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-gradient-to-r from-purple-500/90 to-pink-500/90 text-white hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm"
                 >
                   <Crown className="w-3 h-3" />
-                  Upgrade to Pro
+                  Upgrade
                 </button>
               )}
             </div>
@@ -833,20 +839,24 @@ function StudioPageContent() {
                 size="sm"
                 onClick={() => setShowUploadModal(true)}
               >
-                📎 Upload
+                <Paperclip className="w-3.5 h-3.5 mr-1 inline" /> Upload
               </Button>
               {outline && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setViewMode(viewMode === 'config' ? 'outline' : 'config')}
-                >
-                  {viewMode === 'config' ? 'View Outline' : 'Back to Config'}
-                </Button>
+                <>
+                  <div className="h-5 w-px bg-gray-200 dark:bg-gray-700" />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setViewMode(viewMode === 'config' ? 'outline' : 'config')}
+                  >
+                    {viewMode === 'config' ? 'View Outline' : 'Back to Config'}
+                  </Button>
+                </>
               )}
+              <div className="h-5 w-px bg-gray-200 dark:bg-gray-700 ml-1" />
               {/* Show enabled buttons while loading or if Pro user */}
               {(isTierLoading || isProUser) ? (
-                <>
+                <div className="flex items-center gap-2 ml-1">
                   <Button
                     variant="outline"
                     size="md"
@@ -867,26 +877,26 @@ function StudioPageContent() {
                   >
                     Generate Book
                   </Button>
-                </>
+                </div>
               ) : (
-                <>
+                <div className="flex items-center gap-2 ml-1">
                   <button
                     onClick={() => triggerUpgradeModal('generate-outline')}
-                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500/90 to-pink-500/90 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm"
                   >
-                    <Lock className="w-4 h-4" />
+                    <Lock className="w-3.5 h-3.5" />
                     {outline ? 'Regenerate Outline' : 'Generate Outline'}
                     <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
                   </button>
                   <button
                     onClick={() => triggerUpgradeModal('generate-book')}
-                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                    className="flex items-center gap-2 px-4 py-2 min-w-[140px] bg-gradient-to-r from-purple-500/90 to-pink-500/90 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all shadow-sm"
                   >
-                    <Lock className="w-4 h-4" />
+                    <Lock className="w-3.5 h-3.5" />
                     Generate Book
                     <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
                   </button>
-                </>
+                </div>
               )}
             </div>
           </div>
@@ -894,7 +904,12 @@ function StudioPageContent() {
           {/* Mobile Header */}
           <div className="md:hidden">
             <div className="flex items-center justify-between mb-3">
-              <h1 className="text-lg font-bold">Book Studio</h1>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-yellow-500/10 flex items-center justify-center">
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <h1 className="text-base font-semibold tracking-tight">Book Studio</h1>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
@@ -908,13 +923,13 @@ function StudioPageContent() {
                     setActiveTab('prompt');
                     setViewMode('config');
                   }}
-                  className="text-yellow-600 hover:text-yellow-500 text-sm"
+                  className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-sm"
                 >
-                  ✨ New
+                  <span className="text-lg leading-none mr-1">+</span> New
                 </Button>
               </div>
             </div>
-            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 -mx-1 px-1">
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
                 <Badge variant="info" size="sm">
                   {selectedBooks.length + uploadedReferences.length} Ref{(selectedBooks.length + uploadedReferences.length) !== 1 ? 's' : ''}
@@ -925,7 +940,7 @@ function StudioPageContent() {
                 size="sm"
                 onClick={() => setShowUploadModal(true)}
               >
-                📎 Upload
+                <Paperclip className="w-3.5 h-3.5 mr-1 inline" /> Upload
               </Button>
               {outline && (
                 <Button
@@ -943,25 +958,27 @@ function StudioPageContent() {
 
       {/* Success Banner */}
       {showSuccessBanner && (
-        <div className="bg-green-100 dark:bg-green-900 border-b border-green-300 dark:border-green-700">
-          <div className="container mx-auto px-4 py-3">
+        <div className="bg-emerald-50 dark:bg-emerald-950/30 border-b border-emerald-200/60 dark:border-emerald-800/30">
+          <div className="container mx-auto px-4 lg:px-6 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="text-2xl">✓</span>
+                <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/50 flex items-center justify-center flex-shrink-0">
+                  <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
                 <div>
-                  <p className="text-green-900 dark:text-white font-semibold">
-                    Configuration Auto-Populated Successfully!
+                  <p className="text-sm font-medium text-emerald-900 dark:text-emerald-100">
+                    Configuration Auto-Populated Successfully
                   </p>
-                  <p className="text-green-800 dark:text-green-200 text-sm">
-                    Generated sample title, description, genre, themes, and settings. You can now customize as needed.
+                  <p className="text-xs text-emerald-700 dark:text-emerald-300/70 mt-0.5">
+                    Generated sample title, description, genre, themes, and settings. Customize as needed.
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowSuccessBanner(false)}
-                className="text-green-700 dark:text-green-300 hover:text-green-900 dark:hover:text-white transition-colors"
+                className="p-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -970,16 +987,16 @@ function StudioPageContent() {
 
       {/* Reference Book Selector */}
       {selectedBooks.length > 0 && (
-        <div className="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                🎯 Auto-Populate From:
+        <div className="bg-gray-50/80 dark:bg-gray-900/50 border-b border-gray-200/60 dark:border-gray-800/40">
+          <div className="container mx-auto px-4 lg:px-6 py-3">
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium text-gray-600 dark:text-gray-400 flex items-center gap-1.5 flex-shrink-0">
+                <Target className="w-3.5 h-3.5" /> Auto-Populate:
               </label>
               <select
                 value={selectedReferenceId}
                 onChange={(e) => setSelectedReferenceId(e.target.value)}
-                className="flex-1 max-w-md bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="flex-1 max-w-md bg-white dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60 rounded-lg px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500/40 focus:border-yellow-500/40 transition-shadow"
               >
                 <option value="">Select a reference book...</option>
                 {selectedBooks.map((book) => (
@@ -994,33 +1011,30 @@ function StudioPageContent() {
                 onClick={handleAutoPopulate}
                 disabled={!selectedReferenceId}
               >
-                ✨ Auto-Populate
+                <Sparkles className="w-4 h-4 mr-1 inline" /> Auto-Populate
               </Button>
             </div>
-            <p className="text-xs text-gray-600 dark:text-gray-500 mt-2">
-              Select a reference book to automatically generate sample title, description, genre, themes, and settings based on its style.
-            </p>
           </div>
         </div>
       )}
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-4 md:py-8">
+      <div className="container mx-auto px-4 lg:px-6 py-4 md:py-6">
         {/* Mobile Tab Navigation (Horizontal Scroll) */}
-        <div className="md:hidden mb-4 overflow-x-auto">
-          <div className="flex gap-2 pb-2">
+        <div className="md:hidden mb-4 overflow-x-auto -mx-1 px-1">
+          <div className="flex gap-1.5 pb-2">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-shrink-0 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap ${
+                className={`flex-shrink-0 px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5 whitespace-nowrap text-[13px] ${
                   activeTab === tab.id
-                    ? 'bg-yellow-400 text-black font-semibold'
-                    : 'bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300'
+                    ? 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 font-medium ring-1 ring-yellow-500/20'
+                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50'
                 }`}
               >
-                <span>{tab.icon}</span>
-                <span className="text-sm">{tab.label}</span>
+                <span className="flex items-center opacity-70">{tab.icon}</span>
+                <span>{tab.label}</span>
               </button>
             ))}
           </div>
@@ -1029,96 +1043,151 @@ function StudioPageContent() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
           {/* Sidebar - Configuration Tabs (Desktop Only) */}
           <div className="hidden md:block md:col-span-3">
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4">
-              <h2 className="text-lg font-semibold mb-4 text-yellow-600 dark:text-yellow-400">Configuration</h2>
-              <nav className="space-y-1">
-                {tabs.map((tab) => (
+            <div className="sticky top-36 space-y-1">
+              {/* Setup Section */}
+              <div className="mb-4">
+                <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Setup</p>
+                {tabs.slice(0, 3).map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`w-full text-left px-4 py-3 rounded transition-colors flex items-center gap-3 ${
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center gap-2.5 text-[13px] ${
                       activeTab === tab.id
-                        ? 'bg-yellow-400 text-black font-semibold'
-                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/40'
                     }`}
                   >
-                    <span className="text-xl">{tab.icon}</span>
+                    <span className={`flex items-center ${activeTab === tab.id ? 'text-yellow-600 dark:text-yellow-400' : 'opacity-50'}`}>{tab.icon}</span>
                     <span>{tab.label}</span>
                   </button>
                 ))}
-              </nav>
+              </div>
+
+              {/* Writing Section */}
+              <div className="mb-4">
+                <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Writing</p>
+                {tabs.slice(3, 5).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center gap-2.5 text-[13px] ${
+                      activeTab === tab.id
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/40'
+                    }`}
+                  >
+                    <span className={`flex items-center ${activeTab === tab.id ? 'text-yellow-600 dark:text-yellow-400' : 'opacity-50'}`}>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Assets & References Section */}
+              <div className="mb-4">
+                <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Assets</p>
+                {tabs.slice(5, 8).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center gap-2.5 text-[13px] ${
+                      activeTab === tab.id
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/40'
+                    }`}
+                  >
+                    <span className={`flex items-center ${activeTab === tab.id ? 'text-yellow-600 dark:text-yellow-400' : 'opacity-50'}`}>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Advanced Section */}
+              <div className="mb-4">
+                <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Advanced</p>
+                {tabs.slice(8).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center gap-2.5 text-[13px] ${
+                      activeTab === tab.id
+                        ? 'bg-yellow-50 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/40'
+                    }`}
+                  >
+                    <span className={`flex items-center ${activeTab === tab.id ? 'text-yellow-600 dark:text-yellow-400' : 'opacity-50'}`}>{tab.icon}</span>
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
 
               {/* Reference Materials */}
               {(selectedBooks.length > 0 || uploadedReferences.length > 0) && (
-                <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
-                  <h3 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400">Reference Materials</h3>
-                  <div className="space-y-2">
+                <div className="pt-4 mt-2 border-t border-gray-200/60 dark:border-gray-800/40">
+                  <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">References</p>
+                  <div className="space-y-2 px-1">
                     {/* Selected Books */}
                     {selectedBooks.slice(0, 2).map((book) => (
-                      <div key={book.id} className="flex items-center gap-2">
+                      <div key={book.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                         <img
                           src={book.imageUrl || '/placeholder-cover.jpg'}
                           alt={book.title}
-                          className="w-8 h-12 object-cover rounded"
+                          className="w-7 h-10 object-cover rounded shadow-sm"
                         />
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-900 dark:text-white truncate">{book.title}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-500 truncate">{book.authors[0]}</p>
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{book.title}</p>
+                          <p className="text-[11px] text-gray-500 dark:text-gray-500 truncate">{book.authors[0]}</p>
                         </div>
                       </div>
                     ))}
                     
                     {/* Uploaded References */}
                     {uploadedReferences.slice(0, 2).map((ref) => (
-                      <div key={ref.id} className="flex items-center gap-2">
-                        <div className="text-xl">
-                          {ref.type === 'pdf' && '📕'}
-                          {ref.type === 'txt' && '📄'}
-                          {ref.type === 'docx' && '📘'}
-                          {ref.type === 'url' && '🔗'}
+                      <div key={ref.id} className="flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors group">
+                        <div className="w-7 h-7 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-3.5 h-3.5 text-gray-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-900 dark:text-white truncate">{ref.name}</p>
-                          <p className="text-xs text-gray-600 dark:text-gray-500">{ref.type.toUpperCase()}</p>
+                          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{ref.name}</p>
+                          <p className="text-[11px] text-gray-500">{ref.type.toUpperCase()}</p>
                         </div>
                         <button
                           onClick={() => removeUploadedReference(ref.id)}
-                          className="text-red-400 hover:text-red-300 text-xs"
+                          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 transition-all"
                         >
-                          ✕
+                          <X className="w-3 h-3" />
                         </button>
                       </div>
                     ))}
                     
                     {(selectedBooks.length + uploadedReferences.length) > 4 && (
-                      <p className="text-xs text-gray-600 dark:text-gray-500">+{selectedBooks.length + uploadedReferences.length - 4} more</p>
+                      <p className="text-[11px] text-gray-500 px-2">+{selectedBooks.length + uploadedReferences.length - 4} more</p>
                     )}
                   </div>
                 </div>
               )}
 
               {/* Model Info */}
-              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-800">
-                <h3 className="text-sm font-semibold mb-3 text-gray-600 dark:text-gray-400">AI Models</h3>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Outline:</span>
-                    <span className="text-gray-900 dark:text-white font-medium truncate max-w-[120px]">
+              <div className="pt-4 mt-2 border-t border-gray-200/60 dark:border-gray-800/40">
+                <p className="px-3 mb-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">AI Models</p>
+                <div className="px-3 space-y-1.5 text-xs">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-500">Outline</span>
+                    <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-[130px] text-right">
                       {currentOutlineModel.split('/').pop()}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Chapters:</span>
-                    <span className="text-gray-900 dark:text-white font-medium truncate max-w-[120px]">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-500 dark:text-gray-500">Chapters</span>
+                    <span className="text-gray-700 dark:text-gray-300 font-medium truncate max-w-[130px] text-right">
                       {currentChapterModel.split('/').pop()}
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={() => setActiveTab('advanced')}
-                  className="w-full mt-2 text-xs text-yellow-600 dark:text-yellow-400 hover:underline"
+                  className="w-full mt-2 px-3 text-xs text-gray-500 dark:text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 transition-colors text-left"
                 >
-                  Change models →
+                  Configure models →
                 </button>
               </div>
             </div>
@@ -1126,7 +1195,7 @@ function StudioPageContent() {
 
           {/* Main Panel - Configuration Forms or Outline */}
           <div className="col-span-1 md:col-span-9">
-            <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 md:p-6">
+            <div className="min-h-[60vh]">
               {viewMode === 'outline' ? (
                 <div>
                   <div className="flex items-center justify-between mb-4">
@@ -1174,7 +1243,7 @@ function StudioPageContent() {
         </div>
 
         {/* Mobile Floating Action Buttons */}
-        <div className="md:hidden fixed bottom-20 right-4 flex flex-col gap-3 z-20">
+        <div className="md:hidden fixed bottom-20 right-4 flex flex-col gap-2 z-20">
           {isProUser ? (
             <>
               <Button
@@ -1183,7 +1252,7 @@ function StudioPageContent() {
                 onClick={handleGenerateOutline}
                 isLoading={generationType === 'outline'}
                 disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating}
-                className="shadow-lg min-w-[140px]"
+                className="shadow-lg shadow-black/10 min-w-[140px] backdrop-blur-sm"
               >
                 {outline ? 'Regenerate Outline' : 'Generate Outline'}
               </Button>
@@ -1193,7 +1262,7 @@ function StudioPageContent() {
                 onClick={handleGenerateBookClick}
                 isLoading={generationType === 'book'}
                 disabled={isGenerating}
-                className="shadow-lg"
+                className="shadow-lg shadow-black/10 backdrop-blur-sm"
               >
                 Generate Book
               </Button>
@@ -1201,7 +1270,7 @@ function StudioPageContent() {
           ) : (
             <button
               onClick={() => triggerUpgradeModal('generate-book')}
-              className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all"
+              className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-500/90 to-pink-500/90 text-white rounded-lg font-medium text-sm shadow-lg shadow-purple-500/20 hover:from-purple-600 hover:to-pink-600 transition-all backdrop-blur-sm"
             >
               <Crown className="w-4 h-4" />
               Upgrade to Generate
@@ -1222,14 +1291,16 @@ function StudioPageContent() {
 
       {/* No Outline Confirmation Modal */}
       {showNoOutlineConfirm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
-            <div className="text-center mb-6">
-              <div className="text-5xl mb-4">⚠️</div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-900 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-200/80 dark:border-gray-700/60">
+            <div className="text-center mb-5">
+              <div className="w-12 h-12 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center mx-auto mb-4">
+                <AlertTriangle className="w-6 h-6 text-amber-600 dark:text-amber-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1.5">
                 No Outline Generated
               </h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
                 You haven&apos;t generated an outline yet. An outline helps structure your book and ensures better quality chapters.
               </p>
             </div>
@@ -1244,7 +1315,7 @@ function StudioPageContent() {
                   handleGenerateOutline();
                 }}
               >
-                ✨ Generate Outline First
+                <Sparkles className="w-4 h-4 mr-1 inline" /> Generate Outline First
               </Button>
               
               <Button
@@ -1270,7 +1341,7 @@ function StudioPageContent() {
             </div>
             
             <p className="text-xs text-center text-gray-500 dark:text-gray-500 mt-4">
-              💡 Tip: Books with outlines typically have better structure and coherence.
+              <Lightbulb className="w-4 h-4 inline mr-1" /> Tip: Books with outlines typically have better structure and coherence.
             </p>
           </div>
         </div>

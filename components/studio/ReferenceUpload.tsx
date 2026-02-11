@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
 import { Badge } from '@/components/ui/Badge';
+import { FileText, Link2, PenTool, Upload, X } from 'lucide-react';
 
 interface UploadedReference {
   id: string;
@@ -158,7 +159,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            📄 Upload Files
+            <FileText className="w-4 h-4 inline mr-1" /> Upload Files
           </button>
           <button
             onClick={() => setActiveTab('url')}
@@ -168,7 +169,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            🔗 Add URL
+            <Link2 className="w-4 h-4 inline mr-1" /> Add URL
           </button>
           <button
             onClick={() => setActiveTab('text')}
@@ -178,7 +179,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
                 : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
-            ✍️ Paste Text
+            <PenTool className="w-4 h-4 inline mr-1" /> Paste Text
           </button>
         </div>
 
@@ -190,7 +191,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
                 className="border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg p-8 text-center hover:border-yellow-400 transition-colors cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <div className="text-5xl mb-4">📁</div>
+                <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
                 <p className="text-gray-700 dark:text-gray-300 mb-2">Click to upload or drag and drop</p>
                 <p className="text-sm text-gray-500">PDF, TXT, or DOCX files (Max 10MB each)</p>
                 <input
@@ -271,11 +272,8 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
                   className="flex items-center justify-between bg-gray-100 dark:bg-gray-800 rounded-lg p-3 border border-gray-300 dark:border-gray-700"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="text-2xl">
-                      {ref.type === 'pdf' && '📕'}
-                      {ref.type === 'txt' && '📄'}
-                      {ref.type === 'docx' && '📘'}
-                      {ref.type === 'url' && '🔗'}
+                    <span className="text-2xl flex items-center">
+                      <FileText className="w-5 h-5" />
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium truncate">{ref.name}</p>
@@ -289,7 +287,7 @@ export function ReferenceUpload({ isOpen, onClose, onUpload }: ReferenceUploadPr
                     onClick={() => handleRemove(ref.id)}
                     className="text-red-400 hover:text-red-300 ml-2"
                   >
-                    ✕
+                    <X className="w-3.5 h-3.5" />
                   </button>
                 </div>
               ))}

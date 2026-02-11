@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Theme = 'light' | 'dark';
+type Theme = 'light' | 'dark' | 'system';
 
 interface ThemeContextType {
   theme: Theme;
@@ -12,6 +12,8 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+const THEME_CYCLE: Theme[] = ['dark', 'light', 'system'];
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>('dark');
   const [mounted, setMounted] = useState(false);
@@ -19,7 +21,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Load theme from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    if (savedTheme) {
+    if (savedTheme && THEME_CYCLE.includes(savedTheme)) {
       setThemeState(savedTheme);
     } else {
       // Check system preference
@@ -34,14 +36,18 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (!mounted) return;
 
     const root = document.documentElement;
-    root.classList.remove('light', 'dark');
+    root.classList.remove('light', 'dark', 'system');
     root.classList.add(theme);
     // Standardized on class-based approach only
     localStorage.setItem('theme', theme);
   }, [theme, mounted]);
 
   const toggleTheme = () => {
-    setThemeState(prev => prev === 'dark' ? 'light' : 'dark');
+    setThemeState(prev => {
+      const currentIndex = THEME_CYCLE.indexOf(prev);
+      const nextIndex = (currentIndex + 1) % THEME_CYCLE.length;
+      return THEME_CYCLE[nextIndex];
+    });
   };
 
   const setTheme = (newTheme: Theme) => {

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { IMAGE_TYPE_INFO, IMAGE_SIZE_INFO, BookImageType, ImagePlacement, ImageSize } from '@/lib/types/book-images';
+import { Sparkles, FileText, X, Image as ImageIcon, Trash2, Check, AlignCenter, AlignLeft, AlignRight } from 'lucide-react';
 
 interface ChapterImage {
   id: number;
@@ -345,7 +346,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
           >
-            ✕
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -358,7 +359,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
           className="w-full"
           onClick={() => onInsertImage(0)}
         >
-          ✨ Add New Image
+          <Sparkles className="w-4 h-4 inline mr-1" /> Add New Image
         </Button>
       </div>
 
@@ -370,7 +371,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
           </div>
         ) : images.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 px-4">
-            <span className="text-4xl mb-2">🖼️</span>
+            <ImageIcon className="w-10 h-10 text-gray-400 mb-2" />
             <p className="text-gray-600 dark:text-gray-400 text-center text-sm">
               No images yet. Add images to enhance your book.
             </p>
@@ -408,7 +409,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
                         }}
                         className="text-red-400 hover:text-red-300 text-xs"
                       >
-                        🗑
+                        <Trash2 className="w-3.5 h-3.5 inline" />
                       </button>
                     </div>
                   </div>
@@ -494,7 +495,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
                           onClick={() => handleUpdateCaption(image.id)}
                           className="text-green-600 text-xs px-2"
                         >
-                          ✓
+                          <Check className="w-3.5 h-3.5 inline" />
                         </button>
                       </div>
                     ) : (
@@ -547,7 +548,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
                     }}
                     className="text-red-400 hover:text-red-600 dark:hover:text-red-300 p-1"
                   >
-                    🗑
+                    <Trash2 className="w-3.5 h-3.5 inline" />
                   </button>
                 </div>
               </div>
@@ -607,7 +608,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
                       : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-yellow-400'
                   }`}
                 >
-                  {placement === 'center' ? '⬜ Center' : placement === 'float-left' ? '⬅ Left' : '➡ Right'}
+                  {placement === 'center' ? <><AlignCenter className="w-3 h-3 inline mr-1" /> Center</> : placement === 'float-left' ? <><AlignLeft className="w-3 h-3 inline mr-1" /> Left</> : <><AlignRight className="w-3 h-3 inline mr-1" /> Right</>}
                 </button>
               ))}
             </div>
@@ -687,7 +688,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
                   onClick={() => setShowPlacementModal(null)}
                   className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 text-xl"
                 >
-                  ✕
+                  <X className="w-4 h-4" />
                 </button>
               </div>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -750,7 +751,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
                         </p>
                         {isSelected && (
                           <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 font-medium">
-                            ✓ Image currently placed here
+                            <Check className="w-3.5 h-3.5 inline" /> Image currently placed here
                           </p>
                         )}
                       </div>
@@ -761,7 +762,7 @@ export const ImageManager: React.FC<ImageManagerProps> = ({
 
               {paragraphs.length === 0 && (
                 <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  <p className="text-4xl mb-2">📝</p>
+                  <p className="text-4xl mb-2"><FileText className="w-4 h-4" /></p>
                   <p>No paragraphs detected in this chapter.</p>
                   <p className="text-sm mt-1">Add some content to position images.</p>
                 </div>

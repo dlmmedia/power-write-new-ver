@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, VolumeX, Music, Book, Layers3 } from 'lucide-react';
+import { Volume2, VolumeX, Music, Book, Layers3, X, Flame, CloudRain, Library, FileText } from 'lucide-react';
 import { Book3D } from './Book3D';
 import { MobilePageView } from './MobilePageView';
 import { ReadingControls, MinimalControls } from './ReadingControls';
@@ -128,6 +128,13 @@ function loadReadingState(bookId: number): Partial<ReadingState & { readerMode: 
   }
 }
 
+// Icon mapping for ambient sounds
+const SOUND_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  flame: Flame,
+  'cloud-rain': CloudRain,
+  library: Library,
+};
+
 // Floating Sound Panel Component - Easy access to ambient sounds
 const FloatingSoundPanel: React.FC<{
   isOpen: boolean;
@@ -186,7 +193,7 @@ const FloatingSoundPanel: React.FC<{
           className="p-1.5 rounded-lg hover:bg-black/10 transition-colors"
           style={{ color: themeConfig.textColor }}
         >
-          ✕
+          <X className="w-4 h-4" />
         </button>
       </div>
 
@@ -214,7 +221,10 @@ const FloatingSoundPanel: React.FC<{
               '--tw-ring-color': themeConfig.accentColor,
             } as React.CSSProperties}
           >
-            <span className="text-2xl">{sound.icon}</span>
+            {(() => {
+              const SoundIconComp = SOUND_ICONS[sound.icon];
+              return SoundIconComp ? <SoundIconComp className="w-6 h-6" /> : <span className="text-2xl">{sound.icon}</span>;
+            })()}
             <span
               className="text-xs font-medium"
               style={{ color: themeConfig.textColor }}
@@ -267,7 +277,7 @@ const FloatingSoundPanel: React.FC<{
         style={{ borderColor: `${themeConfig.accentColor}20` }}
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm">📄</span>
+            <FileText className="w-4 h-4" style={{ color: themeConfig.textColor }} />
           <span className="text-xs" style={{ color: themeConfig.textColor }}>
             Page flip sound
           </span>

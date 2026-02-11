@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { BookResult } from '@/lib/services/google-books';
 import { Button } from '@/components/ui/Button';
+import { Star, Check } from 'lucide-react';
 
 interface FeaturedSectionProps {
   books: BookResult[];
@@ -82,7 +83,7 @@ export function FeaturedSection({ books, onSelectBook, isBookSelected }: Feature
               </p>
               {currentBook.averageRating && (
                 <div className="flex items-center gap-1 bg-yellow-400 text-black px-3 py-1 rounded-full text-sm font-bold">
-                  ⭐ {currentBook.averageRating.toFixed(1)}
+                  <Star className="w-4 h-4 inline text-yellow-400 fill-yellow-400" /> {currentBook.averageRating.toFixed(1)}
                   {currentBook.ratingsCount && (
                     <span className="text-xs ml-1">({currentBook.ratingsCount})</span>
                   )}
@@ -117,7 +118,7 @@ export function FeaturedSection({ books, onSelectBook, isBookSelected }: Feature
                 size="lg"
                 onClick={() => onSelectBook(currentBook)}
               >
-                {isBookSelected(currentBook.id) ? '✓ Selected' : '+ Select as Reference'}
+                {isBookSelected(currentBook.id) ? <><Check className="w-4 h-4 inline mr-1" /> Selected</> : '+ Select as Reference'}
               </Button>
               <Button
                 variant="outline"

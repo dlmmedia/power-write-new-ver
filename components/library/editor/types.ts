@@ -101,25 +101,25 @@ export interface ChapterImage {
 // Callout type info
 export const CALLOUT_TYPE_INFO: Record<CalloutType, { icon: string; label: string; bgClass: string; borderClass: string }> = {
   info: {
-    icon: 'ℹ️',
+    icon: 'info',
     label: 'Info',
     bgClass: 'bg-blue-50 dark:bg-blue-900/20',
     borderClass: 'border-blue-400',
   },
   warning: {
-    icon: '⚠️',
+    icon: 'alert-triangle',
     label: 'Warning',
     bgClass: 'bg-amber-50 dark:bg-amber-900/20',
     borderClass: 'border-amber-400',
   },
   tip: {
-    icon: '💡',
+    icon: 'lightbulb',
     label: 'Tip',
     bgClass: 'bg-green-50 dark:bg-green-900/20',
     borderClass: 'border-green-400',
   },
   note: {
-    icon: '📝',
+    icon: 'file-text',
     label: 'Note',
     bgClass: 'bg-purple-50 dark:bg-purple-900/20',
     borderClass: 'border-purple-400',

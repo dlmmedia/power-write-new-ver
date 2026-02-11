@@ -74,7 +74,7 @@ export function FlipBookCover({
             ) : (
               <div className="w-full h-full bg-gradient-to-br from-yellow-400 to-yellow-600 flex items-center justify-center text-black font-bold text-6xl relative overflow-hidden">
                 <div className="absolute inset-0 bg-black/5 backdrop-blur-sm"></div>
-                <span className="relative z-10">📖</span>
+                <span className="relative z-10"><BookOpen className="w-12 h-12" /></span>
                 <div className="absolute bottom-0 left-0 right-0 bg-black/20 p-4 text-xs text-center">
                   {title.substring(0, 30)}{title.length > 30 ? '...' : ''}
                 </div>
@@ -155,7 +155,7 @@ export function FlipBookCover({
                       <span className="text-gray-400 text-[8px] uppercase tracking-wider mt-0.5">Words</span>
                     </div>
                     <div className="col-span-2 bg-white/5 border border-white/10 rounded-lg p-2 flex items-center justify-center gap-2 backdrop-blur-sm">
-                      <span className="text-gray-400">⏱️</span>
+                      <Clock className="w-4 h-4 text-gray-400" />
                       <span className="text-yellow-400 font-bold text-xs">~{Math.ceil(wordCount / 200)}</span>
                       <span className="text-gray-400 text-[8px] uppercase tracking-wider">min read</span>
                     </div>

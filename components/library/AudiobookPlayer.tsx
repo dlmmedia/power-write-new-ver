@@ -16,6 +16,7 @@ import {
   AlertCircle,
   List,
   X,
+  BookOpen,
 } from 'lucide-react';
 import { AudiobookChapterList } from './AudiobookChapterList';
 
@@ -404,7 +405,7 @@ export const AudiobookPlayer: React.FC<AudiobookPlayerProps> = ({
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center">
-                  <span className="text-6xl">📖</span>
+                  <BookOpen className="w-16 h-16" />
                 </div>
               )}
               

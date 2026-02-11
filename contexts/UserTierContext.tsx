@@ -77,57 +77,57 @@ export const FEATURE_DESCRIPTIONS: Record<ProFeature, { title: string; descripti
   'generate-book': {
     title: 'Book Generation',
     description: 'Generate complete books with AI. Create unlimited books with professional quality content.',
-    icon: '📚',
+    icon: 'library',
   },
   'generate-outline': {
     title: 'Outline Generation',
     description: 'Generate detailed book outlines with AI. Structure your book before writing.',
-    icon: '📝',
+    icon: 'file-text',
   },
   'generate-audio': {
     title: 'Audiobook Generation',
     description: 'Convert your books into professional audiobooks with AI voices.',
-    icon: '🎧',
+    icon: 'headphones',
   },
   'regenerate-audio': {
     title: 'Audio Regeneration',
     description: 'Regenerate audio for chapters with different voices or settings.',
-    icon: '🔄',
+    icon: 'refresh-cw',
   },
   'generate-cover': {
     title: 'Cover Generation',
     description: 'Generate stunning AI-powered book covers with multiple styles and customization options.',
-    icon: '🎨',
+    icon: 'palette',
   },
   'export-book': {
     title: 'Book Export',
     description: 'Export your books to PDF, EPUB, DOCX, and more formats for publishing.',
-    icon: '📤',
+    icon: 'upload',
   },
   'edit-book': {
     title: 'Book Editing',
     description: 'Edit and refine your book content with AI assistance.',
-    icon: '✏️',
+    icon: 'pencil',
   },
   'duplicate-book': {
     title: 'Book Duplication',
     description: 'Create copies of your books for variations or backups.',
-    icon: '📋',
+    icon: 'clipboard',
   },
   'continue-generation': {
     title: 'Continue Generation',
     description: 'Resume interrupted book generation from where you left off.',
-    icon: '▶️',
+    icon: 'play',
   },
   'bibliography': {
     title: 'Bibliography Management',
     description: 'Add and manage citations and references for your books.',
-    icon: '📑',
+    icon: 'layers',
   },
   'publishing-settings': {
     title: 'Publishing Settings',
     description: 'Configure advanced publishing options for your books.',
-    icon: '⚙️',
+    icon: 'settings',
   },
 };
 

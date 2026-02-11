@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Volume2, VolumeX, X, Flame, CloudRain, BookOpen } from 'lucide-react';
+import { Volume2, VolumeX, X, Flame, CloudRain, BookOpen, FileText } from 'lucide-react';
 import { AmbientSoundType, AMBIENT_SOUNDS, PAGE_TURN_SOUND, READING_THEMES, ReadingTheme } from './types';
 
 interface AmbientSoundManagerProps {
@@ -105,6 +105,13 @@ export function usePageTurnSound(enabled: boolean, volume: number = 0.5) {
   return { playPageTurn };
 }
 
+// Icon mapping for ambient sound icon strings from types.ts
+const SOUND_ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  flame: Flame,
+  'cloud-rain': CloudRain,
+  library: BookOpen,
+};
+
 // Sound icon based on type
 const SoundIcon: React.FC<{ type: AmbientSoundType; className?: string }> = ({ type, className }) => {
   switch (type) {
@@ -203,7 +210,7 @@ export const AmbientSoundManager: React.FC<AmbientSoundManagerProps> = ({
                 style={{ background: `${themeConfig.textColor}08` }}
               >
                 <div className="flex items-center gap-3">
-                  <span className="text-xl">📄</span>
+                  <FileText className="w-5 h-5" style={{ color: themeConfig.textColor }} />
                   <div>
                     <p 
                       className="font-medium text-sm"
@@ -270,7 +277,10 @@ export const AmbientSoundManager: React.FC<AmbientSoundManagerProps> = ({
                         color: themeConfig.accentColor,
                       }}
                     >
-                      <span className="text-2xl">{sound.icon}</span>
+                      {(() => {
+                        const IconComp = SOUND_ICON_MAP[sound.icon];
+                        return IconComp ? <IconComp className="w-6 h-6" /> : <span className="text-2xl">{sound.icon}</span>;
+                      })()}
                       <span 
                         className="text-xs font-medium"
                         style={{ color: themeConfig.textColor }}

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
+import { FileText, Image as ImageIcon, Library, BookOpen, Minus, MessageSquare } from 'lucide-react';
 import { CalloutType, CALLOUT_TYPE_INFO } from './types';
 
 interface LineMenuProps {
@@ -17,13 +18,13 @@ interface LineMenuProps {
 
 interface MenuItem {
   id: string;
-  icon: string;
+  icon: React.ReactNode;
   label: string;
   description: string;
   action: () => void;
   submenu?: Array<{
     id: string;
-    icon: string;
+    icon: React.ReactNode;
     label: string;
     action: () => void;
   }>;
@@ -84,42 +85,42 @@ export const LineMenu: React.FC<LineMenuProps & { onMouseEnter?: () => void; onM
   const menuItems: MenuItem[] = [
     {
       id: 'image',
-      icon: '🖼️',
+      icon: <ImageIcon className="w-4 h-4 inline" />,
       label: 'Image',
       description: 'Add an image',
       action: onInsertImage,
     },
     {
       id: 'citation',
-      icon: '📚',
+      icon: <Library className="w-4 h-4 inline" />,
       label: 'Citation',
       description: 'Insert a citation',
       action: onInsertCitation,
     },
     ...(onBibliographyOpen ? [{
       id: 'bibliography',
-      icon: '📖',
+      icon: <BookOpen className="w-4 h-4 inline" />,
       label: 'Bibliography',
       description: 'Manage references & sources',
       action: onBibliographyOpen,
     }] : []),
     {
       id: 'divider',
-      icon: '➖',
+      icon: <Minus className="w-4 h-4 inline" />,
       label: 'Divider',
       description: 'Add a section divider',
       action: onInsertDivider,
     },
     {
       id: 'quote',
-      icon: '💬',
+      icon: <MessageSquare className="w-4 h-4 inline" />,
       label: 'Quote',
       description: 'Add a blockquote',
       action: onInsertQuote,
     },
     {
       id: 'callout',
-      icon: '📝',
+      icon: <FileText className="w-4 h-4 inline" />,
       label: 'Callout',
       description: 'Add a callout box',
       action: () => setShowCalloutSubmenu(true),

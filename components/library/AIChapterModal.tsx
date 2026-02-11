@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import { Sparkles, Lightbulb, PenTool, XCircle, BookOpen, FileText, RefreshCw, CheckCircle, X, Clipboard } from 'lucide-react';
 
 interface AIChapterModalProps {
   bookId: number;
@@ -192,7 +193,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <span className="text-2xl">✨</span>
+                <Sparkles className="w-6 h-6 text-yellow-500" />
                 AI Chapter Generator
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
@@ -203,9 +204,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
               onClick={onClose}
               className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="w-6 h-6" />
             </button>
           </div>
 
@@ -232,7 +231,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
             <div className="space-y-5">
               <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-xl p-4 border border-yellow-200 dark:border-yellow-800">
                 <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 mb-2 flex items-center gap-2">
-                  <span>💡</span> How it works
+                  <Lightbulb className="w-4 h-4 inline" /> How it works
                 </h3>
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
                   1. Provide optional guidance for your new chapter<br />
@@ -302,7 +301,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
               {generatedOutline && (
                 <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <span>📋</span> Generated Outline
+                    <Clipboard className="w-4 h-4 inline" /> Generated Outline
                   </h4>
                   <div className="space-y-2 text-sm">
                     <p><strong className="text-gray-700 dark:text-gray-300">Title:</strong> <span className="text-gray-600 dark:text-gray-400">{generatedOutline.title}</span></p>
@@ -329,7 +328,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
               <div className="relative">
                 <div className="w-20 h-20 border-4 border-yellow-200 dark:border-yellow-800 rounded-full animate-pulse" />
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-3xl animate-bounce">✍️</span>
+                  <PenTool className="w-8 h-8 text-yellow-500 animate-bounce" />
                 </div>
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-6">
@@ -346,7 +345,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <span>📖</span> Chapter Preview
+                  <BookOpen className="w-4 h-4 inline" /> Chapter Preview
                 </h3>
                 <span className="text-sm text-gray-500 dark:text-gray-400">
                   {generatedContent.trim().split(/\s+/).filter(Boolean).length.toLocaleString()} words
@@ -366,7 +365,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
 
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
                 <p className="text-sm text-blue-700 dark:text-blue-300">
-                  <strong>💡 Tip:</strong> After accepting, you can further edit the chapter in the book editor to make any adjustments.
+                  <strong><Lightbulb className="w-4 h-4 inline mr-1" />Tip:</strong> After accepting, you can further edit the chapter in the book editor to make any adjustments.
                 </p>
               </div>
             </div>
@@ -376,7 +375,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
           {step === 'error' && (
             <div className="flex flex-col items-center justify-center py-12">
               <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                <span className="text-3xl">❌</span>
+                <XCircle className="w-8 h-8 text-red-500" />
               </div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mt-4">
                 Generation Failed
@@ -402,7 +401,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
               <>
                 {!generatedOutline ? (
                   <Button variant="primary" onClick={generateOutline}>
-                    <span className="mr-2">✨</span> Generate Outline
+                    <Sparkles className="w-4 h-4 mr-2" /> Generate Outline
                   </Button>
                 ) : (
                   <>
@@ -410,7 +409,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
                       Regenerate Outline
                     </Button>
                     <Button variant="primary" onClick={generateChapter}>
-                      <span className="mr-2">📝</span> Generate Chapter
+                      <FileText className="w-4 h-4 mr-2" /> Generate Chapter
                     </Button>
                   </>
                 )}
@@ -420,10 +419,10 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
             {step === 'preview' && (
               <>
                 <Button variant="outline" onClick={regenerate}>
-                  🔄 Start Over
+                  <RefreshCw className="w-4 h-4 inline mr-1" /> Start Over
                 </Button>
                 <Button variant="primary" onClick={acceptChapter}>
-                  <span className="mr-2">✅</span> Accept & Add Chapter
+                  <CheckCircle className="w-4 h-4 mr-2" /> Accept & Add Chapter
                 </Button>
               </>
             )}

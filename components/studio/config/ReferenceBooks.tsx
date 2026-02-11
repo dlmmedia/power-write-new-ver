@@ -200,47 +200,44 @@ export function ReferenceBooks() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <Search className="w-6 h-6 text-yellow-500" />
-          Reference Books
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mt-1">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">Reference Books</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
           Browse and select books to use as references for your writing style and inspiration.
         </p>
       </div>
 
       {/* Selected Books Summary */}
       {selectedBooks.length > 0 && (
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-yellow-800 dark:text-yellow-200 flex items-center gap-2">
-              <Check className="w-4 h-4" />
+        <div className="bg-yellow-50/80 dark:bg-yellow-950/10 border border-yellow-200/40 dark:border-yellow-800/20 rounded-xl p-4">
+          <div className="flex items-center justify-between mb-2.5">
+            <p className="text-xs font-medium text-yellow-700 dark:text-yellow-300 flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
               {selectedBooks.length} Reference{selectedBooks.length !== 1 ? 's' : ''} Selected
-            </h3>
+            </p>
             <button
               onClick={() => selectedBooks.forEach(book => removeBook(book.id))}
-              className="text-xs text-yellow-600 dark:text-yellow-400 hover:underline"
+              className="text-[11px] text-gray-400 hover:text-red-500 transition-colors"
             >
               Clear all
             </button>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             {selectedBooks.map((book) => (
               <div
                 key={book.id}
-                className="flex items-center gap-2 bg-white dark:bg-gray-800 rounded-full pl-1 pr-2 py-1 border border-yellow-300 dark:border-yellow-700"
+                className="flex items-center gap-1.5 bg-white dark:bg-gray-900/50 rounded-md pl-1 pr-2 py-1 border border-gray-200/60 dark:border-gray-700/30 group"
               >
                 <img
                   src={book.imageUrl || '/placeholder-cover.jpg'}
                   alt={book.title}
-                  className="w-6 h-8 object-cover rounded"
+                  className="w-5 h-7 object-cover rounded shadow-sm"
                 />
-                <span className="text-xs text-gray-700 dark:text-gray-300 max-w-[120px] truncate">
+                <span className="text-[11px] text-gray-700 dark:text-gray-300 max-w-[100px] truncate">
                   {book.title}
                 </span>
                 <button
                   onClick={() => removeBook(book.id)}
-                  className="text-gray-400 hover:text-red-500 transition-colors"
+                  className="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -275,10 +272,10 @@ export function ReferenceBooks() {
             <button
               key={cat.id}
               onClick={() => setActiveCategory(cat.id)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all duration-200 ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
                 activeCategory === cat.id 
-                  ? 'bg-yellow-500 text-white shadow-md' 
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                  ? 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 ring-1 ring-yellow-500/20' 
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800/50'
               }`}
             >
               {categoryIcons[cat.id]}
@@ -319,10 +316,10 @@ export function ReferenceBooks() {
                             setActiveCategory(cat.id);
                             setShowCategoryDropdown(false);
                           }}
-                          className={`w-full text-left px-3 py-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors flex items-center gap-2 ${
+                          className={`w-full text-left px-3 py-1.5 rounded-md hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors flex items-center gap-2 text-sm ${
                             activeCategory === cat.id
-                              ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 font-medium'
-                              : 'text-gray-700 dark:text-gray-300'
+                              ? 'bg-yellow-50 dark:bg-yellow-950/20 text-yellow-700 dark:text-yellow-300 font-medium'
+                              : 'text-gray-600 dark:text-gray-400'
                           }`}
                         >
                           {categoryIcons[cat.id] || <BookOpen className="w-4 h-4" />}
@@ -367,9 +364,9 @@ export function ReferenceBooks() {
       </div>
 
       {/* Category Title */}
-      <div className="flex items-center gap-2">
-        {categoryIcons[activeCategory]}
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="flex items-center gap-1.5">
+        <span className="text-gray-400 dark:text-gray-500">{categoryIcons[activeCategory]}</span>
+        <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">
           {activeCategory === 'search' 
             ? 'Search Results'
             : categories.find(c => c.id === activeCategory)?.label || activeCategory.replace('-', ' ')
@@ -484,9 +481,9 @@ export function ReferenceBooks() {
       )}
 
       {/* Tip */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-6">
-        <p className="text-sm text-blue-700 dark:text-blue-300">
-          <strong>Tip:</strong> Click on a book to view details, or click the + button to add it as a reference. 
+      <div className="bg-gray-50/80 dark:bg-gray-800/30 rounded-lg p-3 border border-gray-200/40 dark:border-gray-700/20 mt-4">
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+          <strong className="font-medium text-gray-600 dark:text-gray-300">Tip:</strong> Click on a book to view details, or click the + button to add it as a reference. 
           Selected books will be used to inspire your writing style and help auto-populate settings.
         </p>
       </div>

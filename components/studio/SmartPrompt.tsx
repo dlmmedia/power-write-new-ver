@@ -388,18 +388,20 @@ export function SmartPrompt() {
   const isProcessing = isAnalyzing || isMagicFilling;
 
   return (
-    <div className="space-y-4 relative">
+    <div className="space-y-5 relative">
       {/* Success Notification */}
       {showAppliedNotification && (
         <div 
           className="fixed top-4 right-4 z-50 transition-all duration-300 ease-out"
           style={{ animation: 'slideInFadeIn 0.3s ease-out forwards' }}
         >
-          <div className="flex items-center gap-3 bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg border border-green-400">
-            <span className="text-xl">&#10003;</span>
+          <div className="flex items-center gap-3 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-lg shadow-emerald-500/20">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm">&#10003;</span>
+            </div>
             <div>
-              <p className="font-semibold">Configuration Applied!</p>
-              <p className="text-sm opacity-90">Settings and outline have been updated</p>
+              <p className="text-sm font-medium">Configuration Applied</p>
+              <p className="text-xs opacity-80">Settings and outline have been updated</p>
             </div>
           </div>
           <style jsx>{`
@@ -414,40 +416,43 @@ export function SmartPrompt() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white">
             Smart Book Prompt
           </h3>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
             Describe your book idea, then analyze or use Magic Fill to configure everything
           </p>
         </div>
         {selectedBooks.length > 0 && (
-          <div className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-3 py-1 rounded-full">
-            {selectedBooks.length} reference book{selectedBooks.length > 1 ? 's' : ''} attached
+          <div className="text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-md border border-blue-200/50 dark:border-blue-800/30">
+            {selectedBooks.length} reference{selectedBooks.length > 1 ? 's' : ''} attached
           </div>
         )}
       </div>
 
       {/* Genre Tabs */}
-      <div className="flex flex-wrap gap-1.5">
-        {GENRE_TABS.map((tab) => {
-          const isSelected = selectedTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabClick(tab)}
-              className={
-                isSelected 
-                  ? 'px-3 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-md ring-1 ring-yellow-400 transform scale-[1.02]' 
-                  : 'px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors'
-              }
-            >
-              <span className="hidden sm:inline">{tab.label}</span>
-              <span className="sm:hidden">{tab.shortLabel}</span>
-              {isSelected && <span className="ml-1">&#10003;</span>}
-            </button>
-          );
-        })}
+      <div>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Quick templates</p>
+        <div className="flex flex-wrap gap-1.5">
+          {GENRE_TABS.map((tab) => {
+            const isSelected = selectedTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabClick(tab)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                  isSelected 
+                    ? 'bg-yellow-50 dark:bg-yellow-950/30 text-yellow-700 dark:text-yellow-300 ring-1 ring-yellow-500/30' 
+                    : 'bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/50 hover:text-gray-800 dark:hover:text-gray-200'
+                }`}
+              >
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.shortLabel}</span>
+                {isSelected && <span className="ml-1 text-yellow-600 dark:text-yellow-400">&#10003;</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Main Prompt Input */}
@@ -456,11 +461,11 @@ export function SmartPrompt() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe your book idea in detail...&#10;&#10;Example: Write a fantasy novel about a young blacksmith who discovers they can forge magical weapons. The story should follow their journey from a small village to becoming a legendary weapon smith, exploring themes of destiny, craftsmanship, and the true meaning of power."
-          rows={5}
-          className="w-full bg-[var(--card-bg)] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-[var(--text-primary)] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+          rows={6}
+          className="w-full bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700/60 rounded-xl px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/30 focus:border-yellow-500/40 resize-none transition-shadow"
           suppressHydrationWarning
         />
-        <div className="absolute bottom-3 right-3 text-xs text-gray-400">
+        <div className="absolute bottom-3 right-3 text-[11px] text-gray-400 dark:text-gray-500 tabular-nums">
           {prompt.length} chars
         </div>
       </div>
@@ -487,60 +492,61 @@ export function SmartPrompt() {
         >
           {isMagicFilling ? 'Generating...' : 'Magic Fill'}
         </Button>
-        <span className="text-xs text-[var(--text-muted)] hidden sm:block">
+        <span className="text-[11px] text-gray-400 dark:text-gray-500 hidden sm:block">
           Analyze extracts settings &middot; Magic Fill generates everything including chapters
         </span>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg p-3 text-red-700 dark:text-red-300 text-sm">
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200/60 dark:border-red-800/30 rounded-lg p-3 text-sm text-red-600 dark:text-red-400">
           {error}
         </div>
       )}
 
       {/* Editable Parsed Results */}
       {parsedResult && (
-        <div className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-4">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-green-800 dark:text-green-200 flex items-center gap-2">
+        <div className="bg-white dark:bg-gray-900/50 border border-gray-200/80 dark:border-gray-700/40 rounded-xl p-5 space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800/50">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
               Configuration Ready
             </h4>
             <div className="flex items-center gap-2">
-              <span className="text-xs bg-green-200 dark:bg-green-800 text-green-700 dark:text-green-300 px-2 py-1 rounded-full">
+              <span className="text-[11px] font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 rounded-md">
                 {Math.round(parsedResult.confidence * 100)}% confidence
               </span>
-              <span className="text-xs text-gray-500">Click any field to edit</span>
+              <span className="text-[11px] text-gray-400">Editable</span>
             </div>
           </div>
 
           {/* Title & Description */}
           {parsedResult.title && (
             <div>
-              <label className="text-xs text-[var(--text-muted)]">Title</label>
+              <label className="text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1 block">Title</label>
               <input
                 type="text"
                 value={parsedResult.title || ''}
                 onChange={(e) => updateField('title', e.target.value)}
-                className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded px-3 py-1.5 text-sm font-semibold text-[var(--text-primary)] focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                className="w-full bg-gray-50 dark:bg-gray-800/40 border border-gray-200/80 dark:border-gray-700/40 rounded-lg px-3 py-2 text-sm font-medium text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500/30 focus:border-yellow-500/40 focus:outline-none transition-shadow"
               />
             </div>
           )}
 
           {parsedResult.description && (
             <div>
-              <label className="text-xs text-[var(--text-muted)]">Description</label>
+              <label className="text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1 block">Description</label>
               <textarea
                 value={parsedResult.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
                 rows={3}
-                className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-yellow-500 focus:outline-none resize-none"
+                className="w-full bg-gray-50 dark:bg-gray-800/40 border border-gray-200/80 dark:border-gray-700/40 rounded-lg px-3 py-2 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500/30 focus:border-yellow-500/40 focus:outline-none resize-none transition-shadow"
               />
             </div>
           )}
 
           {/* Editable Settings Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
             <EditableSelect
               label="Genre"
               value={parsedResult.genre || ''}
@@ -586,12 +592,12 @@ export function SmartPrompt() {
           {/* Themes */}
           {parsedResult.themes && parsedResult.themes.length > 0 && (
             <div>
-              <label className="text-xs text-[var(--text-muted)]">Themes</label>
-              <div className="flex flex-wrap gap-1 mt-1">
+              <label className="text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5 block">Themes</label>
+              <div className="flex flex-wrap gap-1.5">
                 {parsedResult.themes.map((theme, idx) => (
                   <span
                     key={idx}
-                    className="px-2 py-0.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded text-xs capitalize border border-gray-200 dark:border-gray-600"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300 rounded-md text-xs capitalize border border-gray-200/60 dark:border-gray-700/40"
                   >
                     {theme}
                     <button
@@ -599,9 +605,9 @@ export function SmartPrompt() {
                         const updated = parsedResult.themes!.filter((_, i) => i !== idx);
                         updateField('themes', updated);
                       }}
-                      className="ml-1 text-gray-400 hover:text-red-500"
+                      className="text-gray-400 hover:text-red-500 transition-colors ml-0.5"
                     >
-                      x
+                      &times;
                     </button>
                   </span>
                 ))}
@@ -612,10 +618,10 @@ export function SmartPrompt() {
           {/* Characters (for fiction) */}
           {parsedResult.characters && parsedResult.characters.length > 0 && (
             <div>
-              <label className="text-xs text-[var(--text-muted)] mb-1 block">Characters</label>
-              <div className="space-y-2">
+              <label className="text-[11px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1.5 block">Characters</label>
+              <div className="space-y-1.5">
                 {parsedResult.characters.map((char, idx) => (
-                  <div key={idx} className="flex items-start gap-2 bg-[var(--card-bg)] rounded p-2 border border-[var(--border)]">
+                  <div key={idx} className="flex items-start gap-2.5 bg-gray-50 dark:bg-gray-800/30 rounded-lg p-2.5 border border-gray-200/60 dark:border-gray-700/30">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <input
@@ -626,13 +632,13 @@ export function SmartPrompt() {
                             updated[idx] = { ...updated[idx], name: e.target.value };
                             updateField('characters', updated);
                           }}
-                          className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-yellow-400 focus:outline-none text-[var(--text-primary)]"
+                          className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-yellow-500/50 focus:outline-none text-gray-900 dark:text-white"
                         />
-                        <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[var(--text-secondary)]">
+                        <span className="text-[11px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700/50 rounded text-gray-500 dark:text-gray-400 font-medium">
                           {char.role}
                         </span>
                       </div>
-                      <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{char.description}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{char.description}</p>
                     </div>
                   </div>
                 ))}
@@ -645,34 +651,34 @@ export function SmartPrompt() {
             <div>
               <button
                 onClick={() => setShowChapters(!showChapters)}
-                className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-yellow-600 dark:hover:text-yellow-400"
+                className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors"
               >
-                <span>{showChapters ? '&#9660;' : '&#9654;'}</span>
+                <span className="text-xs">{showChapters ? '&#9660;' : '&#9654;'}</span>
                 Chapter Outlines ({parsedResult.chapterOutlines.length} chapters)
               </button>
               
               {showChapters && (
-                <div className="mt-2 space-y-2 max-h-72 overflow-y-auto">
+                <div className="mt-2.5 space-y-2 max-h-72 overflow-y-auto pr-1">
                   {parsedResult.chapterOutlines.map((ch, idx) => (
-                    <div key={idx} className="bg-[var(--card-bg)] rounded p-3 border border-[var(--border)]">
+                    <div key={idx} className="bg-gray-50 dark:bg-gray-800/30 rounded-lg p-3 border border-gray-200/60 dark:border-gray-700/30">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 flex-1">
-                          <span className="text-xs font-bold text-gray-400 w-6">#{ch.number}</span>
+                          <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 w-6 tabular-nums">#{ch.number}</span>
                           <input
                             type="text"
                             value={ch.title}
                             onChange={(e) => updateChapter(idx, 'title', e.target.value)}
-                            className="flex-1 text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-yellow-400 focus:outline-none text-[var(--text-primary)]"
+                            className="flex-1 text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-yellow-500/50 focus:outline-none text-gray-900 dark:text-white"
                           />
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span className="text-xs text-gray-400">{ch.estimatedWords?.toLocaleString()}w</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-gray-400 tabular-nums">{ch.estimatedWords?.toLocaleString()}w</span>
                           <button
                             onClick={() => removeChapter(idx)}
-                            className="text-xs text-gray-400 hover:text-red-500 ml-2"
+                            className="text-gray-400 hover:text-red-500 transition-colors"
                             title="Remove chapter"
                           >
-                            x
+                            <span className="text-xs">&times;</span>
                           </button>
                         </div>
                       </div>
@@ -680,13 +686,13 @@ export function SmartPrompt() {
                         value={ch.summary}
                         onChange={(e) => updateChapter(idx, 'summary', e.target.value)}
                         rows={2}
-                        className="w-full text-xs text-[var(--text-secondary)] bg-transparent border border-transparent hover:border-gray-200 focus:border-yellow-400 focus:outline-none rounded px-1 py-0.5 resize-none"
+                        className="w-full text-xs text-gray-500 dark:text-gray-400 bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-yellow-500/40 focus:outline-none rounded px-1 py-0.5 resize-none transition-colors"
                       />
                     </div>
                   ))}
                   <button
                     onClick={addChapter}
-                    className="w-full py-2 text-sm text-gray-500 hover:text-yellow-600 border border-dashed border-gray-300 dark:border-gray-600 rounded hover:border-yellow-400 transition-colors"
+                    className="w-full py-2 text-sm text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg hover:border-yellow-500/40 transition-colors"
                   >
                     + Add Chapter
                   </button>
@@ -696,7 +702,7 @@ export function SmartPrompt() {
           )}
 
           {/* Apply Button */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 pt-2 border-t border-gray-100 dark:border-gray-800/50">
             <Button
               variant="primary"
               size="md"
@@ -721,12 +727,12 @@ export function SmartPrompt() {
       )}
 
       {/* Tips */}
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-xs text-[var(--text-secondary)]">
-        <strong className="text-[var(--text-primary)]">Tips for better results:</strong>
-        <ul className="mt-1 space-y-0.5 list-disc list-inside">
+      <div className="bg-gray-50/80 dark:bg-gray-800/30 rounded-lg p-3.5 border border-gray-200/40 dark:border-gray-700/20">
+        <p className="text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">Tips for better results</p>
+        <ul className="space-y-0.5 text-[11px] text-gray-500 dark:text-gray-400 list-disc list-inside">
           <li>Be specific about genre, tone, and themes</li>
           <li>Mention target audience and desired length</li>
-          <li>Use <strong>Analyze</strong> for quick settings extraction, <strong>Magic Fill</strong> for complete book planning</li>
+          <li>Use <strong className="font-medium text-gray-600 dark:text-gray-300">Analyze</strong> for quick settings, <strong className="font-medium text-gray-600 dark:text-gray-300">Magic Fill</strong> for complete book planning</li>
           <li>All generated settings are editable before applying</li>
         </ul>
       </div>
@@ -742,12 +748,12 @@ function EditableSelect({ label, value, options, onChange }: {
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="bg-[var(--card-bg)] rounded p-2 border border-[var(--border)]">
-      <span className="text-[var(--text-muted)] text-xs">{label}</span>
+    <div className="bg-gray-50 dark:bg-gray-800/30 rounded-lg px-3 py-2 border border-gray-200/60 dark:border-gray-700/30">
+      <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-transparent text-sm font-semibold text-[var(--text-primary)] capitalize focus:outline-none cursor-pointer"
+        className="w-full bg-transparent text-sm font-medium text-gray-900 dark:text-white capitalize focus:outline-none cursor-pointer mt-0.5"
       >
         {value && !options.includes(value) && (
           <option value={value}>{value}</option>
@@ -769,8 +775,8 @@ function EditableNumber({ label, value, onChange, min, max, step }: {
   step?: number;
 }) {
   return (
-    <div className="bg-[var(--card-bg)] rounded p-2 border border-[var(--border)]">
-      <span className="text-[var(--text-muted)] text-xs">{label}</span>
+    <div className="bg-gray-50 dark:bg-gray-800/30 rounded-lg px-3 py-2 border border-gray-200/60 dark:border-gray-700/30">
+      <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500 uppercase tracking-wider">{label}</span>
       <input
         type="number"
         value={value}
@@ -778,7 +784,7 @@ function EditableNumber({ label, value, onChange, min, max, step }: {
         min={min}
         max={max}
         step={step}
-        className="w-full bg-transparent text-sm font-semibold text-[var(--text-primary)] focus:outline-none"
+        className="w-full bg-transparent text-sm font-medium text-gray-900 dark:text-white focus:outline-none mt-0.5 tabular-nums"
       />
     </div>
   );

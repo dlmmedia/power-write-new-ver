@@ -15,6 +15,7 @@ import { BibliographyManager } from './BibliographyManager';
 import { BlockEditor } from './editor';
 import { BookImageType, ImagePlacement } from '@/lib/types/book-images';
 import { getDemoUserId } from '@/lib/services/demo-account';
+import { Sparkles, Trash2, Image, Library, Search, Camera, Pencil, Eye, BookOpen, X, Save, Loader2 } from 'lucide-react';
 
 interface Chapter {
   id: number;
@@ -999,11 +1000,11 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               >
                 {isSaving ? (
                   <>
-                    <span className="animate-spin mr-2">⏳</span>
+                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
                     Saving...
                   </>
                 ) : (
-                  <>💾 Save</>
+                  <><Save className="w-3.5 h-3.5 inline mr-1" /> Save</>
                 )}
               </Button>
             </div>
@@ -1058,7 +1059,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                       setShowAIChapterModal(true);
                     }}
                   >
-                    ✨ AI Chapter
+                    <Sparkles className="w-3.5 h-3.5 inline mr-1" /> AI Chapter
                   </Button>
                 </div>
               </div>
@@ -1093,7 +1094,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                     }}
                     className="opacity-0 group-hover:opacity-100 absolute right-2 top-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-xs px-2 py-1 bg-gray-200 dark:bg-gray-800 rounded"
                   >
-                    🗑 Delete
+                    <Trash2 className="w-3.5 h-3.5 inline mr-1" /> Delete
                   </button>
                 </div>
               ))}
@@ -1182,7 +1183,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             onClick={() => setShowImageInsertModal(true)}
             title="Insert image (also available via + menu in editor)"
           >
-            🖼️ Add Image
+            <Image className="w-3.5 h-3.5 inline mr-1" /> Add Image
           </Button>
           <Button
             variant="outline"
@@ -1190,7 +1191,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             onClick={() => setShowCitationInserter(true)}
             title="Insert citation"
           >
-            📚 Cite
+            <Library className="w-3.5 h-3.5 inline mr-1" /> Cite
           </Button>
           <Button
             variant={showImageManager ? 'primary' : 'outline'}
@@ -1198,7 +1199,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             onClick={() => setShowImageManager(!showImageManager)}
             title="Manage chapter images"
           >
-            📷 Images {chapterImages.length > 0 && `(${chapterImages.length})`}
+            <Camera className="w-3.5 h-3.5 inline mr-1" /> Images {chapterImages.length > 0 && `(${chapterImages.length})`}
           </Button>
           <div className="w-px h-6 bg-gray-300 dark:bg-gray-700 mx-2" />
           
@@ -1209,7 +1210,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
             onClick={() => setFindReplace(prev => ({ ...prev, isOpen: !prev.isOpen }))}
             title="Find and Replace (Ctrl+F)"
           >
-            🔍 Find & Replace
+            <Search className="w-3.5 h-3.5 inline mr-1" /> Find & Replace
           </Button>
 
           <div className="flex-1" />
@@ -1305,7 +1306,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                 onClick={() => setFindReplace(prev => ({ ...prev, isOpen: false }))}
                 className="ml-auto text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1338,7 +1339,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               <div className="flex items-center gap-3">
                 {chapterImages.length > 0 && (
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    🖼️ {chapterImages.length} image{chapterImages.length !== 1 ? 's' : ''}
+                    <Image className="w-3.5 h-3.5 inline" /> {chapterImages.length} image{chapterImages.length !== 1 ? 's' : ''}
                   </span>
                 )}
                 {/* View Mode Toggle */}
@@ -1351,7 +1352,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
-                    ✏️ Edit
+                    <Pencil className="w-3.5 h-3.5 inline mr-1" /> Edit
                   </button>
                   <button
                     onClick={() => setViewMode('preview')}
@@ -1361,7 +1362,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
-                    👁️ Preview
+                    <Eye className="w-3.5 h-3.5 inline mr-1" /> Preview
                   </button>
                 </div>
               </div>
@@ -1432,13 +1433,13 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                 {/* Preview mode info bar */}
                 <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    📖 Final preview - This is how readers will see your chapter
+                    <BookOpen className="w-3.5 h-3.5 inline mr-1" /> Final preview - This is how readers will see your chapter
                   </p>
                   <button
                     onClick={() => setViewMode('edit')}
                     className="text-sm text-yellow-600 dark:text-yellow-400 hover:text-yellow-700 dark:hover:text-yellow-300 font-medium"
                   >
-                    ✏️ Back to Edit
+                    <Pencil className="w-3.5 h-3.5 inline mr-1" /> Back to Edit
                   </button>
                 </div>
               </div>
@@ -1469,14 +1470,14 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                 onClick={() => setShowAIChapterModal(true)}
                 className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600"
               >
-                ✨ Add AI Chapter
+                <Sparkles className="w-3.5 h-3.5 inline mr-1" /> Add AI Chapter
               </Button>
               <Button
                 variant="outline"
                 onClick={() => deleteChapter(currentChapterIndex)}
                 className="text-red-400 border-red-900 hover:bg-red-900/20"
               >
-                🗑 Delete This Chapter
+                <Trash2 className="w-3.5 h-3.5 inline mr-1" /> Delete This Chapter
               </Button>
             </div>
 

@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Reference, REFERENCE_TYPE_LABELS } from '@/lib/types/bibliography';
 import { useBibliographyStore, createNewCitation } from '@/lib/store/bibliography-store';
 import { CitationService } from '@/lib/services/citation-service';
+import { X, Library } from 'lucide-react';
 
 interface CitationInserterProps {
   chapterId: number;
@@ -79,7 +80,7 @@ export const CitationInserter: React.FC<CitationInserterProps> = ({
               Insert Citation
             </h2>
             <Button variant="outline" size="sm" onClick={onClose}>
-              ✕ Close
+              <X className="w-4 h-4 inline mr-1" /> Close
             </Button>
           </div>
           <Input
@@ -230,7 +231,7 @@ export const QuickCitationButton: React.FC<QuickCitationButtonProps> = ({
         title="Insert citation"
         disabled={references.length === 0}
       >
-        📚 Cite
+        <Library className="w-4 h-4 inline mr-1" /> Cite
       </Button>
 
       {showInserter && (

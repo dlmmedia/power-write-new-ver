@@ -53,6 +53,8 @@ import {
   X,
   Plus,
   Check,
+  BarChart,
+  Smartphone,
 } from 'lucide-react';
 
 interface CoverGeneratorProps {
@@ -1003,7 +1005,7 @@ export default function CoverGenerator({
                 </div>
                 {coverMode === 'generate' && (
                   <span className="text-xs text-gray-500">
-                    {showPowerWriteBranding ? '✓ Branding ON' : 'No branding'}
+                    {showPowerWriteBranding ? <><Check className="w-3.5 h-3.5 inline" /> Branding ON</> : 'No branding'}
                   </span>
                 )}
               </div>
@@ -1351,9 +1353,9 @@ export default function CoverGenerator({
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
-                        { id: 'isbn', label: '📊 ISBN' },
-                        { id: 'qr', label: '📱 QR Code' },
-                        { id: 'none', label: '✕ None' },
+                        { id: 'isbn', label: <><BarChart className="w-4 h-4 inline" /> ISBN</> },
+                        { id: 'qr', label: <><Smartphone className="w-4 h-4 inline" /> QR Code</> },
+                        { id: 'none', label: <><X className="w-4 h-4 inline" /> None</> },
                       ].map((option) => (
                         <button
                           key={option.id}
