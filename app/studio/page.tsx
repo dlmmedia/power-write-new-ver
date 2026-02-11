@@ -841,7 +841,7 @@ function StudioPageContent() {
                   size="sm"
                   onClick={() => setViewMode(viewMode === 'config' ? 'outline' : 'config')}
                 >
-                  {viewMode === 'config' ? 'Outline' : 'Config'}
+                  {viewMode === 'config' ? 'View Outline' : 'Back to Config'}
                 </Button>
               )}
               {/* Show enabled buttons while loading or if Pro user */}
@@ -933,7 +933,7 @@ function StudioPageContent() {
                   size="sm"
                   onClick={() => setViewMode(viewMode === 'config' ? 'outline' : 'config')}
                 >
-                  {viewMode === 'config' ? 'Outline' : 'Config'}
+                  {viewMode === 'config' ? 'View Outline' : 'Back to Config'}
                 </Button>
               )}
             </div>
@@ -1128,7 +1128,34 @@ function StudioPageContent() {
           <div className="col-span-1 md:col-span-9">
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 p-4 md:p-6">
               {viewMode === 'outline' ? (
-                <OutlineEditor />
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Book Outline</h2>
+                    <div className="flex items-center gap-2">
+                      {(isTierLoading || isProUser) ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleGenerateOutline}
+                          isLoading={generationType === 'outline'}
+                          disabled={!config.basicInfo?.title || !config.basicInfo?.author || isGenerating || isTierLoading}
+                        >
+                          Regenerate Outline
+                        </Button>
+                      ) : (
+                        <button
+                          onClick={() => triggerUpgradeModal('generate-outline')}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-xs hover:from-purple-600 hover:to-pink-600 transition-all"
+                        >
+                          <Lock className="w-3.5 h-3.5" />
+                          Regenerate Outline
+                          <span className="text-[9px] bg-white/20 px-1 py-0.5 rounded">PRO</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <OutlineEditor />
+                </div>
               ) : (
                 <>
                   {activeTab === 'prompt' && <SmartPrompt />}

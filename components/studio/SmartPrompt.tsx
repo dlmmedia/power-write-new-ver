@@ -157,13 +157,16 @@ const AUDIENCE_OPTIONS = ['children', 'young-adult', 'adult', 'academic', 'profe
 const POV_OPTIONS = ['first-person', 'second-person', 'third-person-limited', 'third-person-omniscient'];
 
 export function SmartPrompt() {
-  const { config, updateConfig, setConfig, setOutline } = useStudioStore();
+  const { config, updateConfig, setConfig, setOutline, smartPromptText, setSmartPromptText, smartPromptParsedResult, setSmartPromptParsedResult } = useStudioStore();
   const { selectedBooks } = useBookStore();
-  const [prompt, setPrompt] = useState('');
+  // Use store-persisted prompt and parsedResult so they survive navigation
+  const prompt = smartPromptText;
+  const setPrompt = setSmartPromptText;
+  const parsedResult = smartPromptParsedResult as MagicFillResult | null;
+  const setParsedResult = setSmartPromptParsedResult;
   const [selectedTab, setSelectedTab] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isMagicFilling, setIsMagicFilling] = useState(false);
-  const [parsedResult, setParsedResult] = useState<MagicFillResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showChapters, setShowChapters] = useState(false);
   const [showAppliedNotification, setShowAppliedNotification] = useState(false);

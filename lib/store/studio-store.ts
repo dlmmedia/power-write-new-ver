@@ -48,6 +48,12 @@ interface StudioStore {
   // Unsaved changes tracking
   hasUnsavedChanges: boolean;
   setHasUnsavedChanges: (status: boolean) => void;
+
+  // Smart prompt persistence
+  smartPromptText: string;
+  setSmartPromptText: (text: string) => void;
+  smartPromptParsedResult: any | null;
+  setSmartPromptParsedResult: (result: any | null) => void;
 }
 
 export const useStudioStore = create<StudioStore>()(
@@ -91,6 +97,8 @@ export const useStudioStore = create<StudioStore>()(
           uploadedReferences: [],
           currentBookId: undefined,
           hasUnsavedChanges: false,
+          smartPromptText: '',
+          smartPromptParsedResult: null,
         });
       },
 
@@ -161,6 +169,11 @@ export const useStudioStore = create<StudioStore>()(
 
       hasUnsavedChanges: false,
       setHasUnsavedChanges: (status) => set({ hasUnsavedChanges: status }),
+
+      smartPromptText: '',
+      setSmartPromptText: (text) => set({ smartPromptText: text }),
+      smartPromptParsedResult: null,
+      setSmartPromptParsedResult: (result) => set({ smartPromptParsedResult: result }),
     }),
     {
       name: 'studio-store',
@@ -168,6 +181,8 @@ export const useStudioStore = create<StudioStore>()(
         config: state.config,
         outline: state.outline,
         currentBookId: state.currentBookId,
+        smartPromptText: state.smartPromptText,
+        smartPromptParsedResult: state.smartPromptParsedResult,
       }),
     }
   )

@@ -211,40 +211,75 @@ const BookCardItem = memo(function BookCardItem({
                 <p className="text-sm text-[var(--text-muted)] mb-4">by {book.author}</p>
                 
                 {book.status === 'generating' ? (
-                  <div className="space-y-2">
-                    {generationProgress[book.id] && (
-                      <div className="mb-2">
-                        <div className="h-1.5 bg-[var(--background-tertiary)] rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
-                            style={{ width: `${generationProgress[book.id].progress}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-[var(--text-muted)] mt-1">{generationProgress[book.id].message}</p>
+                  (() => {
+                    const totalOutlineChapters = book.outline?.chapters?.length || 0;
+                    const generatedChapters = book.metadata?.chapters || 0;
+                    const allChaptersDone = totalOutlineChapters > 0 && generatedChapters >= totalOutlineChapters;
+                    const activeProgress = generationProgress[book.id];
+                    const displayCompleted = activeProgress?.chaptersCompleted ?? generatedChapters;
+                    const displayTotal = activeProgress?.totalChapters ?? totalOutlineChapters;
+                    const staticProgress = totalOutlineChapters > 0 ? Math.round((generatedChapters / totalOutlineChapters) * 100) : 0;
+
+                    return (
+                      <div className="space-y-2">
+                        {/* Progress bar - show active or static */}
+                        {activeProgress ? (
+                          <div className="mb-2">
+                            <div className="h-1.5 bg-[var(--background-tertiary)] rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
+                                style={{ width: `${activeProgress.progress}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
+                              {activeProgress.message}
+                            </p>
+                          </div>
+                        ) : totalOutlineChapters > 0 ? (
+                          <div className="mb-2">
+                            <div className="h-1.5 bg-[var(--background-tertiary)] rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
+                                style={{ width: `${staticProgress}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
+                              {allChaptersDone
+                                ? `All ${generatedChapters} chapters generated — needs finalization`
+                                : `${generatedChapters} of ${totalOutlineChapters} chapters generated`}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {/* Action button */}
+                        {isProUser ? (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            onClick={(e) => { e.preventDefault(); onContinueGeneration(book, e); }}
+                            disabled={continuingBooks.has(book.id)}
+                            isLoading={continuingBooks.has(book.id)}
+                            leftIcon={!continuingBooks.has(book.id) ? (allChaptersDone ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />) : undefined}
+                          >
+                            {continuingBooks.has(book.id) 
+                              ? 'Generating...' 
+                              : allChaptersDone 
+                                ? 'Finalize Book' 
+                                : `Continue (${displayCompleted}/${displayTotal})`}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpgradeModal('continue-generation'); }}
+                            leftIcon={<Lock className="w-3.5 h-3.5" />}
+                          >
+                            {allChaptersDone ? 'Finalize' : 'Continue'} <Badge variant="accent" size="sm" className="ml-1">PRO</Badge>
+                          </Button>
+                        )}
                       </div>
-                    )}
-                    {isProUser ? (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={(e) => { e.preventDefault(); onContinueGeneration(book, e); }}
-                        disabled={continuingBooks.has(book.id)}
-                        isLoading={continuingBooks.has(book.id)}
-                        leftIcon={!continuingBooks.has(book.id) ? <Play className="w-3.5 h-3.5" /> : undefined}
-                      >
-                        {continuingBooks.has(book.id) ? 'Generating...' : 'Continue'}
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpgradeModal('continue-generation'); }}
-                        leftIcon={<Lock className="w-3.5 h-3.5" />}
-                      >
-                        Continue <Badge variant="accent" size="sm" className="ml-1">PRO</Badge>
-                      </Button>
-                    )}
-                  </div>
+                    );
+                  })()
                 ) : (
                   isProUser ? (
                     <Button
@@ -340,7 +375,7 @@ function LibraryPageContent() {
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
-  const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number }>>({});
+  const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number; phase?: string }>>({});
   const [showUploadModal, setShowUploadModal] = useState(false);
 
   const handleUploadComplete = useCallback((bookId: number) => {
@@ -372,7 +407,14 @@ function LibraryPageContent() {
     if (!book.outline || !book.config) { alert('Unable to continue: Book outline or config is missing'); return; }
 
     setContinuingBooks(prev => new Set(prev).add(book.id));
-    setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 0, message: 'Resuming generation...' } }));
+    const totalOutline = book.outline?.chapters?.length || 0;
+    const alreadyDone = book.metadata?.chapters || 0;
+    const resumeMsg = totalOutline > 0 && alreadyDone >= totalOutline
+      ? `Finalizing book (${alreadyDone} chapters complete)...`
+      : totalOutline > 0
+        ? `Resuming from chapter ${alreadyDone + 1} of ${totalOutline}...`
+        : 'Resuming generation...';
+    setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 0, message: resumeMsg, chaptersCompleted: alreadyDone, totalChapters: totalOutline } }));
 
     const chapterModel = book.metadata?.modelUsed || 'anthropic/claude-sonnet-4';
     let consecutiveErrors = 0;
@@ -398,18 +440,27 @@ function LibraryPageContent() {
         }
 
         consecutiveErrors = 0;
+        // Build phase-aware progress message
+        const phaseLabel = data.phase === 'creating' ? 'Creating book...'
+          : data.phase === 'cover' ? 'Generating cover art...'
+          : data.phase === 'completed' ? 'Book generation complete!'
+          : data.chaptersCompleted != null && data.totalChapters != null
+            ? `Generating chapters (${data.chaptersCompleted}/${data.totalChapters})...`
+            : data.message;
+
         setGenerationProgress(prev => ({
           ...prev,
           [book.id]: { 
             progress: data.progress, 
-            message: data.message,
+            message: phaseLabel,
             chaptersCompleted: data.chaptersCompleted ?? prev[book.id]?.chaptersCompleted,
             totalChapters: data.totalChapters ?? prev[book.id]?.totalChapters,
+            phase: data.phase,
           }
         }));
 
         if (data.phase === 'completed') {
-          setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 100, message: 'Book generation complete!', chaptersCompleted: data.totalChapters, totalChapters: data.totalChapters } }));
+          setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 100, message: 'Book generation complete!', chaptersCompleted: data.totalChapters, totalChapters: data.totalChapters, phase: 'completed' } }));
           await new Promise(r => setTimeout(r, 2000));
           await refreshBooks();
           setGenerationProgress(prev => { const s = { ...prev }; delete s[book.id]; return s; });

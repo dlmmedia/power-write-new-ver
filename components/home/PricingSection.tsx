@@ -2,6 +2,8 @@
 
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
+import { Check } from 'lucide-react';
 
 const plans = [
   {
@@ -15,10 +17,10 @@ const plans = [
       'Max 50,000 words per book',
       'All genres and styles',
       'PDF export only',
-      'Community support'
+      'Community support',
     ],
     cta: 'Get Started',
-    popular: false
+    popular: false,
   },
   {
     name: 'Pro',
@@ -33,10 +35,10 @@ const plans = [
       'PDF, DOCX, EPUB export',
       'Priority generation queue',
       'Advanced AI settings',
-      'Email support'
+      'Email support',
     ],
     cta: 'Start Free Trial',
-    popular: true
+    popular: true,
   },
   {
     name: 'Enterprise',
@@ -52,40 +54,43 @@ const plans = [
       'White-label options',
       'Dedicated account manager',
       '24/7 phone support',
-      'SLA guarantee'
+      'SLA guarantee',
     ],
     cta: 'Contact Sales',
-    popular: false
-  }
+    popular: false,
+  },
 ];
 
 export function PricingSection() {
   return (
-    <section className="py-20 bg-gradient-to-b from-gray-900 to-black">
+    <section className="py-20 md:py-28 bg-[var(--background-secondary)]">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)' }}>
-            Simple, <span className="text-yellow-400">Transparent</span> Pricing
+          <h2 className="text-3xl md:text-4xl font-semibold tracking-tight text-[var(--text-primary)] mb-4">
+            Simple,{' '}
+            <span className="text-[var(--accent)]">Transparent</span> Pricing
           </h2>
-          <p className="text-xl text-gray-400 max-w-2xl mx-auto" style={{ fontFamily: 'var(--font-nav)' }}>
-            Choose the plan that fits your writing goals. Upgrade, downgrade, or cancel anytime.
+          <p className="text-lg text-[var(--text-muted)] max-w-2xl mx-auto">
+            Choose the plan that fits your writing goals. Upgrade, downgrade, or
+            cancel anytime.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-start">
           {plans.map((plan, index) => (
-            <div
+            <Card
               key={index}
-              className={`relative bg-gray-900 rounded-xl p-8 transition-all ${
+              variant={plan.popular ? 'elevated' : 'default'}
+              padding="lg"
+              className={`relative flex flex-col ${
                 plan.popular
-                  ? 'border-2 border-yellow-400 shadow-xl shadow-yellow-400/20'
-                  : 'border border-gray-800 hover:border-gray-700'
+                  ? 'border-2 border-[var(--accent)] shadow-[0_0_30px_var(--accent)]/10 md:-mt-4 md:mb-4'
+                  : ''
               }`}
-              style={{ boxShadow: plan.popular ? undefined : 'var(--shadow-card)' }}
             >
               {/* Popular Badge */}
               {plan.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
                   <Badge variant="warning" size="lg">
                     Most Popular
                   </Badge>
@@ -94,28 +99,34 @@ export function PricingSection() {
 
               {/* Plan Name */}
               <div className="text-center mb-6">
-                <h3 className="text-2xl font-bold mb-2" style={{ fontFamily: 'var(--font-nav)' }}>{plan.name}</h3>
-                <p className="text-gray-400 text-sm">{plan.description}</p>
+                <h3 className="text-xl font-semibold text-[var(--text-primary)] mb-1">
+                  {plan.name}
+                </h3>
+                <p className="text-sm text-[var(--text-muted)]">
+                  {plan.description}
+                </p>
               </div>
 
               {/* Price */}
               <div className="text-center mb-8">
                 <div className="flex items-baseline justify-center gap-2">
-                  <span className="text-5xl font-bold text-yellow-400" style={{ fontFamily: 'var(--font-code)' }}>
+                  <span className="text-4xl font-bold text-[var(--accent)]">
                     {plan.price}
                   </span>
-                  <span className="text-gray-400">
+                  <span className="text-sm text-[var(--text-muted)]">
                     {plan.period}
                   </span>
                 </div>
               </div>
 
               {/* Features */}
-              <ul className="space-y-4 mb-8">
+              <ul className="space-y-3 mb-8 flex-1">
                 {plan.features.map((feature, featureIndex) => (
                   <li key={featureIndex} className="flex items-start gap-3">
-                    <span className="text-yellow-400 flex-shrink-0 mt-1">✓</span>
-                    <span className="text-gray-300">{feature}</span>
+                    <Check className="w-4 h-4 text-[var(--accent)] flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-[var(--text-secondary)]">
+                      {feature}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -128,13 +139,13 @@ export function PricingSection() {
               >
                 {plan.cta}
               </Button>
-            </div>
+            </Card>
           ))}
         </div>
 
         {/* Additional Info */}
         <div className="text-center mt-12">
-          <p className="text-gray-400">
+          <p className="text-sm text-[var(--text-muted)]">
             All plans include a 14-day free trial. No credit card required.
           </p>
         </div>
