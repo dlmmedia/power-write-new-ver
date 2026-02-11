@@ -1083,14 +1083,28 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
 
       {/* ========================================== */}
       {/* BIBLIOGRAPHY - Professional Reference List */}
+      {/* Shown as a standalone section for bibliography, endnotes, and in-text formats */}
       {/* ========================================== */}
       {book.bibliography?.config.enabled && book.bibliography.references.length > 0 && (
-        <BibliographySection 
-          bibliography={book.bibliography} 
-          frontMatterPages={FRONT_MATTER_PAGES}
-          totalChapters={book.chapters.length}
-          pageSize={pageSize}
-        />
+        (() => {
+          // Determine if we should show the end-of-book bibliography section
+          // Show for: 'bibliography', 'endnote', 'in-text' (reference list at end)
+          // Skip for: 'footnote' (references appear at bottom of each page)
+          const location = book.bibliography.config.location || [];
+          const showEndSection = location.length === 0 || 
+            location.includes('bibliography') || 
+            location.includes('endnote') || 
+            location.includes('in-text');
+          
+          return showEndSection ? (
+            <BibliographySection 
+              bibliography={book.bibliography} 
+              frontMatterPages={FRONT_MATTER_PAGES}
+              totalChapters={book.chapters.length}
+              pageSize={pageSize}
+            />
+          ) : null;
+        })()
       )}
 
       {/* ========================================== */}

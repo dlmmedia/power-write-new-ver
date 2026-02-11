@@ -96,10 +96,15 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Skip development hot reload
+  // Skip development hot reload and Next.js internals on localhost
   if (url.pathname.includes('_next/webpack-hmr') || 
       url.pathname.includes('__nextjs') ||
       url.pathname.includes('_next/static/development')) {
+    return;
+  }
+
+  // In development, don't intercept _next/static chunks - they change on every rebuild
+  if (url.hostname === 'localhost' && url.pathname.startsWith('/_next/static/')) {
     return;
   }
 
@@ -165,7 +170,13 @@ self.addEventListener('fetch', (event) => {
               { headers: { 'Content-Type': 'image/svg+xml' } }
             );
           }
-          throw new Error('Resource not cached and network unavailable');
+          // Return a proper 503 response instead of throwing,
+          // which would cause the FetchEvent promise to reject
+          return new Response('Service Unavailable - Offline', {
+            status: 503,
+            statusText: 'Service Unavailable',
+            headers: { 'Content-Type': 'text/plain' }
+          });
         });
       })
   );

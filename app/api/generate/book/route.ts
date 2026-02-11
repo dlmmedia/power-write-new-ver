@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
       ? {
           enabled: true,
           citationStyle: (config.bibliography.citationStyle as any) || 'APA',
+          referenceFormat: config.bibliography.referenceFormat || 'bibliography',
           sourceVerification: config.bibliography.sourceVerification || 'moderate',
         }
       : undefined;

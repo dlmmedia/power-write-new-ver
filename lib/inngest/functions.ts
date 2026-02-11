@@ -89,6 +89,7 @@ export const generateBookBackground = inngest.createFunction(
               ? {
                   enabled: true,
                   citationStyle: (config.citationStyle as any) || 'APA',
+                  referenceFormat: config.referenceFormat || 'bibliography',
                   sourceVerification: 'moderate',
                 }
               : undefined;
@@ -268,6 +269,7 @@ export const generateBookBackground = inngest.createFunction(
         const bibliographyGenerationConfig: BibliographyGenerationConfig = {
           enabled: true,
           citationStyle: (config.citationStyle as any) || 'APA',
+          referenceFormat: config.referenceFormat || 'bibliography',
           sourceVerification: 'moderate',
         };
 

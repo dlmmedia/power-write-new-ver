@@ -214,6 +214,7 @@ export const usersRelations = relations(users, ({ many }) => ({
   generatedBooks: many(generatedBooks),
   bookSearches: many(bookSearches),
   referenceBooks: many(referenceBooks),
+  savedOutlines: many(savedOutlines),
 }));
 
 export const generatedBooksRelations = relations(generatedBooks, ({ one, many }) => ({
@@ -319,6 +320,29 @@ export const chapterImagesRelations = relations(chapterImages, ({ one }) => ({
   chapter: one(bookChapters, {
     fields: [chapterImages.chapterId],
     references: [bookChapters.id],
+  }),
+}));
+
+// Saved outlines table - persists generated outlines for retrieval
+export const savedOutlines = pgTable("saved_outlines", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  outline: jsonb("outline").notNull(), // Full BookOutline object
+  config: jsonb("config"), // BookConfiguration snapshot at time of save
+  bookId: integer("book_id").references(() => generatedBooks.id, { onDelete: "set null" }), // Link to generated book if any
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const savedOutlinesRelations = relations(savedOutlines, ({ one }) => ({
+  user: one(users, {
+    fields: [savedOutlines.userId],
+    references: [users.id],
+  }),
+  book: one(generatedBooks, {
+    fields: [savedOutlines.bookId],
+    references: [generatedBooks.id],
   }),
 }));
 
@@ -441,6 +465,14 @@ export const insertChapterImageSchema = createInsertSchema(chapterImages).omit({
 });
 export type InsertChapterImage = z.infer<typeof insertChapterImageSchema>;
 export type ChapterImageDB = typeof chapterImages.$inferSelect;
+
+export const insertSavedOutlineSchema = createInsertSchema(savedOutlines).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertSavedOutline = z.infer<typeof insertSavedOutlineSchema>;
+export type SavedOutline = typeof savedOutlines.$inferSelect;
 
 export const insertVideoExportJobSchema = createInsertSchema(videoExportJobs).omit({
   id: true,

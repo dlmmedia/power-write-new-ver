@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { useStudioStore } from '@/lib/store/studio-store';
 import { ModelSelection } from './ModelSelection';
 import { GENERATION_SPEED_OPTIONS, GenerationSpeed } from '@/lib/types/studio';
+import { ChapterOutline } from '@/lib/types/generation';
 
 const CONTENT_RATINGS = [
   { value: 'G', label: 'General Audiences', description: 'Suitable for all ages' },
@@ -23,16 +24,17 @@ const LANGUAGE_LEVELS = [
   { value: 'literary', label: 'Literary', description: 'Complex, sophisticated vocabulary' }
 ];
 
-type SettingsTab = 'models' | 'generation' | 'content';
+type SettingsTab = 'models' | 'generation' | 'content' | 'chapters';
 
 export function AdvancedSettings() {
-  const { config, updateConfig } = useStudioStore();
+  const { config, updateConfig, outline, setOutline } = useStudioStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('models');
 
   const tabs = [
     { id: 'models' as SettingsTab, label: 'AI Models', icon: '🤖' },
     { id: 'generation' as SettingsTab, label: 'Generation', icon: '⚙️' },
     { id: 'content' as SettingsTab, label: 'Content', icon: '📝' },
+    { id: 'chapters' as SettingsTab, label: 'Chapters', icon: '📑' },
   ];
 
   return (
@@ -400,6 +402,134 @@ export function AdvancedSettings() {
               Comma-separated list of content warnings to include
             </p>
           </div>
+        </div>
+      )}
+
+      {/* Chapters Tab */}
+      {activeTab === 'chapters' && (
+        <div className="space-y-6">
+          {outline ? (
+            <>
+              <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="font-semibold text-gray-900 dark:text-white">
+                      {outline.title} - Chapter Structure
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {outline.chapters.length} chapters &middot; ~{outline.chapters.reduce((sum: number, ch: any) => sum + (ch.wordCount || 0), 0).toLocaleString()} words
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const newChapter = {
+                        number: outline.chapters.length + 1,
+                        title: `Chapter ${outline.chapters.length + 1}`,
+                        summary: 'New chapter',
+                        wordCount: 5000,
+                        scenes: [],
+                      };
+                      setOutline({
+                        ...outline,
+                        chapters: [...outline.chapters, newChapter],
+                      });
+                    }}
+                    className="px-3 py-1.5 bg-yellow-400 hover:bg-yellow-500 text-black text-sm font-medium rounded transition-colors"
+                  >
+                    + Add Chapter
+                  </button>
+                </div>
+
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {outline.chapters.map((chapter: any, idx: number) => (
+                    <div key={idx} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2 flex-1">
+                          <span className="text-xs font-bold text-gray-400 w-8">#{chapter.number}</span>
+                          <input
+                            type="text"
+                            value={chapter.title}
+                            onChange={(e) => {
+                              const updated = [...outline.chapters];
+                              updated[idx] = { ...updated[idx], title: e.target.value };
+                              setOutline({ ...outline, chapters: updated });
+                            }}
+                            className="flex-1 text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-yellow-400 focus:outline-none text-gray-900 dark:text-white"
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {idx > 0 && (
+                            <button
+                              onClick={() => {
+                                const updated = [...outline.chapters];
+                                [updated[idx - 1], updated[idx]] = [updated[idx], updated[idx - 1]];
+                                const renumbered = updated.map((ch: any, i: number) => ({ ...ch, number: i + 1 }));
+                                setOutline({ ...outline, chapters: renumbered });
+                              }}
+                              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              title="Move up"
+                            >
+                              &#9650;
+                            </button>
+                          )}
+                          {idx < outline.chapters.length - 1 && (
+                            <button
+                              onClick={() => {
+                                const updated = [...outline.chapters];
+                                [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+                                const renumbered = updated.map((ch: any, i: number) => ({ ...ch, number: i + 1 }));
+                                setOutline({ ...outline, chapters: renumbered });
+                              }}
+                              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                              title="Move down"
+                            >
+                              &#9660;
+                            </button>
+                          )}
+                          <span className="text-xs text-gray-400">{(chapter.wordCount || 0).toLocaleString()}w</span>
+                          {outline.chapters.length > 1 && (
+                            <button
+                              onClick={() => {
+                                if (!confirm(`Delete "${chapter.title}"?`)) return;
+                                const updated = outline.chapters
+                                  .filter((_: any, i: number) => i !== idx)
+                                  .map((ch: any, i: number) => ({ ...ch, number: i + 1 }));
+                                setOutline({ ...outline, chapters: updated });
+                              }}
+                              className="text-xs text-gray-400 hover:text-red-500"
+                              title="Delete chapter"
+                            >
+                              &#10005;
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <textarea
+                        value={chapter.summary || ''}
+                        onChange={(e) => {
+                          const updated = [...outline.chapters];
+                          updated[idx] = { ...updated[idx], summary: e.target.value };
+                          setOutline({ ...outline, chapters: updated });
+                        }}
+                        rows={2}
+                        className="w-full text-xs text-gray-600 dark:text-gray-400 bg-transparent border border-transparent hover:border-gray-200 dark:hover:border-gray-600 focus:border-yellow-400 focus:outline-none rounded px-2 py-1 resize-none"
+                        placeholder="Chapter summary..."
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-xs text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                Changes here are synced with the outline editor. You can also switch to the &quot;Outline&quot; view for a more detailed editing experience.
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-12 text-gray-500 dark:text-gray-400">
+              <p className="text-lg mb-2">No outline available</p>
+              <p className="text-sm">Generate an outline first using the Smart Prompt (Magic Fill) or the &quot;Generate Outline&quot; button.</p>
+            </div>
+          )}
         </div>
       )}
     </div>

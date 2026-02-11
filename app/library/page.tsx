@@ -31,6 +31,121 @@ import { StatCard, AudioStatCard } from '@/components/ui/AnimatedNumber';
 import { BookUploadModal } from '@/components/library/BookUploadModal';
 import { ProductionStatus } from '@/lib/types/generation';
 
+// Regeneration Progress Modal component
+function RegenerationProgressModal({ 
+  bookTitle, 
+  progress, 
+  onCancel 
+}: { 
+  bookTitle: string; 
+  progress: { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number }; 
+  onCancel?: () => void;
+}) {
+  const isError = progress.message.toLowerCase().startsWith('error');
+  
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+        {/* Header */}
+        <div className="text-center mb-6">
+          <div className="relative w-20 h-20 mx-auto mb-4">
+            {!isError && progress.progress < 100 && (
+              <>
+                <div className="absolute inset-0 rounded-full border-4 border-yellow-200 dark:border-yellow-900 animate-ping opacity-20" />
+                <div className="absolute inset-2 rounded-full border-4 border-yellow-300 dark:border-yellow-800 animate-ping opacity-30" style={{ animationDelay: '0.2s' }} />
+              </>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className={`text-3xl ${!isError && progress.progress < 100 ? 'animate-bounce' : ''}`}>
+                {isError ? '&#9888;' : progress.progress >= 100 ? '&#10003;' : '&#9997;'}
+              </span>
+            </div>
+          </div>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+            {isError ? 'Generation Error' : progress.progress >= 100 ? 'Complete!' : 'Continuing Generation'}
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">
+            {bookTitle}
+          </p>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mb-4">
+          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+            <span>Progress</span>
+            <span>{Math.round(progress.progress)}%</span>
+          </div>
+          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className={`h-full transition-all duration-500 ease-out rounded-full ${
+                isError ? 'bg-red-500' : progress.progress >= 100 ? 'bg-green-500' : 'bg-gradient-to-r from-yellow-400 to-yellow-500'
+              }`}
+              style={{ width: `${progress.progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Chapter progress */}
+        {progress.chaptersCompleted !== undefined && progress.totalChapters && progress.totalChapters > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-center gap-4 mb-2">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+                  {progress.chaptersCompleted}
+                </div>
+                <div className="text-xs text-gray-500">written</div>
+              </div>
+              <div className="text-xl text-gray-300 dark:text-gray-600">/</div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">
+                  {progress.totalChapters}
+                </div>
+                <div className="text-xs text-gray-500">total</div>
+              </div>
+            </div>
+            <div className="flex justify-center gap-1 flex-wrap">
+              {Array.from({ length: progress.totalChapters }).map((_, i) => (
+                <div
+                  key={i}
+                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                    i < (progress.chaptersCompleted || 0)
+                      ? 'bg-green-500'
+                      : i === (progress.chaptersCompleted || 0)
+                        ? 'bg-yellow-400 animate-pulse'
+                        : 'bg-gray-200 dark:bg-gray-700'
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Status Message */}
+        <p className={`text-center text-sm mb-4 ${isError ? 'text-red-500' : 'text-gray-600 dark:text-gray-400'}`}>
+          {progress.message}
+        </p>
+
+        {/* Actions */}
+        <div className="text-center">
+          {progress.progress < 100 && !isError && (
+            <p className="text-xs text-gray-500 dark:text-gray-500">
+              Progress is saved automatically. You can close this and the generation will continue.
+            </p>
+          )}
+          {isError && onCancel && (
+            <button
+              onClick={onCancel}
+              className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+            >
+              Dismiss
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LibraryPageContent() {
   const router = useRouter();
   
@@ -59,7 +174,7 @@ function LibraryPageContent() {
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
-  const [generationProgress, setGenerationProgress] = useState<{[key: number]: { progress: number; message: string }}>({});
+  const [generationProgress, setGenerationProgress] = useState<{[key: number]: { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number }}>({});
   const [showUploadModal, setShowUploadModal] = useState(false);
 
   // Handle upload completion
@@ -166,10 +281,29 @@ function LibraryPageContent() {
         consecutiveErrors = 0;
         setGenerationProgress(prev => ({
           ...prev,
-          [book.id]: { progress: data.progress, message: data.message }
+          [book.id]: { 
+            progress: data.progress, 
+            message: data.message,
+            chaptersCompleted: data.chaptersCompleted ?? prev[book.id]?.chaptersCompleted,
+            totalChapters: data.totalChapters ?? prev[book.id]?.totalChapters,
+          }
         }));
 
         if (data.phase === 'completed') {
+          // Show 100% completion briefly
+          setGenerationProgress(prev => ({
+            ...prev,
+            [book.id]: { 
+              progress: 100, 
+              message: 'Book generation complete!',
+              chaptersCompleted: data.totalChapters,
+              totalChapters: data.totalChapters,
+            }
+          }));
+          
+          // Wait a moment to show the completion state
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
           // Refresh the books list from context
           await refreshBooks();
           setGenerationProgress(prev => {
@@ -225,8 +359,33 @@ function LibraryPageContent() {
 
   const libraryTitle = 'Library';
 
+  // Find the book currently being regenerated (for the modal)
+  const activeRegenBookId = Array.from(continuingBooks)[0]; // Show modal for first actively generating book
+  const activeRegenBook = activeRegenBookId ? books.find(b => b.id === activeRegenBookId) : null;
+  const activeRegenProgress = activeRegenBookId ? generationProgress[activeRegenBookId] : null;
+
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
+      {/* Regeneration Progress Modal */}
+      {activeRegenBook && activeRegenProgress && (
+        <RegenerationProgressModal
+          bookTitle={activeRegenBook.title}
+          progress={activeRegenProgress}
+          onCancel={activeRegenProgress.message.toLowerCase().startsWith('error') ? () => {
+            setGenerationProgress(prev => {
+              const newState = { ...prev };
+              delete newState[activeRegenBook.id];
+              return newState;
+            });
+            setContinuingBooks(prev => {
+              const newSet = new Set(prev);
+              newSet.delete(activeRegenBook.id);
+              return newSet;
+            });
+          } : undefined}
+        />
+      )}
+
       {/* Page Toolbar */}
       <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
         <div className="container mx-auto px-4 py-4">

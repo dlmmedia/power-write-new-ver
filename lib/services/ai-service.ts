@@ -115,6 +115,7 @@ export interface BookOutline {
 export interface BibliographyGenerationConfig {
   enabled: boolean;
   citationStyle: 'APA' | 'MLA' | 'Chicago' | 'Harvard' | 'IEEE' | 'Vancouver' | 'AMA';
+  referenceFormat?: 'in-text' | 'footnotes' | 'endnotes' | 'bibliography';
   sourceVerification?: 'strict' | 'moderate' | 'relaxed';
 }
 
@@ -928,8 +929,20 @@ Return ONLY valid JSON in this format:
       const isNonFiction = !outline.characters || outline.characters.length === 0;
 
       // Build bibliography citation instructions if enabled
+      const referenceFormat = bibliographyConfig?.referenceFormat || 'bibliography';
       const citationInstructions = bibliographyConfig?.enabled && isNonFiction
-        ? this.buildCitationInstructions(bibliographyConfig.citationStyle)
+        ? this.buildCitationInstructions(bibliographyConfig.citationStyle, referenceFormat)
+        : '';
+
+      // Determine citation line for the prompt based on reference format
+      const citationPromptLine = bibliographyConfig?.enabled
+        ? referenceFormat === 'bibliography'
+          ? '\n- Write naturally without inline citation markers; a bibliography will be generated separately at the end of the book'
+          : referenceFormat === 'footnotes'
+            ? '\n- Include superscript footnote markers (e.g., ¹, ², ³) for cited claims'
+            : referenceFormat === 'endnotes'
+              ? '\n- Include numbered endnote markers (e.g., [1], [2]) for cited claims; notes will appear at chapter end'
+              : '\n- Include in-text citations using the specified format'
         : '';
 
       const prompt = isNonFiction
@@ -951,7 +964,7 @@ Write a complete, informative chapter targeting ${chapter.wordCount} words (mini
 - Use double line breaks between paragraphs
 - NO markdown formatting
 - Write in plain text
-- Focus on educational and informative content${bibliographyConfig?.enabled ? '\n- Include in-text citations using the specified format' : ''}
+- Focus on educational and informative content${citationPromptLine}
 - End with [END CHAPTER] on a new line`
         : `Write Chapter ${chapter.number} of "${outline.title}" by ${outline.author}.
 
@@ -976,8 +989,18 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
 - Write in plain text
 - End with [END CHAPTER] on a new line`;
 
+      const bibSystemNote = bibliographyConfig?.enabled
+        ? referenceFormat === 'bibliography'
+          ? ' Write authoritatively with well-researched content. Do NOT include inline citation markers; references will be compiled separately at the end of the book.'
+          : referenceFormat === 'footnotes'
+            ? ' Include superscript footnote numbers to cite sources. Use credible references.'
+            : referenceFormat === 'endnotes'
+              ? ' Include numbered endnote markers in square brackets to cite sources. Use credible references.'
+              : ' Include properly formatted in-text citations to support your points.'
+        : '';
+
       const systemPrompt = isNonFiction
-        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.${bibliographyConfig?.enabled ? ' Include properly formatted in-text citations to support your points.' : ''}`
+        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.${bibSystemNote}`
         : `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.`;
 
       console.log(`Generating chapter ${chapterNumber} with model: ${model}${bibliographyConfig?.enabled ? ' (with bibliography)' : ''}`);
@@ -1008,9 +1031,63 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
   }
 
   /**
-   * Build citation instructions for the specified style
+   * Build citation instructions for the specified style and reference format
    */
-  private buildCitationInstructions(style: string): string {
+  private buildCitationInstructions(style: string, referenceFormat: string = 'in-text'): string {
+    // For "bibliography" format, no inline citations needed - references are compiled at end of book
+    if (referenceFormat === 'bibliography') {
+      return `
+REFERENCE STYLE NOTE:
+- A bibliography will be generated separately at the end of the book
+- Do NOT include inline citation markers, parenthetical references, or footnote numbers
+- Instead, write authoritatively and naturally, mentioning sources by name when relevant
+- Example: "According to leading researchers in the field..." or "Studies have demonstrated that..."
+- Reference well-known works, authors, and institutions by name where appropriate
+- Use credible, realistic sources and mention them naturally in the text`;
+    }
+
+    // For "footnotes" format, use superscript numbered markers
+    if (referenceFormat === 'footnotes') {
+      const footnoteGuides: Record<string, string> = {
+        'APA': `
+FOOTNOTE REQUIREMENTS (APA Style with Footnotes):
+- Use superscript numbers (¹, ², ³) to mark citations in the text
+- Place footnote markers after punctuation
+- Each footnote should reference a credible source
+- Example: Research has demonstrated significant improvements in outcomes.¹
+- Use credible, realistic sources (academic journals, reputable publishers)`,
+        'Chicago': `
+FOOTNOTE REQUIREMENTS (Chicago Manual of Style):
+- Use superscript numbers (¹, ², ³) for footnote citations
+- Place markers after punctuation at end of relevant sentence or clause
+- Example: The evidence strongly supports this conclusion.¹
+- Use credible, realistic sources`,
+        'default': `
+FOOTNOTE REQUIREMENTS:
+- Use superscript numbers (¹, ², ³) to mark citations in the text
+- Place footnote markers after punctuation
+- Each marker references a source that will appear at the bottom of the page
+- Example: Studies have shown significant results.¹ Further research confirmed these findings.²
+- Use credible, realistic sources`
+      };
+      return footnoteGuides[style] || footnoteGuides['default'];
+    }
+
+    // For "endnotes" format, use numbered markers with notes at chapter end
+    if (referenceFormat === 'endnotes') {
+      return `
+ENDNOTE REQUIREMENTS:
+- Use numbered markers in square brackets [1], [2], [3] to mark citations
+- Place markers after the relevant claim or quote
+- At the END of the chapter, add a "Notes" section listing each reference
+- Format the notes section as:
+  [1] Author Name, "Title," Publisher, Year.
+  [2] Author Name, "Title," Journal, Year.
+- Example in text: Recent studies [1] have demonstrated that... Further analysis [2] confirmed...
+- Use credible, realistic sources`;
+    }
+
+    // Default: "in-text" format - parenthetical citations within text
     const styleGuides: Record<string, string> = {
       'APA': `
 CITATION REQUIREMENTS (APA 7th Edition):

@@ -5,6 +5,7 @@ import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
 import { isNonFiction } from '@/lib/utils/book-type';
 import { syncUserToDatabase, canGenerateBook } from '@/lib/services/user-service';
+import { saveOutline } from '@/lib/db/operations';
 
 export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
@@ -127,9 +128,25 @@ export async function POST(request: NextRequest) {
 
     console.log('Outline generated successfully:', outline.title);
 
+    // Auto-save the generated outline to the database for retrieval
+    let savedOutlineId: number | undefined;
+    try {
+      const saved = await saveOutline({
+        userId: clerkUserId,
+        title: outline.title || config.basicInfo?.title || 'Untitled Outline',
+        outline: outline as any,
+        config: config as any,
+      });
+      savedOutlineId = saved.id;
+      console.log(`Outline auto-saved with ID: ${savedOutlineId}`);
+    } catch (saveError) {
+      console.error('Failed to auto-save outline (non-fatal):', saveError);
+    }
+
     return NextResponse.json({
       success: true,
       outline,
+      savedOutlineId,
       modelUsed: modelId || config.aiSettings?.model || 'default',
     });
   } catch (error) {

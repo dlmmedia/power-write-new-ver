@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useStudioStore } from '@/lib/store/studio-store';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -14,8 +14,16 @@ interface EditingCharacter {
   role: string;
 }
 
+interface SavedOutlineItem {
+  id: number;
+  title: string;
+  outline: any;
+  config: any;
+  createdAt: string;
+}
+
 export const OutlineEditor: React.FC = () => {
-  const { outline, setOutline } = useStudioStore();
+  const { outline, setOutline, config } = useStudioStore();
   const [editingChapter, setEditingChapter] = useState<ChapterOutline | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   
@@ -38,11 +46,98 @@ export const OutlineEditor: React.FC = () => {
   const [newCharacterName, setNewCharacterName] = useState('');
   const [newCharacterRole, setNewCharacterRole] = useState('');
 
+  // Outline history
+  const [showHistory, setShowHistory] = useState(false);
+  const [savedOutlines, setSavedOutlines] = useState<SavedOutlineItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const fetchOutlineHistory = useCallback(async () => {
+    setIsLoadingHistory(true);
+    try {
+      const response = await fetch('/api/outlines');
+      if (response.ok) {
+        const data = await response.json();
+        setSavedOutlines(data.outlines || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch outline history:', error);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, []);
+
+  const handleSaveOutline = async () => {
+    if (!outline) return;
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/outlines', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: outline.title || 'Untitled Outline',
+          outline,
+          config,
+        }),
+      });
+      if (response.ok) {
+        setSaveSuccess(true);
+        setTimeout(() => setSaveSuccess(false), 2000);
+        // Refresh history if it's open
+        if (showHistory) fetchOutlineHistory();
+      }
+    } catch (error) {
+      console.error('Failed to save outline:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleLoadOutline = (saved: SavedOutlineItem) => {
+    if (outline) {
+      const confirmed = confirm('Loading this outline will replace the current one. Continue?');
+      if (!confirmed) return;
+    }
+    setOutline(saved.outline);
+    setShowHistory(false);
+  };
+
+  const handleDeleteSavedOutline = async (id: number) => {
+    const confirmed = confirm('Delete this saved outline?');
+    if (!confirmed) return;
+    try {
+      await fetch(`/api/outlines?id=${id}`, { method: 'DELETE' });
+      setSavedOutlines(prev => prev.filter(o => o.id !== id));
+    } catch (error) {
+      console.error('Failed to delete outline:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (showHistory) fetchOutlineHistory();
+  }, [showHistory, fetchOutlineHistory]);
+
   if (!outline) {
     return (
       <div className="text-center py-12 text-gray-600 dark:text-gray-400">
         <p className="text-lg mb-2">No outline generated yet</p>
-        <p className="text-sm">Click "Generate Outline" to create your book structure</p>
+        <p className="text-sm mb-4">Click &quot;Generate Outline&quot; to create your book structure</p>
+        <button
+          onClick={() => setShowHistory(true)}
+          className="text-sm text-yellow-600 dark:text-yellow-400 hover:underline"
+        >
+          Or load from saved outlines
+        </button>
+        {showHistory && (
+          <OutlineHistoryPanel
+            outlines={savedOutlines}
+            isLoading={isLoadingHistory}
+            onLoad={handleLoadOutline}
+            onDelete={handleDeleteSavedOutline}
+            onClose={() => setShowHistory(false)}
+          />
+        )}
       </div>
     );
   }
@@ -373,8 +468,31 @@ export const OutlineEditor: React.FC = () => {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveOutline}
+            disabled={isSaving}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              saveSuccess
+                ? 'bg-green-500 text-white'
+                : 'bg-yellow-400 hover:bg-yellow-500 text-black'
+            }`}
+            title="Save outline to history"
+          >
+            {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
+          </button>
+          <button
+            onClick={() => setShowHistory(!showHistory)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              showHistory
+                ? 'bg-blue-500 text-white'
+                : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+            }`}
+            title="View saved outlines"
+          >
+            History
+          </button>
           <div className="relative group">
-            <Button variant="outline" size="sm">Export Outline ▼</Button>
+            <Button variant="outline" size="sm">Export ▼</Button>
             <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg py-1 w-36 z-10">
               <button
                 onClick={() => handleExportOutline('pdf')}
@@ -394,6 +512,17 @@ export const OutlineEditor: React.FC = () => {
           <Badge variant="default">{totalWords.toLocaleString()} words</Badge>
         </div>
       </div>
+
+      {/* Outline History Panel */}
+      {showHistory && (
+        <OutlineHistoryPanel
+          outlines={savedOutlines}
+          isLoading={isLoadingHistory}
+          onLoad={handleLoadOutline}
+          onDelete={handleDeleteSavedOutline}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
 
       {/* Description - Editable */}
       <div className="bg-gray-100 dark:bg-gray-800 rounded p-4 border border-gray-300 dark:border-gray-700">
@@ -746,6 +875,82 @@ export const OutlineEditor: React.FC = () => {
           </div>
         </div>
       </Modal>
+    </div>
+  );
+};
+
+// Outline History Panel component
+const OutlineHistoryPanel: React.FC<{
+  outlines: SavedOutlineItem[];
+  isLoading: boolean;
+  onLoad: (outline: SavedOutlineItem) => void;
+  onDelete: (id: number) => void;
+  onClose: () => void;
+}> = ({ outlines, isLoading, onLoad, onDelete, onClose }) => {
+  return (
+    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <span>📋</span> Saved Outlines
+        </h3>
+        <button
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+        >
+          ✕
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="text-center py-4 text-gray-500">
+          <div className="animate-spin h-5 w-5 border-2 border-yellow-400 border-t-transparent rounded-full mx-auto mb-2" />
+          Loading outlines...
+        </div>
+      ) : outlines.length === 0 ? (
+        <div className="text-center py-4 text-gray-500 text-sm">
+          No saved outlines yet. Generate an outline and click &quot;Save&quot; to store it.
+        </div>
+      ) : (
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {outlines.map((saved) => (
+            <div
+              key={saved.id}
+              className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-yellow-400 transition-colors"
+            >
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                  {saved.title}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {saved.outline?.chapters?.length || 0} chapters &middot;{' '}
+                  {new Date(saved.createdAt).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 ml-3">
+                <button
+                  onClick={() => onLoad(saved)}
+                  className="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-black text-xs font-medium rounded transition-colors"
+                >
+                  Load
+                </button>
+                <button
+                  onClick={() => onDelete(saved.id)}
+                  className="px-2 py-1 text-red-500 hover:text-red-600 text-xs"
+                  title="Delete"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

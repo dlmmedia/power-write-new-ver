@@ -14,6 +14,10 @@ export function ConditionalClerkProvider({ children }: { children: React.ReactNo
   const disableClerk = pathname?.startsWith('/render/');
 
   if (disableClerk) return <>{children}</>;
-  return <ClerkProvider>{children}</ClerkProvider>;
+  return (
+    <ClerkProvider>
+      {children}
+    </ClerkProvider>
+  );
 }
 

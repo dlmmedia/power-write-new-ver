@@ -14,6 +14,7 @@ import {
   bibliographyConfigs,
   citations,
   videoExportJobs,
+  savedOutlines,
   InsertGeneratedBook,
   InsertBookChapter,
   InsertReferenceBook,
@@ -21,6 +22,7 @@ import {
   InsertBibliographyConfig,
   InsertCitation,
   InsertVideoExportJob,
+  InsertSavedOutline,
   GeneratedBook,
   BookChapter,
   ReferenceBook,
@@ -28,6 +30,7 @@ import {
   BibliographyConfigDB,
   Citation,
   VideoExportJob,
+  SavedOutline,
 } from './schema';
 import { eq, and, desc, like, inArray } from 'drizzle-orm';
 
@@ -752,4 +755,62 @@ export async function deleteVideoExportJob(id: number): Promise<void> {
   return withRetry(async () => {
     await db.delete(videoExportJobs).where(eq(videoExportJobs.id, id));
   }, DEFAULT_RETRY_CONFIG, 'deleteVideoExportJob');
+}
+
+// ============ SAVED OUTLINE OPERATIONS ============
+
+export async function saveOutline(data: InsertSavedOutline): Promise<SavedOutline> {
+  return withRetry(async () => {
+    const [outline] = await db.insert(savedOutlines).values(data).returning();
+    return outline;
+  }, DEFAULT_RETRY_CONFIG, 'saveOutline');
+}
+
+export async function getUserOutlines(userId: string): Promise<SavedOutline[]> {
+  return withRetry(async () => {
+    return await db
+      .select()
+      .from(savedOutlines)
+      .where(eq(savedOutlines.userId, userId))
+      .orderBy(desc(savedOutlines.createdAt));
+  }, DEFAULT_RETRY_CONFIG, 'getUserOutlines');
+}
+
+export async function getOutline(id: number): Promise<SavedOutline | null> {
+  return withRetry(async () => {
+    const [outline] = await db
+      .select()
+      .from(savedOutlines)
+      .where(eq(savedOutlines.id, id))
+      .limit(1);
+    return outline || null;
+  }, DEFAULT_RETRY_CONFIG, 'getOutline');
+}
+
+export async function updateSavedOutline(id: number, data: Partial<InsertSavedOutline>): Promise<SavedOutline | null> {
+  return withRetry(async () => {
+    const [outline] = await db
+      .update(savedOutlines)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(savedOutlines.id, id))
+      .returning();
+    return outline || null;
+  }, DEFAULT_RETRY_CONFIG, 'updateSavedOutline');
+}
+
+export async function deleteOutline(id: number): Promise<void> {
+  return withRetry(async () => {
+    await db.delete(savedOutlines).where(eq(savedOutlines.id, id));
+  }, DEFAULT_RETRY_CONFIG, 'deleteOutline');
+}
+
+export async function linkOutlineToBook(outlineId: number, bookId: number): Promise<SavedOutline | null> {
+  return withRetry(async () => {
+    const [outline] = await db
+      .update(savedOutlines)
+      .set({ bookId, updatedAt: new Date() })
+      .where(eq(savedOutlines.id, outlineId))
+      .returning();
+    return outline || null;
+  }, DEFAULT_RETRY_CONFIG, 'linkOutlineToBook');
 }
