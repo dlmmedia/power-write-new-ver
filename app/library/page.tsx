@@ -3,7 +3,7 @@
 import { useState, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useUserTier } from '@/contexts/UserTierContext';
+import { useUserTier, ProFeature } from '@/contexts/UserTierContext';
 import { useBooks } from '@/contexts/BooksContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -170,7 +170,7 @@ const BookCardItem = memo(function BookCardItem({
   onHover: (id: number) => void;
   onGenerateCover: (id: number, e?: React.MouseEvent) => void;
   onContinueGeneration: (book: any, e?: React.MouseEvent) => void;
-  onUpgradeModal: (feature?: string) => void;
+  onUpgradeModal: (feature?: ProFeature) => void;
   formatDuration: (seconds: number) => string;
 }) {
   const status = book.productionStatus || 'draft';
