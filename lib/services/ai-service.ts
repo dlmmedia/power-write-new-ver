@@ -850,8 +850,8 @@ Return ONLY valid JSON in this format:
       console.log(`Calling ${modelId} for outline generation...`);
       
       const systemPrompt = isNonFiction
-        ? 'You are an expert non-fiction author and educator. Generate informative, well-researched book outlines as valid JSON only. Focus on educational content, clear structure, and factual information.'
-        : 'You are an expert fiction author. Generate compelling story outlines as valid JSON only. Focus on character development, plot structure, and engaging narratives.';
+        ? 'You are an expert non-fiction author and educator. Generate informative, well-researched book outlines as valid JSON only. Focus on educational content, clear structure, and factual information. Avoid AI-sounding chapter titles - no "Unveiling", "Embracing", "Navigating the Landscape of", "The Power of", or other inflated phrasing. Use clear, direct, specific titles.'
+        : 'You are an expert fiction author. Generate compelling story outlines as valid JSON only. Focus on character development, plot structure, and engaging narratives. Avoid generic AI chapter titles - no "The Awakening", "Shadows of the Past", "Into the Unknown". Use specific, evocative titles that reflect actual plot content.';
 
       const result = await generateText({
         model: getModel(modelId),
@@ -999,9 +999,37 @@ Write a complete, engaging chapter targeting ${chapter.wordCount} words (minimum
               : ' Include properly formatted in-text citations to support your points.'
         : '';
 
+      const humanizerRules = `
+
+CRITICAL WRITING RULES - Follow these to produce natural, human-quality prose:
+
+AVOID these AI writing patterns:
+- Inflated significance: "serves as", "stands as", "testament to", "pivotal", "crucial", "enduring legacy", "broader implications", "setting the stage"
+- AI vocabulary: "Additionally", "delve", "tapestry" (abstract), "landscape" (abstract), "interplay", "intricate", "foster", "underscore", "showcase", "vibrant", "garner", "pivotal"
+- Rule of three: Do NOT list exactly 3 adjectives or items in sequence
+- Negative parallelisms: "It's not just X, it's Y" or "Not only...but..."
+- Superficial -ing analyses: "highlighting...", "showcasing...", "ensuring...", "reflecting...", "symbolizing..."
+- Em dash overuse: Use commas and periods instead of em dashes
+- Promotional language: "groundbreaking", "breathtaking", "stunning", "renowned", "nestled", "boasts"
+- False ranges: "from X to Y" where X and Y aren't on a meaningful scale
+- Vague attributions: "Experts say", "Industry reports suggest", "Observers note"
+- Generic conclusions: "The future looks bright", "exciting times lie ahead"
+- Copula avoidance: Use simple "is/are/has" instead of "serves as/stands as/features/offers"
+- Filler phrases: "In order to", "Due to the fact that", "It is important to note"
+- Excessive hedging: "could potentially possibly"
+- Synonym cycling: Don't keep substituting different words for the same thing
+
+INSTEAD, write with soul:
+- Vary sentence length naturally - mix short punchy with longer flowing
+- Use specific concrete details over vague claims
+- Use simple constructions where appropriate
+- Acknowledge complexity and mixed feelings
+- Include occasional tangents, asides, or observations that feel authentic
+- Be specific rather than grandiose`;
+
       const systemPrompt = isNonFiction
-        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.${bibSystemNote}`
-        : `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.`;
+        ? `You are a master non-fiction writer specializing in ${outline.genre}. Write clear, informative chapters with well-researched content, practical examples, and engaging explanations.${bibSystemNote}${humanizerRules}`
+        : `You are a master novelist writing in the ${outline.genre} genre. Write compelling chapters with rich detail, character development, and engaging prose.${humanizerRules}`;
 
       console.log(`Generating chapter ${chapterNumber} with model: ${model}${bibliographyConfig?.enabled ? ' (with bibliography)' : ''}`);
 
@@ -1292,7 +1320,9 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
       messages: [
         {
           role: 'system',
-          content: `You are a master novelist. Write compelling chapters with rich detail and character development.`,
+          content: `You are a master novelist. Write compelling chapters with rich detail and character development.
+
+CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no "Additionally/delve/tapestry/landscape/interplay/intricate/foster/underscore/showcase/vibrant", no rule-of-three lists, no "It's not just X, it's Y", no em dash overuse, no "highlighting.../showcasing.../ensuring...", no promotional language like "groundbreaking/breathtaking/stunning". Instead: vary sentence length naturally, use specific details, use simple constructions (is/are/has), acknowledge complexity, and write with authentic voice.`,
         },
         { role: 'user', content: prompt },
       ],
@@ -1666,7 +1696,9 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
   }
 
   /**
-   * Build context string from completed chapters for continuity
+   * Build a "story bible" context from completed chapters for enhanced continuity.
+   * Provides structured summaries of characters, plot events, settings, and themes
+   * rather than raw chapter text, giving the model better context in less tokens.
    */
   buildChapterContext(
     chapters: Array<{ title: string; content: string; chapterNumber?: number }>,
@@ -1674,24 +1706,44 @@ Write a complete chapter with well-developed paragraphs. Develop the characters 
   ): string {
     if (chapters.length === 0) return '';
 
-    // Get the most recent chapters for detailed context
-    const recentChapters = chapters.slice(-maxRecentChapters);
-    let context = recentChapters
-      .map((ch, idx) => {
-        const chapterNum = ch.chapterNumber || (chapters.length - recentChapters.length + idx + 1);
-        return `Chapter ${chapterNum} - ${ch.title}:\n${ch.content.substring(0, 1500)}...`;
-      })
-      .join('\n\n---\n\n');
+    // Build structured story bible
+    const storyBible: string[] = [];
 
-    // Add brief summary of older chapters for overall context
+    // 1. Chapter progression summary (all chapters, brief)
     if (chapters.length > maxRecentChapters) {
-      const olderChaptersSummary = chapters.slice(0, -maxRecentChapters)
-        .map((ch, idx) => `Ch ${ch.chapterNumber || idx + 1}: ${ch.title}`)
-        .join(', ');
-      context = `Story so far: ${olderChaptersSummary}\n\n=== Recent Chapters (maintain continuity) ===\n\n${context}`;
+      const olderSummaries = chapters.slice(0, -maxRecentChapters)
+        .map((ch, idx) => {
+          const num = ch.chapterNumber || idx + 1;
+          // Extract first 2 sentences as a micro-summary
+          const sentences = ch.content.split(/(?<=[.!?])\s+/).slice(0, 2).join(' ');
+          return `Ch ${num} "${ch.title}": ${sentences}`;
+        })
+        .join('\n');
+      storyBible.push(`=== STORY SO FAR ===\n${olderSummaries}`);
     }
 
-    return context;
+    // 2. Recent chapters with more detail (for immediate continuity)
+    const recentChapters = chapters.slice(-maxRecentChapters);
+    const recentContext = recentChapters
+      .map((ch, idx) => {
+        const chapterNum = ch.chapterNumber || (chapters.length - recentChapters.length + idx + 1);
+        // Use last 2000 chars for closer continuity (ending matters more than beginning)
+        const endContent = ch.content.length > 2000 
+          ? '...' + ch.content.substring(ch.content.length - 2000) 
+          : ch.content;
+        return `Chapter ${chapterNum} - ${ch.title}:\n${endContent}`;
+      })
+      .join('\n\n---\n\n');
+    storyBible.push(`=== RECENT CHAPTERS (maintain tone and continuity) ===\n\n${recentContext}`);
+
+    // 3. Consistency reminders
+    storyBible.push(`=== CONTINUITY NOTES ===
+- Maintain consistent character voices and behaviors from previous chapters
+- Reference established settings, objects, and relationships
+- Continue any unresolved plot threads
+- Keep the same narrative tense and POV throughout`);
+
+    return storyBible.join('\n\n');
   }
 
   /**

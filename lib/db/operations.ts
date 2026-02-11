@@ -108,6 +108,64 @@ export async function getUserBooks(userId: string): Promise<GeneratedBook[]> {
   }, DEFAULT_RETRY_CONFIG, 'getUserBooks');
 }
 
+/**
+ * Optimized: Get all user books with chapter counts and audio stats in a single batch.
+ * Avoids N+1 queries by fetching all books, then all chapters for those books in parallel.
+ */
+export async function getUserBooksWithStats(userId: string) {
+  return withRetry(async () => {
+    // Step 1: Get all books
+    const books = await db
+      .select()
+      .from(generatedBooks)
+      .where(eq(generatedBooks.userId, userId))
+      .orderBy(desc(generatedBooks.createdAt));
+    
+    if (books.length === 0) return [];
+    
+    // Step 2: Get all chapters for these books in ONE query
+    const bookIds = books.map(b => b.id);
+    const allChapters = await db
+      .select({
+        bookId: bookChapters.bookId,
+        wordCount: bookChapters.wordCount,
+        audioUrl: bookChapters.audioUrl,
+        audioTimestamps: bookChapters.audioTimestamps,
+      })
+      .from(bookChapters)
+      .where(inArray(bookChapters.bookId, bookIds));
+    
+    // Step 3: Aggregate stats per book
+    const chapterStats = new Map<number, { count: number; words: number; audioCount: number; totalDuration: number }>();
+    for (const ch of allChapters) {
+      const existing = chapterStats.get(ch.bookId) || { count: 0, words: 0, audioCount: 0, totalDuration: 0 };
+      existing.count++;
+      existing.words += ch.wordCount || 0;
+      if (ch.audioUrl) {
+        existing.audioCount++;
+        const timestamps = ch.audioTimestamps as any;
+        if (timestamps?.duration) existing.totalDuration += timestamps.duration;
+      }
+      chapterStats.set(ch.bookId, existing);
+    }
+    
+    // Step 4: Merge into books
+    return books.map(book => {
+      const stats = chapterStats.get(book.id);
+      return {
+        ...book,
+        _chapterCount: stats?.count || 0,
+        _wordCount: stats?.words || 0,
+        _audioStats: stats && stats.audioCount > 0 ? {
+          chaptersWithAudio: stats.audioCount,
+          totalChapters: stats.count,
+          totalDuration: stats.totalDuration,
+        } : null,
+      };
+    });
+  }, DEFAULT_RETRY_CONFIG, 'getUserBooksWithStats');
+}
+
 export async function searchBooks(
   userId: string,
   query: string

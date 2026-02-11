@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUserTier } from '@/contexts/UserTierContext';
@@ -8,7 +8,10 @@ import { useBooks } from '@/contexts/BooksContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { Card } from '@/components/ui/Card';
+import { Skeleton, SkeletonCard } from '@/components/ui/Skeleton';
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { cn } from '@/lib/utils';
 import { 
   Library, 
   CheckCircle2, 
@@ -25,13 +28,17 @@ import {
   Lock,
   Headphones,
   Globe,
-  Upload
+  Upload,
+  Search,
+  BookMarked
 } from 'lucide-react';
 import { StatCard, AudioStatCard } from '@/components/ui/AnimatedNumber';
 import { BookUploadModal } from '@/components/library/BookUploadModal';
 import { ProductionStatus } from '@/lib/types/generation';
 
-// Regeneration Progress Modal component
+// ===== SUB-COMPONENTS =====
+
+/** Regeneration progress overlay */
 function RegenerationProgressModal({ 
   bookTitle, 
   progress, 
@@ -44,42 +51,38 @@ function RegenerationProgressModal({
   const isError = progress.message.toLowerCase().startsWith('error');
   
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl border border-gray-200 dark:border-gray-700">
+    <div className="fixed inset-0 bg-[var(--overlay)] backdrop-blur-sm flex items-center justify-center z-50">
+      <Card variant="elevated" padding="lg" className="max-w-md w-full mx-4 animate-scaleIn">
         {/* Header */}
         <div className="text-center mb-6">
-          <div className="relative w-20 h-20 mx-auto mb-4">
+          <div className="relative w-16 h-16 mx-auto mb-4">
             {!isError && progress.progress < 100 && (
-              <>
-                <div className="absolute inset-0 rounded-full border-4 border-yellow-200 dark:border-yellow-900 animate-ping opacity-20" />
-                <div className="absolute inset-2 rounded-full border-4 border-yellow-300 dark:border-yellow-800 animate-ping opacity-30" style={{ animationDelay: '0.2s' }} />
-              </>
+              <div className="absolute inset-0 rounded-full border-4 border-[var(--accent-light)] animate-ping opacity-30" />
             )}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className={`text-3xl ${!isError && progress.progress < 100 ? 'animate-bounce' : ''}`}>
-                {isError ? '&#9888;' : progress.progress >= 100 ? '&#10003;' : '&#9997;'}
-              </span>
+            <div className="absolute inset-0 flex items-center justify-center text-3xl">
+              {isError ? '\u26A0' : progress.progress >= 100 ? '\u2713' : '\u270D'}
             </div>
           </div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h3 className="text-lg font-semibold text-[var(--text-primary)]">
             {isError ? 'Generation Error' : progress.progress >= 100 ? 'Complete!' : 'Continuing Generation'}
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">
+          <p className="text-sm text-[var(--text-muted)] mt-1 truncate">
             {bookTitle}
           </p>
         </div>
 
         {/* Progress Bar */}
         <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
+          <div className="flex justify-between text-sm text-[var(--text-secondary)] mb-2">
             <span>Progress</span>
-            <span>{Math.round(progress.progress)}%</span>
+            <span className="tabular-nums font-medium">{Math.round(progress.progress)}%</span>
           </div>
-          <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div className="h-2.5 bg-[var(--background-tertiary)] rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-500 ease-out rounded-full ${
-                isError ? 'bg-red-500' : progress.progress >= 100 ? 'bg-green-500' : 'bg-gradient-to-r from-yellow-400 to-yellow-500'
-              }`}
+              className={cn(
+                'h-full transition-all duration-500 ease-out rounded-full',
+                isError ? 'bg-[var(--error)]' : progress.progress >= 100 ? 'bg-[var(--success)]' : 'bg-[var(--accent)]'
+              )}
               style={{ width: `${progress.progress}%` }}
             />
           </div>
@@ -88,32 +91,29 @@ function RegenerationProgressModal({
         {/* Chapter progress */}
         {progress.chaptersCompleted !== undefined && progress.totalChapters && progress.totalChapters > 0 && (
           <div className="mb-4">
-            <div className="flex items-center justify-center gap-4 mb-2">
+            <div className="flex items-center justify-center gap-4 mb-3">
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                  {progress.chaptersCompleted}
-                </div>
-                <div className="text-xs text-gray-500">written</div>
+                <div className="text-2xl font-bold text-[var(--accent)]">{progress.chaptersCompleted}</div>
+                <div className="text-xs text-[var(--text-muted)]">written</div>
               </div>
-              <div className="text-xl text-gray-300 dark:text-gray-600">/</div>
+              <div className="text-xl text-[var(--text-muted)]">/</div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-gray-400 dark:text-gray-500">
-                  {progress.totalChapters}
-                </div>
-                <div className="text-xs text-gray-500">total</div>
+                <div className="text-2xl font-bold text-[var(--text-muted)]">{progress.totalChapters}</div>
+                <div className="text-xs text-[var(--text-muted)]">total</div>
               </div>
             </div>
             <div className="flex justify-center gap-1 flex-wrap">
               {Array.from({ length: progress.totalChapters }).map((_, i) => (
                 <div
                   key={i}
-                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                  className={cn(
+                    'w-2 h-2 rounded-full transition-all duration-300',
                     i < (progress.chaptersCompleted || 0)
-                      ? 'bg-green-500'
+                      ? 'bg-[var(--success)]'
                       : i === (progress.chaptersCompleted || 0)
-                        ? 'bg-yellow-400 animate-pulse'
-                        : 'bg-gray-200 dark:bg-gray-700'
-                  }`}
+                        ? 'bg-[var(--accent)] animate-pulse'
+                        : 'bg-[var(--background-tertiary)]'
+                  )}
                 />
               ))}
             </div>
@@ -121,35 +121,204 @@ function RegenerationProgressModal({
         )}
 
         {/* Status Message */}
-        <p className={`text-center text-sm mb-4 ${isError ? 'text-red-500' : 'text-gray-600 dark:text-gray-400'}`}>
+        <p className={cn(
+          'text-center text-sm mb-4',
+          isError ? 'text-[var(--error)]' : 'text-[var(--text-secondary)]'
+        )}>
           {progress.message}
         </p>
 
         {/* Actions */}
         <div className="text-center">
           {progress.progress < 100 && !isError && (
-            <p className="text-xs text-gray-500 dark:text-gray-500">
+            <p className="text-xs text-[var(--text-muted)]">
               Progress is saved automatically. You can close this and the generation will continue.
             </p>
           )}
           {isError && onCancel && (
             <button
               onClick={onCancel}
-              className="text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+              className="text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
             >
               Dismiss
             </button>
           )}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
 
+/** Individual book card in the grid */
+const BookCardItem = memo(function BookCardItem({
+  book,
+  isProUser,
+  generatingCovers,
+  continuingBooks,
+  generationProgress,
+  onHover,
+  onGenerateCover,
+  onContinueGeneration,
+  onUpgradeModal,
+  formatDuration,
+}: {
+  book: any;
+  isProUser: boolean;
+  generatingCovers: Set<number>;
+  continuingBooks: Set<number>;
+  generationProgress: Record<number, any>;
+  onHover: (id: number) => void;
+  onGenerateCover: (id: number, e?: React.MouseEvent) => void;
+  onContinueGeneration: (book: any, e?: React.MouseEvent) => void;
+  onUpgradeModal: (feature?: string) => void;
+  formatDuration: (seconds: number) => string;
+}) {
+  const status = book.productionStatus || 'draft';
+  
+  const statusConfig: Record<string, { variant: 'default' | 'info' | 'success' | 'warning' | 'accent'; text: string; badgeStyle?: 'solid' | 'soft' }> = {
+    'draft': { variant: 'default', text: 'Draft', badgeStyle: 'soft' },
+    'in-progress': { variant: 'info', text: 'In Progress', badgeStyle: 'soft' },
+    'content-complete': { variant: 'success', text: 'Content Complete', badgeStyle: 'soft' },
+    'audio-pending': { variant: 'warning', text: 'Audio Pending', badgeStyle: 'soft' },
+    'published': { variant: 'accent', text: 'Published', badgeStyle: 'solid' },
+  };
+
+  const { variant: badgeVariant, text: badgeText, badgeStyle } = statusConfig[status] || statusConfig['draft'];
+
+  return (
+    <Link
+      href={`/library/${book.id}`}
+      prefetch={true}
+      onMouseEnter={() => onHover(book.id)}
+      className="group block animate-content-appear"
+      style={{ animationDelay: '0ms' }}
+    >
+      <Card variant="interactive" padding="none" className="overflow-hidden h-full">
+        {/* Cover Image */}
+        <div className="relative w-full aspect-[2/3] bg-[var(--background-tertiary)] overflow-hidden">
+          {book.coverUrl && book.coverUrl.trim() !== '' ? (
+            <img
+              src={book.coverUrl}
+              alt={`${book.title} cover`}
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              loading="lazy"
+            />
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-[var(--background-secondary)] to-[var(--background-tertiary)] relative p-4">
+              <div className="text-center">
+                <BookMarked className="w-8 h-8 text-[var(--text-muted)] mx-auto mb-3" />
+                <h3 className="font-semibold text-base text-[var(--text-primary)] mb-1 line-clamp-3">{book.title}</h3>
+                <p className="text-sm text-[var(--text-muted)] mb-4">by {book.author}</p>
+                
+                {book.status === 'generating' ? (
+                  <div className="space-y-2">
+                    {generationProgress[book.id] && (
+                      <div className="mb-2">
+                        <div className="h-1.5 bg-[var(--background-tertiary)] rounded-full overflow-hidden">
+                          <div 
+                            className="h-full bg-[var(--accent)] transition-all duration-300 rounded-full"
+                            style={{ width: `${generationProgress[book.id].progress}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-[var(--text-muted)] mt-1">{generationProgress[book.id].message}</p>
+                      </div>
+                    )}
+                    {isProUser ? (
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={(e) => { e.preventDefault(); onContinueGeneration(book, e); }}
+                        disabled={continuingBooks.has(book.id)}
+                        isLoading={continuingBooks.has(book.id)}
+                        leftIcon={!continuingBooks.has(book.id) ? <Play className="w-3.5 h-3.5" /> : undefined}
+                      >
+                        {continuingBooks.has(book.id) ? 'Generating...' : 'Continue'}
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpgradeModal('continue-generation'); }}
+                        leftIcon={<Lock className="w-3.5 h-3.5" />}
+                      >
+                        Continue <Badge variant="accent" size="sm" className="ml-1">PRO</Badge>
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  isProUser ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={(e) => { e.preventDefault(); onGenerateCover(book.id, e); }}
+                      disabled={generatingCovers.has(book.id)}
+                      isLoading={generatingCovers.has(book.id)}
+                      leftIcon={!generatingCovers.has(book.id) ? <Palette className="w-3.5 h-3.5" /> : undefined}
+                    >
+                      {generatingCovers.has(book.id) ? 'Generating...' : 'Generate Cover'}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpgradeModal('generate-cover'); }}
+                      leftIcon={<Lock className="w-3.5 h-3.5" />}
+                    >
+                      Cover <Badge variant="accent" size="sm" className="ml-1">PRO</Badge>
+                    </Button>
+                  )
+                )}
+              </div>
+            </div>
+          )}
+          
+          {/* Status badges */}
+          <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+            <Badge variant={badgeVariant} style={badgeStyle} size="sm">{badgeText}</Badge>
+            {book.isPublic && (
+              <Badge variant="accent" style="soft" size="sm" className="gap-1">
+                <Globe className="w-3 h-3" />
+                Public
+              </Badge>
+            )}
+          </div>
+        </div>
+
+        {/* Book Info */}
+        <div className="p-4">
+          <h3 className="font-semibold text-[var(--text-primary)] text-sm line-clamp-2 mb-1">{book.title}</h3>
+          <p className="text-xs text-[var(--text-muted)] mb-3">by {book.author} &middot; {book.genre}</p>
+
+          <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--text-muted)]">
+            <span className="flex items-center gap-1">
+              <BookOpen className="w-3.5 h-3.5 text-[var(--accent)]" />
+              {book.metadata?.chapters || 0} ch
+            </span>
+            <span className="flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5 text-[var(--accent)]" />
+              {(book.metadata?.wordCount || 0).toLocaleString()} words
+            </span>
+            {book.audioStats && book.audioStats.chaptersWithAudio > 0 && (
+              <span className="flex items-center gap-1 text-[var(--success)]">
+                <Headphones className="w-3.5 h-3.5" />
+                {book.audioStats.chaptersWithAudio}/{book.audioStats.totalChapters}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-[var(--border-subtle)] text-xs text-[var(--text-muted)]">
+            {new Date(book.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+          </div>
+        </div>
+      </Card>
+    </Link>
+  );
+});
+
+// ===== MAIN PAGE =====
+
 function LibraryPageContent() {
   const router = useRouter();
-  
-  // Use centralized books context - no more local fetching!
   const { 
     books, 
     isLoading: loading, 
@@ -159,25 +328,21 @@ function LibraryPageContent() {
     fetchBookDetail,
   } = useBooks();
   
-  // Prefetch book details on hover for instant page loads
   const handleBookHover = useCallback((bookId: number) => {
-    // Prefetch in background - uses cache if available, fetches if not
     fetchBookDetail(bookId, false);
   }, [fetchBookDetail]);
   
   const { isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
   
-  // Local UI state only
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState('all');
   const [filterStatus, setFilterStatus] = useState<ProductionStatus | 'all'>('all');
   const [sortBy, setSortBy] = useState<'date' | 'title' | 'words'>('date');
   const [generatingCovers, setGeneratingCovers] = useState<Set<number>>(new Set());
   const [continuingBooks, setContinuingBooks] = useState<Set<number>>(new Set());
-  const [generationProgress, setGenerationProgress] = useState<{[key: number]: { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number }}>({});
+  const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number }>>({});
   const [showUploadModal, setShowUploadModal] = useState(false);
 
-  // Handle upload completion
   const handleUploadComplete = useCallback((bookId: number) => {
     refreshBooks();
     router.push(`/library/${bookId}`);
@@ -185,96 +350,50 @@ function LibraryPageContent() {
 
   const handleGenerateCover = async (bookId: number, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    
-    if (!isProUser) {
-      triggerUpgradeModal('generate-cover');
-      return;
-    }
+    if (!isProUser) { triggerUpgradeModal('generate-cover'); return; }
     
     setGeneratingCovers(prev => new Set(prev).add(bookId));
-    
     try {
-      const response = await fetch(`/api/books/${bookId}/cover`, {
-        method: 'POST',
-      });
-      
+      const response = await fetch(`/api/books/${bookId}/cover`, { method: 'POST' });
       const data = await response.json();
-      
       if (data.success && data.coverUrl) {
-        // Update book in context cache
         updateBookInCache(bookId, { coverUrl: data.coverUrl });
-        return true;
-      } else {
-        console.error('Failed to generate cover:', data.error);
-        return false;
       }
-    } catch (error) {
-      console.error('Error generating cover:', error);
-      return false;
+    } catch (err) {
+      console.error('Error generating cover:', err);
     } finally {
-      setGeneratingCovers(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(bookId);
-        return newSet;
-      });
+      setGeneratingCovers(prev => { const s = new Set(prev); s.delete(bookId); return s; });
     }
   };
 
-  // Continue generating a book that was interrupted
   const handleContinueGeneration = useCallback(async (book: typeof books[0], e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    
-    if (!isProUser) {
-      triggerUpgradeModal('continue-generation');
-      return;
-    }
-    
-    if (!book.outline || !book.config) {
-      alert('Unable to continue: Book outline or config is missing');
-      return;
-    }
+    if (!isProUser) { triggerUpgradeModal('continue-generation'); return; }
+    if (!book.outline || !book.config) { alert('Unable to continue: Book outline or config is missing'); return; }
 
     setContinuingBooks(prev => new Set(prev).add(book.id));
-    setGenerationProgress(prev => ({
-      ...prev,
-      [book.id]: { progress: 0, message: 'Resuming generation...' }
-    }));
+    setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 0, message: 'Resuming generation...' } }));
 
     const chapterModel = book.metadata?.modelUsed || 'anthropic/claude-sonnet-4';
     let consecutiveErrors = 0;
-    const maxConsecutiveErrors = 3;
 
     try {
       while (true) {
         const response = await fetch('/api/generate/book-incremental', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            outline: book.outline,
-            config: book.config,
-            modelId: chapterModel,
-            bookId: book.id,
-          }),
+          body: JSON.stringify({ outline: book.outline, config: book.config, modelId: chapterModel, bookId: book.id }),
         });
 
-        let data;
         const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          throw new Error('Server error');
-        }
+        if (!contentType?.includes('application/json')) throw new Error('Server error');
+        const data = await response.json();
 
         if (!data.success) {
           consecutiveErrors++;
-          if (consecutiveErrors >= maxConsecutiveErrors) {
-            throw new Error(data.details || data.error || 'Generation failed');
-          }
-          setGenerationProgress(prev => ({
-            ...prev,
-            [book.id]: { progress: prev[book.id]?.progress || 0, message: `Retrying... (${consecutiveErrors}/${maxConsecutiveErrors})` }
-          }));
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          if (consecutiveErrors >= 3) throw new Error(data.details || data.error || 'Generation failed');
+          setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: prev[book.id]?.progress || 0, message: `Retrying... (${consecutiveErrors}/3)` } }));
+          await new Promise(r => setTimeout(r, 2000));
           continue;
         }
 
@@ -290,45 +409,19 @@ function LibraryPageContent() {
         }));
 
         if (data.phase === 'completed') {
-          // Show 100% completion briefly
-          setGenerationProgress(prev => ({
-            ...prev,
-            [book.id]: { 
-              progress: 100, 
-              message: 'Book generation complete!',
-              chaptersCompleted: data.totalChapters,
-              totalChapters: data.totalChapters,
-            }
-          }));
-          
-          // Wait a moment to show the completion state
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Refresh the books list from context
+          setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 100, message: 'Book generation complete!', chaptersCompleted: data.totalChapters, totalChapters: data.totalChapters } }));
+          await new Promise(r => setTimeout(r, 2000));
           await refreshBooks();
-          setGenerationProgress(prev => {
-            const newState = { ...prev };
-            delete newState[book.id];
-            return newState;
-          });
+          setGenerationProgress(prev => { const s = { ...prev }; delete s[book.id]; return s; });
           break;
         }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(r => setTimeout(r, 500));
       }
-    } catch (error) {
-      console.error('Error continuing generation:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      setGenerationProgress(prev => ({
-        ...prev,
-        [book.id]: { progress: prev[book.id]?.progress || 0, message: `Error: ${errorMessage}` }
-      }));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: prev[book.id]?.progress || 0, message: `Error: ${msg}` } }));
     } finally {
-      setContinuingBooks(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(book.id);
-        return newSet;
-      });
+      setContinuingBooks(prev => { const s = new Set(prev); s.delete(book.id); return s; });
     }
   }, [isProUser, triggerUpgradeModal, refreshBooks]);
 
@@ -357,217 +450,116 @@ function LibraryPageContent() {
     return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
   };
 
-  const libraryTitle = 'Library';
-
-  // Find the book currently being regenerated (for the modal)
-  const activeRegenBookId = Array.from(continuingBooks)[0]; // Show modal for first actively generating book
+  const activeRegenBookId = Array.from(continuingBooks)[0];
   const activeRegenBook = activeRegenBookId ? books.find(b => b.id === activeRegenBookId) : null;
   const activeRegenProgress = activeRegenBookId ? generationProgress[activeRegenBookId] : null;
 
+  const selectClass = 'bg-[var(--input-bg)] border border-[var(--input-border)] rounded-lg px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all hover:border-[var(--border-strong)]';
+
   return (
-    <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">
-      {/* Regeneration Progress Modal */}
+    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)]">
+      {/* Regeneration Modal */}
       {activeRegenBook && activeRegenProgress && (
         <RegenerationProgressModal
           bookTitle={activeRegenBook.title}
           progress={activeRegenProgress}
           onCancel={activeRegenProgress.message.toLowerCase().startsWith('error') ? () => {
-            setGenerationProgress(prev => {
-              const newState = { ...prev };
-              delete newState[activeRegenBook.id];
-              return newState;
-            });
-            setContinuingBooks(prev => {
-              const newSet = new Set(prev);
-              newSet.delete(activeRegenBook.id);
-              return newSet;
-            });
+            setGenerationProgress(prev => { const s = { ...prev }; delete s[activeRegenBook.id]; return s; });
+            setContinuingBooks(prev => { const ns = new Set(prev); ns.delete(activeRegenBook.id); return ns; });
           } : undefined}
         />
       )}
 
-      {/* Page Toolbar */}
-      <header className="border-b border-yellow-600/20 bg-white/80 dark:bg-black/80 backdrop-blur-md sticky top-16 z-30" style={{ fontFamily: 'var(--font-header)', letterSpacing: 'var(--letter-spacing-header)', boxShadow: 'var(--shadow-header)' }}>
+      {/* Page Header */}
+      <div className="border-b border-[var(--border)] bg-[var(--background)] sticky top-14 z-30">
         <div className="container mx-auto px-4 py-4">
-            {/* Desktop Header */}
-          <div className="hidden md:flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <h1 className="text-2xl font-bold" style={{ fontFamily: 'var(--font-header)' }}>{libraryTitle}</h1>
-              {/* Tier Badge */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl md:text-2xl font-semibold tracking-tight">Library</h1>
               {isProUser ? (
-                <Badge variant="success" size="sm" className="flex items-center gap-1">
+                <Badge variant="accent" style="soft" size="sm" className="gap-1">
                   <Crown className="w-3 h-3" />
                   Pro
                 </Badge>
-              ) : (
+              ) : !isTierLoading ? (
                 <button
                   onClick={() => triggerUpgradeModal()}
-                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 transition-all"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:opacity-90 transition-opacity"
                 >
                   <Sparkles className="w-3 h-3" />
-                  Upgrade to Pro
+                  Upgrade
                 </button>
-              )}
+              ) : null}
             </div>
 
-            <div className="flex items-center gap-3">
-              {/* Showcase Button */}
-              <Link href="/showcase">
-                <Button 
-                  variant="outline" 
-                  className="flex items-center gap-2"
-                >
-                  <Globe className="w-4 h-4" />
-                  Showcase
-                </Button>
+            <div className="flex items-center gap-2">
+              <Link href="/showcase" className="hidden md:flex">
+                <Button variant="ghost" size="sm" leftIcon={<Globe className="w-4 h-4" />}>Showcase</Button>
+              </Link>
+              <Link href="/showcase" className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-lg transition-colors">
+                <Globe className="w-5 h-5" />
               </Link>
               
-              {/* Upload Book Button */}
-              <Button 
-                variant="outline" 
-                className="flex items-center gap-2"
-                onClick={() => setShowUploadModal(true)}
-              >
-                <Upload className="w-4 h-4" />
-                Upload Book
+              <Button variant="ghost" size="sm" onClick={() => setShowUploadModal(true)} leftIcon={<Upload className="w-4 h-4" />} className="hidden md:flex">
+                Upload
               </Button>
-              
-              {/* Show enabled button while loading or if Pro user */}
+              <button onClick={() => setShowUploadModal(true)} className="md:hidden p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] rounded-lg transition-colors">
+                <Upload className="w-5 h-5" />
+              </button>
+
               {(isTierLoading || isProUser) ? (
                 <Link href="/studio">
-                  <Button 
-                    variant="primary" 
-                    className="flex items-center gap-2"
-                    disabled={isTierLoading}
-                  >
-                    <Plus className="w-4 h-4" />
-                    New Book
+                  <Button variant="primary" size="sm" leftIcon={<Plus className="w-4 h-4" />} disabled={isTierLoading}>
+                    <span className="hidden md:inline">New Book</span>
+                    <span className="md:hidden">New</span>
                   </Button>
                 </Link>
               ) : (
-                <button
+                <Button
+                  variant="secondary"
+                  size="sm"
                   onClick={() => triggerUpgradeModal('generate-book')}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
+                  leftIcon={<Lock className="w-4 h-4" />}
                 >
-                  <Lock className="w-4 h-4" />
-                  New Book
-                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
-                </button>
+                  <span className="hidden md:inline">New Book</span>
+                  <span className="md:hidden">New</span>
+                </Button>
               )}
             </div>
           </div>
-
-          {/* Mobile Header */}
-          <div className="md:hidden">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold">{libraryTitle}</h1>
-                {isProUser ? (
-                  <Badge variant="success" size="sm" className="flex items-center gap-1">
-                    <Crown className="w-3 h-3" />
-                    Pro
-                  </Badge>
-                ) : (
-                  <button
-                    onClick={() => triggerUpgradeModal()}
-                    className="flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-gradient-to-r from-purple-500 to-pink-500 text-white"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    Upgrade
-                  </button>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                {/* Showcase Button - Mobile */}
-                <Link
-                  href="/showcase"
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                  title="Showcase"
-                >
-                  <Globe className="w-5 h-5" />
-                </Link>
-                
-                {/* Upload Book Button - Mobile */}
-                <button
-                  onClick={() => setShowUploadModal(true)}
-                  className="p-2 text-gray-600 dark:text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                  title="Upload Book"
-                >
-                  <Upload className="w-5 h-5" />
-                </button>
-                
-                {/* Show enabled button while loading or if Pro user */}
-                {(isTierLoading || isProUser) ? (
-                  <Link href="/studio">
-                    <Button 
-                      variant="primary" 
-                      size="sm" 
-                      className="flex items-center gap-1"
-                      disabled={isTierLoading}
-                    >
-                      <Plus className="w-4 h-4" />
-                      New
-                    </Button>
-                  </Link>
-                ) : (
-                  <button
-                    onClick={() => triggerUpgradeModal('generate-book')}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium text-sm hover:from-purple-600 hover:to-pink-600 transition-all"
-                  >
-                    <Lock className="w-3 h-3" />
-                    New
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
-      </header>
+      </div>
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-4 md:py-8">
+      <div className="container mx-auto px-4 py-6">
         {/* Error Banner */}
         {error && (
-          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-            <p className="text-red-700 dark:text-red-400">{error}</p>
-            <button 
-              onClick={() => refreshBooks()}
-              className="mt-2 text-sm text-red-600 dark:text-red-300 underline hover:no-underline"
-            >
+          <Card variant="outlined" padding="md" className="mb-6 border-[var(--error)] bg-[var(--error-light)]">
+            <p className="text-[var(--error)] text-sm">{error}</p>
+            <button onClick={() => refreshBooks()} className="mt-2 text-sm text-[var(--error)] underline hover:no-underline">
               Try again
             </button>
-          </div>
+          </Card>
         )}
 
-        {/* Filters & Search */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4 mb-6 md:mb-8">
+        {/* Filters */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 mb-6">
           <div className="flex-1">
             <Input
               type="search"
-              placeholder="Search books..."
+              placeholder="Search books by title or author..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              leftIcon={<Search className="w-4 h-4" />}
             />
           </div>
-
           <div className="flex gap-2">
-            <select
-              value={filterGenre}
-              onChange={(e) => setFilterGenre(e.target.value)}
-              className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
+            <select value={filterGenre} onChange={(e) => setFilterGenre(e.target.value)} className={selectClass}>
               {genres.map((genre) => (
-                <option key={genre} value={genre}>
-                  {genre === 'all' ? 'All Genres' : genre}
-                </option>
+                <option key={genre} value={genre}>{genre === 'all' ? 'All Genres' : genre}</option>
               ))}
             </select>
-
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value as ProductionStatus | 'all')}
-              className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as ProductionStatus | 'all')} className={cn(selectClass, 'hidden md:block')}>
               <option value="all">All Status</option>
               <option value="draft">Draft</option>
               <option value="in-progress">In Progress</option>
@@ -575,304 +567,84 @@ function LibraryPageContent() {
               <option value="audio-pending">Audio Pending</option>
               <option value="published">Published</option>
             </select>
-
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'words')}
-              className="flex-1 md:flex-none bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-3 md:px-4 py-2 text-sm md:text-base text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-yellow-500"
-            >
-              <option value="date">Date</option>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'date' | 'title' | 'words')} className={selectClass}>
+              <option value="date">Newest</option>
               <option value="title">Title</option>
               <option value="words">Words</option>
             </select>
           </div>
         </div>
 
-        {/* Stats - Compact animated cards */}
+        {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-5 gap-3 mb-8">
-          <StatCard
-            icon={<Library className="w-4 h-4" />}
-            label="Books"
-            value={books.length}
-            accentColor="yellow"
-            delay={0}
-          />
-          
-          <StatCard
-            icon={<CheckCircle2 className="w-4 h-4" />}
-            label="Completed"
-            value={books.filter((b) => b.status === 'completed').length}
-            accentColor="green"
-            delay={0.05}
-          />
-          
-          <StatCard
-            icon={<Type className="w-4 h-4" />}
-            label="Words"
-            value={books.reduce((sum, b) => sum + (b.metadata?.wordCount || 0), 0)}
-            format="locale"
-            accentColor="blue"
-            delay={0.1}
-          />
-          
-          <StatCard
-            icon={<Layers className="w-4 h-4" />}
-            label="Chapters"
-            value={books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)}
-            accentColor="purple"
-            delay={0.15}
-          />
-
-          {/* Audio Stats - Only show if there's audio */}
+          <StatCard icon={<Library className="w-4 h-4" />} label="Books" value={books.length} accentColor="yellow" delay={0} />
+          <StatCard icon={<CheckCircle2 className="w-4 h-4" />} label="Completed" value={books.filter((b) => b.status === 'completed').length} accentColor="green" delay={0.05} />
+          <StatCard icon={<Type className="w-4 h-4" />} label="Words" value={books.reduce((sum, b) => sum + (b.metadata?.wordCount || 0), 0)} format="locale" accentColor="blue" delay={0.1} />
+          <StatCard icon={<Layers className="w-4 h-4" />} label="Chapters" value={books.reduce((sum, b) => sum + (b.metadata?.chapters || 0), 0)} accentColor="purple" delay={0.15} />
           {(() => {
-            const totalChaptersWithAudio = books.reduce((sum, b) => sum + (b.audioStats?.chaptersWithAudio || 0), 0);
-            const totalAudioDuration = books.reduce((sum, b) => sum + (b.audioStats?.totalDuration || 0), 0);
-            if (totalChaptersWithAudio === 0) return null;
+            const totalWithAudio = books.reduce((sum, b) => sum + (b.audioStats?.chaptersWithAudio || 0), 0);
+            const totalDuration = books.reduce((sum, b) => sum + (b.audioStats?.totalDuration || 0), 0);
+            if (totalWithAudio === 0) return null;
             return (
-              <AudioStatCard
-                icon={<Headphones className="w-4 h-4" />}
-                label="Audio"
-                value={totalChaptersWithAudio}
-                subtitle={`${formatDuration(totalAudioDuration)} total`}
-                accentColor="green"
-                delay={0.2}
-              />
+              <AudioStatCard icon={<Headphones className="w-4 h-4" />} label="Audio" value={totalWithAudio} subtitle={`${formatDuration(totalDuration)} total`} accentColor="green" delay={0.2} />
             );
           })()}
         </div>
 
         {/* Books Grid */}
         {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-            {[...Array(6)].map((_, i) => (
-              <div key={i} className="animate-pulse bg-gray-100 dark:bg-gray-900 rounded-lg p-4 md:p-6 border border-gray-300 dark:border-gray-800">
-                <div className="bg-gray-300 dark:bg-gray-800 h-6 w-3/4 rounded mb-2" />
-                <div className="bg-gray-300 dark:bg-gray-800 h-4 w-1/2 rounded mb-4" />
-                <div className="bg-gray-300 dark:bg-gray-800 h-4 w-full rounded" />
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCard key={i} />
             ))}
           </div>
         ) : filteredAndSortedBooks.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-600 dark:text-gray-400 text-base md:text-lg mb-4">
-              {searchQuery || filterGenre !== 'all' ? 'No books match your filters' : 'No books yet'}
+          <div className="text-center py-16">
+            <BookMarked className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-[var(--text-primary)] mb-2">
+              {searchQuery || filterGenre !== 'all' ? 'No books match your filters' : 'Your library is empty'}
+            </h3>
+            <p className="text-sm text-[var(--text-muted)] mb-6 max-w-sm mx-auto">
+              {searchQuery || filterGenre !== 'all' 
+                ? 'Try adjusting your search or filters' 
+                : 'Create your first book to get started with AI-powered writing'
+              }
             </p>
             {isProUser ? (
               <Link href="/studio">
-                <Button variant="primary" size="md">
-                  Create Your First Book
-                </Button>
+                <Button variant="primary" leftIcon={<Plus className="w-4 h-4" />}>Create Your First Book</Button>
               </Link>
             ) : (
-              <button
+              <Button
+                variant="primary"
                 onClick={() => triggerUpgradeModal('generate-book')}
-                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg font-medium hover:from-purple-600 hover:to-pink-600 transition-all flex items-center gap-2 mx-auto"
+                leftIcon={<Sparkles className="w-4 h-4" />}
               >
-                <Lock className="w-4 h-4" />
                 Create Your First Book
-                <span className="text-xs bg-white/20 px-2 py-1 rounded">PRO</span>
-              </button>
+              </Button>
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredAndSortedBooks.map((book) => (
-              <Link
+              <BookCardItem
                 key={book.id}
-                href={`/library/${book.id}`}
-                prefetch={true}
-                onMouseEnter={() => handleBookHover(book.id)}
-                className="bg-gray-100 dark:bg-gray-900 rounded-lg overflow-hidden border border-gray-300 dark:border-gray-800 hover:border-yellow-400 transition-all hover:shadow-xl cursor-pointer group block"
-              >
-                {/* Cover Image */}
-                <div className="relative w-full aspect-[2/3] bg-gray-800 overflow-hidden">
-                  {book.coverUrl && book.coverUrl.trim() !== '' ? (
-                    <img
-                      src={book.coverUrl}
-                      alt={`${book.title} cover`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900 relative">
-                      <div className="text-center px-4">
-                        <h3 className="font-bold text-lg text-white mb-2 line-clamp-3">{book.title}</h3>
-                        <p className="text-sm text-gray-400 mb-4">by {book.author}</p>
-                        
-                        {/* Continue Generation Button for books in progress */}
-                        {book.status === 'generating' ? (
-                          <div className="space-y-2">
-                            {generationProgress[book.id] && (
-                              <div className="mb-2">
-                                <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-                                  <div 
-                                    className="h-full bg-yellow-400 transition-all duration-300"
-                                    style={{ width: `${generationProgress[book.id].progress}%` }}
-                                  />
-                                </div>
-                                <p className="text-xs text-gray-400 mt-1">
-                                  {generationProgress[book.id].message}
-                                </p>
-                              </div>
-                            )}
-                            {isProUser ? (
-                              <button
-                                onClick={(e) => handleContinueGeneration(book, e)}
-                                disabled={continuingBooks.has(book.id)}
-                                className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-yellow-600 disabled:cursor-not-allowed transition-colors"
-                              >
-                                {continuingBooks.has(book.id) ? (
-                                  <span className="flex items-center gap-2">
-                                    <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/>
-                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
-                                    </svg>
-                                    Generating...
-                                  </span>
-                                ) : (
-                                  <span className="flex items-center gap-2">
-                                    <Play className="w-4 h-4" />
-                                    Continue Generation
-                                  </span>
-                                )}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); triggerUpgradeModal('continue-generation'); }}
-                                className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
-                              >
-                                <span className="flex items-center gap-2">
-                                  <Lock className="w-4 h-4" />
-                                  Continue Generation
-                                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
-                                </span>
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          /* Generate Cover Button */
-                          isProUser ? (
-                            <button
-                              onClick={(e) => handleGenerateCover(book.id, e)}
-                              disabled={generatingCovers.has(book.id)}
-                              className="px-4 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                            >
-                              {generatingCovers.has(book.id) ? (
-                                <span className="flex items-center gap-2">
-                                  <Loader2 className="animate-spin h-4 w-4" />
-                                  Generating...
-                                </span>
-                              ) : (
-                                <span className="flex items-center gap-2">
-                                  <Palette className="w-4 h-4" />
-                                  Generate Cover
-                                </span>
-                              )}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={(e) => { e.preventDefault(); e.stopPropagation(); triggerUpgradeModal('generate-cover'); }}
-                              className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-sm font-medium hover:from-purple-600 hover:to-pink-600 transition-colors"
-                            >
-                              <span className="flex items-center gap-2">
-                                <Lock className="w-4 h-4" />
-                                Generate Cover
-                                <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">PRO</span>
-                              </span>
-                            </button>
-                          )
-                        )}
-                      </div>
-                    </div>
-                  )}
-                  {/* Status badge overlay */}
-                  <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-                    {(() => {
-                      const status = book.productionStatus || 'draft';
-                      let badgeVariant: 'default' | 'success' | 'warning' | 'info' = 'default';
-                      let badgeText = 'Draft';
-                      
-                      switch (status) {
-                        case 'draft':
-                          badgeVariant = 'default';
-                          badgeText = 'Draft';
-                          break;
-                        case 'in-progress':
-                          badgeVariant = 'info';
-                          badgeText = 'In Progress';
-                          break;
-                        case 'content-complete':
-                          badgeVariant = 'success';
-                          badgeText = 'Content Complete';
-                          break;
-                        case 'audio-pending':
-                          badgeVariant = 'warning';
-                          badgeText = 'Audio Pending';
-                          break;
-                        case 'published':
-                          badgeVariant = 'success'; // or purple if we had it, but success works for now or custom className
-                          badgeText = 'Published';
-                          break;
-                      }
-                      
-                      return (
-                        <Badge 
-                          variant={badgeVariant}
-                          size="sm"
-                          className={status === 'published' ? 'bg-purple-500 text-white' : ''}
-                        >
-                          {badgeText}
-                        </Badge>
-                      );
-                    })()}
-                    {/* Showcase badge */}
-                    {book.isPublic && (
-                      <Badge variant="default" size="sm" className="bg-yellow-400 text-black flex items-center gap-1">
-                        <Globe className="w-3 h-3" />
-                        Public
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                {/* Book Info */}
-                <div className="p-4">
-                  <h3 className="font-bold text-base line-clamp-2 mb-1">{book.title}</h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">by {book.author}</p>
-                  <p className="text-xs text-gray-500 mb-3">{book.genre}</p>
-
-                  <div className="flex flex-wrap items-center gap-3 text-sm">
-                    <div className="flex items-center gap-1">
-                      <BookOpen className="w-4 h-4 text-yellow-500" />
-                      <span className="text-gray-400">{book.metadata?.chapters || 0} ch</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <FileText className="w-4 h-4 text-yellow-500" />
-                      <span className="text-gray-400">
-                        {(book.metadata?.wordCount || 0).toLocaleString()}
-                      </span>
-                    </div>
-                    {/* Audio Indicator */}
-                    {book.audioStats && book.audioStats.chaptersWithAudio > 0 && (
-                      <div className="flex items-center gap-1" title={`${book.audioStats.chaptersWithAudio}/${book.audioStats.totalChapters} chapters have audio (${formatDuration(book.audioStats.totalDuration)})`}>
-                        <Headphones className="w-4 h-4 text-green-500" />
-                        <span className="text-green-500 font-medium">
-                          {book.audioStats.chaptersWithAudio}/{book.audioStats.totalChapters}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-gray-300 dark:border-gray-800 text-xs text-gray-500">
-                    {new Date(book.createdAt).toLocaleDateString()}
-                  </div>
-                </div>
-              </Link>
+                book={book}
+                isProUser={isProUser}
+                generatingCovers={generatingCovers}
+                continuingBooks={continuingBooks}
+                generationProgress={generationProgress}
+                onHover={handleBookHover}
+                onGenerateCover={handleGenerateCover}
+                onContinueGeneration={handleContinueGeneration}
+                onUpgradeModal={triggerUpgradeModal}
+                formatDuration={formatDuration}
+              />
             ))}
           </div>
         )}
       </div>
 
-      {/* Upload Book Modal */}
       <BookUploadModal
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
@@ -882,7 +654,6 @@ function LibraryPageContent() {
   );
 }
 
-// Wrap with auth guard
 export default function LibraryPage() {
   return (
     <AuthGuard feature="library">

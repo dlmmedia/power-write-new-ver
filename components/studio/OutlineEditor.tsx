@@ -120,7 +120,7 @@ export const OutlineEditor: React.FC = () => {
 
   if (!outline) {
     return (
-      <div className="text-center py-12 text-gray-600 dark:text-gray-400">
+      <div className="text-center py-12 text-[var(--text-secondary)]">
         <p className="text-lg mb-2">No outline generated yet</p>
         <p className="text-sm mb-4">Click &quot;Generate Outline&quot; to create your book structure</p>
         <button
@@ -393,7 +393,7 @@ export const OutlineEditor: React.FC = () => {
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="text-2xl font-bold bg-white dark:bg-gray-900 border border-yellow-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 w-full max-w-md"
+                className="text-2xl font-bold bg-[var(--card-bg)] border border-yellow-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500 w-full max-w-md"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveTitle();
@@ -429,12 +429,12 @@ export const OutlineEditor: React.FC = () => {
           {/* Editable Author */}
           {isEditingAuthor ? (
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-gray-600 dark:text-gray-400 text-sm">by</span>
+              <span className="text-[var(--text-secondary)] text-sm">by</span>
               <input
                 type="text"
                 value={editAuthor}
                 onChange={(e) => setEditAuthor(e.target.value)}
-                className="text-sm bg-white dark:bg-gray-900 border border-yellow-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="text-sm bg-[var(--card-bg)] border border-yellow-400 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleSaveAuthor();
@@ -458,7 +458,7 @@ export const OutlineEditor: React.FC = () => {
             </div>
           ) : (
             <p
-              className="text-gray-600 dark:text-gray-400 text-sm mt-1 cursor-pointer hover:text-yellow-400 transition-colors group inline-flex items-center gap-1"
+              className="text-[var(--text-secondary)] text-sm mt-1 cursor-pointer hover:text-yellow-400 transition-colors group inline-flex items-center gap-1"
               onClick={handleStartEditAuthor}
               title="Click to edit author"
             >
@@ -493,7 +493,7 @@ export const OutlineEditor: React.FC = () => {
           </button>
           <div className="relative group">
             <Button variant="outline" size="sm">Export ▼</Button>
-            <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg py-1 w-36 z-10">
+            <div className="hidden group-hover:block absolute right-0 top-full mt-1 bg-[var(--card-bg)] border border-gray-300 dark:border-gray-700 rounded-lg shadow-lg py-1 w-36 z-10">
               <button
                 onClick={() => handleExportOutline('pdf')}
                 className="w-full text-left px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm"
@@ -544,7 +544,7 @@ export const OutlineEditor: React.FC = () => {
               value={editDescription}
               onChange={(e) => setEditDescription(e.target.value)}
               rows={4}
-              className="w-full bg-white dark:bg-gray-900 border border-yellow-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+              className="w-full bg-[var(--card-bg)] border border-yellow-400 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
               autoFocus
             />
             <div className="flex justify-end gap-2">
@@ -610,7 +610,7 @@ export const OutlineEditor: React.FC = () => {
                 value={newTheme}
                 onChange={(e) => setNewTheme(e.target.value)}
                 placeholder="Enter new theme..."
-                className="flex-1 bg-white dark:bg-gray-900 border border-yellow-400 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="flex-1 bg-[var(--card-bg)] border border-yellow-400 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-yellow-500"
                 autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleAddTheme();
@@ -662,7 +662,7 @@ export const OutlineEditor: React.FC = () => {
                 >
                   <div>
                     <span className="font-semibold text-yellow-400">{char.name}</span>
-                    <span className="text-gray-600 dark:text-gray-400"> — {char.role}</span>
+                    <span className="text-[var(--text-secondary)]"> — {char.role}</span>
                   </div>
                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
@@ -711,7 +711,7 @@ export const OutlineEditor: React.FC = () => {
                       {chapter.number}
                     </Badge>
                     <h4 className="font-semibold">{chapter.title}</h4>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">
+                    <span className="text-xs text-[var(--text-secondary)]">
                       ~{chapter.wordCount.toLocaleString()} words
                     </span>
                   </div>
@@ -723,7 +723,7 @@ export const OutlineEditor: React.FC = () => {
                   <button
                     onClick={() => handleMoveChapter(chapter.number, 'up')}
                     disabled={chapter.number === 1}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-2 text-[var(--text-secondary)] hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move up"
                   >
                     ↑
@@ -731,21 +731,21 @@ export const OutlineEditor: React.FC = () => {
                   <button
                     onClick={() => handleMoveChapter(chapter.number, 'down')}
                     disabled={chapter.number === outline.chapters.length}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
+                    className="p-2 text-[var(--text-secondary)] hover:text-gray-900 dark:hover:text-white disabled:opacity-30 disabled:cursor-not-allowed"
                     title="Move down"
                   >
                     ↓
                   </button>
                   <button
                     onClick={() => handleEditChapter(chapter)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-yellow-400"
+                    className="p-2 text-[var(--text-secondary)] hover:text-yellow-400"
                     title="Edit"
                   >
                     ✎
                   </button>
                   <button
                     onClick={() => handleDeleteChapter(chapter.number)}
-                    className="p-2 text-gray-600 dark:text-gray-400 hover:text-red-400"
+                    className="p-2 text-[var(--text-secondary)] hover:text-red-400"
                     title="Delete"
                   >
                     ✕
@@ -787,7 +787,7 @@ export const OutlineEditor: React.FC = () => {
                   setEditingChapter({ ...editingChapter, summary: e.target.value })
                 }
                 rows={6}
-                className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="w-full bg-[var(--card-bg)] border border-gray-300 dark:border-gray-700 rounded px-4 py-2 text-[var(--text-primary)] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500"
               />
             </div>
 
@@ -888,9 +888,9 @@ const OutlineHistoryPanel: React.FC<{
   onClose: () => void;
 }> = ({ outlines, isLoading, onLoad, onDelete, onClose }) => {
   return (
-    <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+    <div className="bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+        <h3 className="font-semibold text-[var(--text-primary)] flex items-center gap-2">
           <span>📋</span> Saved Outlines
         </h3>
         <button
@@ -915,13 +915,13 @@ const OutlineHistoryPanel: React.FC<{
           {outlines.map((saved) => (
             <div
               key={saved.id}
-              className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-yellow-400 transition-colors"
+              className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg border border-[var(--border)] hover:border-yellow-400 transition-colors"
             >
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 dark:text-white text-sm truncate">
+                <p className="font-medium text-[var(--text-primary)] text-sm truncate">
                   {saved.title}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-[var(--text-muted)]">
                   {saved.outline?.chapters?.length || 0} chapters &middot;{' '}
                   {new Date(saved.createdAt).toLocaleDateString(undefined, {
                     month: 'short',

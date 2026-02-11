@@ -11,6 +11,8 @@ export interface SanitizationOptions {
   fixSpacing?: boolean;
   removeMetaText?: boolean;
   removeAIArtifacts?: boolean;
+  /** Apply humanizer-aware cleanup (filler phrases, AI vocab softening) */
+  humanize?: boolean;
 }
 
 const DEFAULT_OPTIONS: SanitizationOptions = {
@@ -21,6 +23,7 @@ const DEFAULT_OPTIONS: SanitizationOptions = {
   fixSpacing: true,
   removeMetaText: true,
   removeAIArtifacts: true,
+  humanize: true,
 };
 
 /**
@@ -68,7 +71,69 @@ export function sanitizeText(
     sanitized = fixSpacing(sanitized);
   }
 
+  // Humanizer-aware cleanup
+  if (opts.humanize) {
+    sanitized = removeFillerPhrases(sanitized);
+    sanitized = normalizeEmDashes(sanitized);
+  }
+
   return sanitized.trim();
+}
+
+/**
+ * Remove common filler phrases that AI tends to insert
+ */
+function removeFillerPhrases(text: string): string {
+  let result = text;
+
+  // Replace wordy constructions with concise alternatives
+  const replacements: Array<[RegExp, string]> = [
+    [/\bIn order to\b/g, 'To'],
+    [/\bDue to the fact that\b/gi, 'Because'],
+    [/\bAt this point in time\b/gi, 'Now'],
+    [/\bIn the event that\b/gi, 'If'],
+    [/\bhas the ability to\b/gi, 'can'],
+    [/\bIt is important to note that\s*/gi, ''],
+    [/\bIt is worth noting that\s*/gi, ''],
+    [/\bIt should be noted that\s*/gi, ''],
+    [/\bFor the purpose of\b/gi, 'For'],
+    [/\bAs a matter of fact,?\s*/gi, ''],
+    [/\bWith that being said,?\s*/gi, ''],
+    [/\bAt the end of the day,?\s*/gi, ''],
+    [/\bIn today's (?:world|society|day and age),?\s*/gi, ''],
+    [/\bWhen all is said and done,?\s*/gi, ''],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    result = result.replace(pattern, replacement);
+  }
+
+  // Clean up resulting capitalization issues
+  result = result.replace(/\.\s+([a-z])/g, (_, letter) => '. ' + letter.toUpperCase());
+  // Clean up double spaces
+  result = result.replace(/  +/g, ' ');
+
+  return result;
+}
+
+/**
+ * Normalize em dashes: keep reasonable usage but reduce overuse
+ */
+function normalizeEmDashes(text: string): string {
+  // Count em dashes
+  const dashes = (text.match(/\u2014/g) || []).length;
+  const words = text.split(/\s+/).length;
+  
+  // If ratio is reasonable (< 1 per 300 words), leave as-is
+  if (dashes <= Math.ceil(words / 300)) return text;
+
+  // Otherwise, replace excess em dashes with commas (keep first few)
+  let count = 0;
+  const threshold = Math.ceil(words / 300);
+  return text.replace(/\u2014/g, () => {
+    count++;
+    return count <= threshold ? '\u2014' : ',';
+  });
 }
 
 /**

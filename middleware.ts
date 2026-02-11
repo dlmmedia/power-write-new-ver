@@ -58,6 +58,13 @@ export default clerkMiddleware(async (auth, request) => {
 
   // Skip auth enforcement for public routes (Clerk still resolves auth state)
   if (isPublicRoute(request)) {
+    // Add cache headers for truly static public pages
+    const pathname = url.pathname;
+    if (pathname === '/' || pathname === '/landing') {
+      const response = NextResponse.next();
+      response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+      return response;
+    }
     return;
   }
 

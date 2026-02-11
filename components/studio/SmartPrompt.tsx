@@ -411,10 +411,10 @@ export function SmartPrompt() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h3 className="text-lg font-bold text-[var(--text-primary)] flex items-center gap-2">
             Smart Book Prompt
           </h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-[var(--text-secondary)]">
             Describe your book idea, then analyze or use Magic Fill to configure everything
           </p>
         </div>
@@ -454,7 +454,7 @@ export function SmartPrompt() {
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe your book idea in detail...&#10;&#10;Example: Write a fantasy novel about a young blacksmith who discovers they can forge magical weapons. The story should follow their journey from a small village to becoming a legendary weapon smith, exploring themes of destiny, craftsmanship, and the true meaning of power."
           rows={5}
-          className="w-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
+          className="w-full bg-[var(--card-bg)] border border-gray-300 dark:border-gray-700 rounded-lg px-4 py-3 text-[var(--text-primary)] placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-yellow-500 resize-none"
           suppressHydrationWarning
         />
         <div className="absolute bottom-3 right-3 text-xs text-gray-400">
@@ -484,7 +484,7 @@ export function SmartPrompt() {
         >
           {isMagicFilling ? 'Generating...' : 'Magic Fill'}
         </Button>
-        <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">
+        <span className="text-xs text-[var(--text-muted)] hidden sm:block">
           Analyze extracts settings &middot; Magic Fill generates everything including chapters
         </span>
       </div>
@@ -514,24 +514,24 @@ export function SmartPrompt() {
           {/* Title & Description */}
           {parsedResult.title && (
             <div>
-              <label className="text-xs text-gray-500 dark:text-gray-400">Title</label>
+              <label className="text-xs text-[var(--text-muted)]">Title</label>
               <input
                 type="text"
                 value={parsedResult.title || ''}
                 onChange={(e) => updateField('title', e.target.value)}
-                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-1.5 text-sm font-semibold text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:outline-none"
+                className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded px-3 py-1.5 text-sm font-semibold text-[var(--text-primary)] focus:ring-2 focus:ring-yellow-500 focus:outline-none"
               />
             </div>
           )}
 
           {parsedResult.description && (
             <div>
-              <label className="text-xs text-gray-500 dark:text-gray-400">Description</label>
+              <label className="text-xs text-[var(--text-muted)]">Description</label>
               <textarea
                 value={parsedResult.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
                 rows={3}
-                className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded px-3 py-1.5 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-yellow-500 focus:outline-none resize-none"
+                className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded px-3 py-1.5 text-sm text-[var(--text-primary)] focus:ring-2 focus:ring-yellow-500 focus:outline-none resize-none"
               />
             </div>
           )}
@@ -583,7 +583,7 @@ export function SmartPrompt() {
           {/* Themes */}
           {parsedResult.themes && parsedResult.themes.length > 0 && (
             <div>
-              <label className="text-xs text-gray-500 dark:text-gray-400">Themes</label>
+              <label className="text-xs text-[var(--text-muted)]">Themes</label>
               <div className="flex flex-wrap gap-1 mt-1">
                 {parsedResult.themes.map((theme, idx) => (
                   <span
@@ -609,10 +609,10 @@ export function SmartPrompt() {
           {/* Characters (for fiction) */}
           {parsedResult.characters && parsedResult.characters.length > 0 && (
             <div>
-              <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Characters</label>
+              <label className="text-xs text-[var(--text-muted)] mb-1 block">Characters</label>
               <div className="space-y-2">
                 {parsedResult.characters.map((char, idx) => (
-                  <div key={idx} className="flex items-start gap-2 bg-white dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
+                  <div key={idx} className="flex items-start gap-2 bg-[var(--card-bg)] rounded p-2 border border-[var(--border)]">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <input
@@ -623,13 +623,13 @@ export function SmartPrompt() {
                             updated[idx] = { ...updated[idx], name: e.target.value };
                             updateField('characters', updated);
                           }}
-                          className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-yellow-400 focus:outline-none text-gray-900 dark:text-white"
+                          className="font-medium text-sm bg-transparent border-b border-transparent hover:border-gray-300 focus:border-yellow-400 focus:outline-none text-[var(--text-primary)]"
                         />
-                        <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-600 dark:text-gray-400">
+                        <span className="text-xs px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-[var(--text-secondary)]">
                           {char.role}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-0.5 truncate">{char.description}</p>
+                      <p className="text-xs text-[var(--text-secondary)] mt-0.5 truncate">{char.description}</p>
                     </div>
                   </div>
                 ))}
@@ -651,7 +651,7 @@ export function SmartPrompt() {
               {showChapters && (
                 <div className="mt-2 space-y-2 max-h-72 overflow-y-auto">
                   {parsedResult.chapterOutlines.map((ch, idx) => (
-                    <div key={idx} className="bg-white dark:bg-gray-900 rounded p-3 border border-gray-200 dark:border-gray-700">
+                    <div key={idx} className="bg-[var(--card-bg)] rounded p-3 border border-[var(--border)]">
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2 flex-1">
                           <span className="text-xs font-bold text-gray-400 w-6">#{ch.number}</span>
@@ -659,7 +659,7 @@ export function SmartPrompt() {
                             type="text"
                             value={ch.title}
                             onChange={(e) => updateChapter(idx, 'title', e.target.value)}
-                            className="flex-1 text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-yellow-400 focus:outline-none text-gray-900 dark:text-white"
+                            className="flex-1 text-sm font-medium bg-transparent border-b border-transparent hover:border-gray-300 focus:border-yellow-400 focus:outline-none text-[var(--text-primary)]"
                           />
                         </div>
                         <div className="flex items-center gap-1">
@@ -677,7 +677,7 @@ export function SmartPrompt() {
                         value={ch.summary}
                         onChange={(e) => updateChapter(idx, 'summary', e.target.value)}
                         rows={2}
-                        className="w-full text-xs text-gray-600 dark:text-gray-400 bg-transparent border border-transparent hover:border-gray-200 focus:border-yellow-400 focus:outline-none rounded px-1 py-0.5 resize-none"
+                        className="w-full text-xs text-[var(--text-secondary)] bg-transparent border border-transparent hover:border-gray-200 focus:border-yellow-400 focus:outline-none rounded px-1 py-0.5 resize-none"
                       />
                     </div>
                   ))}
@@ -718,8 +718,8 @@ export function SmartPrompt() {
       )}
 
       {/* Tips */}
-      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-xs text-gray-600 dark:text-gray-400">
-        <strong className="text-gray-900 dark:text-white">Tips for better results:</strong>
+      <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 text-xs text-[var(--text-secondary)]">
+        <strong className="text-[var(--text-primary)]">Tips for better results:</strong>
         <ul className="mt-1 space-y-0.5 list-disc list-inside">
           <li>Be specific about genre, tone, and themes</li>
           <li>Mention target audience and desired length</li>
@@ -739,12 +739,12 @@ function EditableSelect({ label, value, options, onChange }: {
   onChange: (value: string) => void;
 }) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
-      <span className="text-gray-500 dark:text-gray-400 text-xs">{label}</span>
+    <div className="bg-[var(--card-bg)] rounded p-2 border border-[var(--border)]">
+      <span className="text-[var(--text-muted)] text-xs">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full bg-transparent text-sm font-semibold text-gray-900 dark:text-white capitalize focus:outline-none cursor-pointer"
+        className="w-full bg-transparent text-sm font-semibold text-[var(--text-primary)] capitalize focus:outline-none cursor-pointer"
       >
         {value && !options.includes(value) && (
           <option value={value}>{value}</option>
@@ -766,8 +766,8 @@ function EditableNumber({ label, value, onChange, min, max, step }: {
   step?: number;
 }) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded p-2 border border-gray-200 dark:border-gray-700">
-      <span className="text-gray-500 dark:text-gray-400 text-xs">{label}</span>
+    <div className="bg-[var(--card-bg)] rounded p-2 border border-[var(--border)]">
+      <span className="text-[var(--text-muted)] text-xs">{label}</span>
       <input
         type="number"
         value={value}
@@ -775,7 +775,7 @@ function EditableNumber({ label, value, onChange, min, max, step }: {
         min={min}
         max={max}
         step={step}
-        className="w-full bg-transparent text-sm font-semibold text-gray-900 dark:text-white focus:outline-none"
+        className="w-full bg-transparent text-sm font-semibold text-[var(--text-primary)] focus:outline-none"
       />
     </div>
   );
