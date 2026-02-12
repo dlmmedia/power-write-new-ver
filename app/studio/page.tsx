@@ -138,6 +138,9 @@ function StudioPageContent() {
     // If no outline, generate one first or use basic config
     const workingOutline = outline || {
       title: config.basicInfo?.title || 'Untitled Book',
+      author: config.basicInfo?.author || '',
+      genre: config.basicInfo?.genre || '',
+      description: '',
       chapters: Array.from({ length: config.content?.numChapters || 10 }, (_, i) => ({
         chapterNumber: i + 1,
         title: `Chapter ${i + 1}`,
@@ -380,6 +383,9 @@ function StudioPageContent() {
 
     const workingOutline = outline || {
       title: config.basicInfo?.title || 'Untitled Book',
+      author: config.basicInfo?.author || '',
+      genre: config.basicInfo?.genre || '',
+      description: '',
       chapters: Array.from({ length: config.content?.numChapters || 10 }, (_, i) => ({
         chapterNumber: i + 1,
         title: `Chapter ${i + 1}`,
