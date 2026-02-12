@@ -640,11 +640,21 @@ export class PDFServicePDFKit {
           estimatedPage += pages;
         });
         
-        // TOC entries
+        // TOC entries - deduplicate by number+title
         let tocY = dims.marginTop + 90;
         const tocEntrySpacing = 22;
         
+        const seenToc = new Map<string, number>();
+        const tocChapters: Array<{ chapter: typeof book.chapters[0]; index: number }> = [];
         book.chapters.forEach((chapter, index) => {
+          const key = `${chapter.number}-${chapter.title}`;
+          if (!seenToc.has(key)) {
+            seenToc.set(key, index);
+            tocChapters.push({ chapter, index });
+          }
+        });
+        
+        tocChapters.forEach(({ chapter, index }) => {
           const pageNum = chapterStartPages[index];
           const chapterLabel = `Chapter ${chapter.number}`;
           

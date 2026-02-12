@@ -1428,7 +1428,14 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     // Use custom prompt if provided, otherwise build the standard one
     const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
     
-    console.log('Using DALL-E 3...');
+    // DALL-E 3 only accepts 'vivid' or 'natural' for the style parameter.
+    // Map our internal style values to valid DALL-E values.
+    // Styles like 'photographic', 'minimalist', 'abstract' map to 'natural';
+    // styles like 'illustrative', 'cinematic', 'vibrant' map to 'vivid'.
+    const naturalStyles = ['photographic', 'minimalist', 'abstract', 'typographic'];
+    const dalleStyle = naturalStyles.includes(style) ? 'natural' : 'vivid';
+    
+    console.log(`Using DALL-E 3 with style: ${dalleStyle} (from: ${style})...`);
     
     const response = await fetch(
       'https://api.openai.com/v1/images/generations',
@@ -1444,7 +1451,7 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
           n: 1,
           size: '1024x1792',
           quality: 'hd',
-          style: style,
+          style: dalleStyle,
         }),
       }
     );

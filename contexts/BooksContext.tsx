@@ -72,6 +72,7 @@ interface BooksContextActions {
   updateBookInCache: (bookId: number, updates: Partial<BookListItem>) => void;
   updateBookDetailInCache: (bookId: number, updates: Partial<BookDetail>) => void;
   invalidateBookDetail: (bookId: number) => void;
+  addBookToList: (book: BookListItem) => void;
   
   // State helpers
   refreshBooks: () => Promise<void>;
@@ -360,6 +361,18 @@ export function BooksProvider({ children }: BooksProviderProps) {
     });
   }, []);
   
+  // Add a newly generated book to the list cache immediately
+  // so it appears in the library without waiting for a full refetch
+  const addBookToList = useCallback((book: BookListItem) => {
+    setBooks(prev => {
+      // Avoid duplicates
+      if (prev.some(b => b.id === book.id)) {
+        return prev.map(b => b.id === book.id ? { ...b, ...book } : b);
+      }
+      return [book, ...prev];
+    });
+  }, []);
+  
   // Refresh books (force fetch)
   const refreshBooks = useCallback(async () => {
     await fetchBooks(true);
@@ -413,6 +426,7 @@ export function BooksProvider({ children }: BooksProviderProps) {
     updateBookInCache,
     updateBookDetailInCache,
     invalidateBookDetail,
+    addBookToList,
     refreshBooks,
     clearError,
   };

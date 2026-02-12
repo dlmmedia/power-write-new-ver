@@ -479,9 +479,9 @@ export const DEFAULT_PUBLISHING_SETTINGS: PublishingSettings = {
   
   headerFooter: {
     headerEnabled: true,
-    headerLeftContent: 'author',
+    headerLeftContent: 'title',
     headerCenterContent: 'none',
-    headerRightContent: 'title',
+    headerRightContent: 'chapter',
     headerFontSize: 9,
     headerFont: 'inherit',
     headerStyle: 'small-caps',

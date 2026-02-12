@@ -53,6 +53,7 @@ export const OutlineEditor: React.FC = () => {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const fetchOutlineHistory = useCallback(async () => {
     setIsLoadingHistory(true);
@@ -72,6 +73,7 @@ export const OutlineEditor: React.FC = () => {
   const handleSaveOutline = async () => {
     if (!outline) return;
     setIsSaving(true);
+    setSaveError(null);
     try {
       const response = await fetch('/api/outlines', {
         method: 'POST',
@@ -82,14 +84,33 @@ export const OutlineEditor: React.FC = () => {
           config,
         }),
       });
-      if (response.ok) {
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
         setSaveSuccess(true);
         setTimeout(() => setSaveSuccess(false), 2000);
-        // Refresh history if it's open
-        if (showHistory) fetchOutlineHistory();
+
+        // Immediately add the saved outline to local state so it appears
+        // in the saved section without waiting for a refetch
+        if (data.outline) {
+          setSavedOutlines(prev => [data.outline, ...prev]);
+        }
+
+        // Always refresh the history list to ensure consistency
+        fetchOutlineHistory();
+      } else {
+        // Show error feedback to the user
+        const errorMsg = data.error || 'Failed to save outline';
+        setSaveError(errorMsg);
+        console.error('Outline save failed:', errorMsg);
+        setTimeout(() => setSaveError(null), 5000);
       }
     } catch (error) {
       console.error('Failed to save outline:', error);
+      const errorMsg = error instanceof Error ? error.message : 'Network error - please try again';
+      setSaveError(errorMsg);
+      setTimeout(() => setSaveError(null), 5000);
     } finally {
       setIsSaving(false);
     }
@@ -469,18 +490,27 @@ export const OutlineEditor: React.FC = () => {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSaveOutline}
-            disabled={isSaving}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              saveSuccess
-                ? 'bg-green-500 text-white'
-                : 'bg-yellow-400 hover:bg-yellow-500 text-black'
-            }`}
-            title="Save outline to history"
-          >
-            {isSaving ? 'Saving...' : saveSuccess ? 'Saved!' : 'Save'}
-          </button>
+          <div className="relative">
+            <button
+              onClick={handleSaveOutline}
+              disabled={isSaving}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                saveError
+                  ? 'bg-red-500 text-white'
+                  : saveSuccess
+                    ? 'bg-green-500 text-white'
+                    : 'bg-yellow-400 hover:bg-yellow-500 text-black'
+              }`}
+              title="Save outline to history"
+            >
+              {isSaving ? 'Saving...' : saveError ? 'Failed!' : saveSuccess ? 'Saved!' : 'Save'}
+            </button>
+            {saveError && (
+              <div className="absolute top-full left-0 mt-1 px-2 py-1 bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300 text-xs rounded shadow-lg whitespace-nowrap z-20">
+                {saveError}
+              </div>
+            )}
+          </div>
           <button
             onClick={() => setShowHistory(!showHistory)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${

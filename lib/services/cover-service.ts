@@ -157,7 +157,19 @@ ${visualOptions.mood ? `- Overall Mood: ${visualOptions.mood}` : ''}`;
 - Text Color: ${visualOptions.customColors.text}
 ${visualOptions.customColors.background ? `- Background: ${visualOptions.customColors.background}` : ''}`;
       } else {
-        visualInstruction += `\n- Color Scheme: ${visualOptions.colorScheme || 'balanced and genre-appropriate'}`;
+        // Map color scheme values to descriptive instructions for the AI
+        const colorSchemeDescriptions: Record<string, string> = {
+          'warm': 'warm, rich color palette (golds, reds, oranges, warm browns)',
+          'cool': 'cool-toned palette (blues, teals, silvers, cool grays)',
+          'monochrome': 'monochromatic / black-and-white palette',
+          'vibrant': 'vivid, saturated, eye-catching colors with strong contrast',
+          'pastel': 'soft pastel color palette (light pinks, lavenders, mints)',
+          'dark': 'dark, moody palette (deep blacks, dark blues, rich shadows)',
+          'complementary': 'complementary color harmony with bold contrast',
+          'analogous': 'analogous color harmony with smooth transitions',
+        };
+        const colorDesc = colorSchemeDescriptions[visualOptions.colorScheme] || visualOptions.colorScheme || 'balanced and genre-appropriate';
+        visualInstruction += `\n- Color Scheme: ${colorDesc}`;
       }
       
       // Add visual elements

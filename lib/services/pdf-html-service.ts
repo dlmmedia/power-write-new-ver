@@ -1,9 +1,15 @@
-// HTML-to-PDF Export Service using Puppeteer
-// Generates professional book PDFs with CSS Paged Media
-// Now fully integrates PublishingSettings for complete control over PDF output
+// HTML-to-PDF Export Service using Puppeteer + Paged.js
+// Generates professional book PDFs with full CSS Paged Media support
+// Paged.js polyfills W3C Paged Media specs in the browser, giving us:
+//   - Real running headers/footers via @page margin boxes
+//   - Accurate TOC page numbers via target-counter()
+//   - Proper page flow with named pages (cover, front-matter only)
+//   - string(chapter-title, first-except) for automatic header suppression on chapter openers
 
 import puppeteerCore, { Browser, Page, PDFOptions } from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
+import * as path from 'path';
+import * as fs from 'fs';
 import { BookLayoutType, BOOK_LAYOUTS, LayoutConfig } from '@/lib/types/book-layouts';
 import { 
   PublishingSettings, 
@@ -22,7 +28,6 @@ import {
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 import { isNovel } from '@/lib/utils/book-type';
 
-// Use flexible types to accept various bibliography formats
 interface BookExport {
   title: string;
   author: string;
@@ -36,177 +41,132 @@ interface BookExport {
   description?: string;
   genre?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  bibliography?: any; // Accept any bibliography format - we'll extract what we need
+  bibliography?: any;
   publishingSettings?: PublishingSettings;
   layoutType?: BookLayoutType;
+}
+
+// Cache the Paged.js polyfill script content
+let pagedJsScriptCache: string | null = null;
+
+function getPagedJsScript(): string {
+  if (pagedJsScriptCache) return pagedJsScriptCache;
+  const candidates = [
+    path.join(process.cwd(), 'node_modules', 'pagedjs', 'dist', 'paged.polyfill.js'),
+    path.join(__dirname, '..', '..', 'node_modules', 'pagedjs', 'dist', 'paged.polyfill.js'),
+    path.join(__dirname, '..', '..', '..', 'node_modules', 'pagedjs', 'dist', 'paged.polyfill.js'),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) {
+        pagedJsScriptCache = fs.readFileSync(candidate, 'utf8');
+        console.log('[PDF-HTML] Loaded Paged.js polyfill from:', candidate);
+        return pagedJsScriptCache;
+      }
+    } catch { continue; }
+  }
+  throw new Error('[PDF-HTML] Could not find pagedjs polyfill. npm install pagedjs');
 }
 
 export class PDFHTMLService {
   private static browser: Browser | null = null;
 
-  /**
-   * Get or create a browser instance
-   * Uses @sparticuz/chromium for Vercel serverless compatibility
-   */
   private static async getBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.connected) {
       console.log('[PDF-HTML] Launching browser...');
-      
-      // Check if running on Vercel (serverless)
-      const isVercel = process.env.VERCEL === '1' || process.env.AWS_LAMBDA_FUNCTION_NAME;
-      
-      if (isVercel) {
-        console.log('[PDF-HTML] Running on Vercel - using @sparticuz/chromium');
-        
-        // Configure chromium for serverless (disable graphics for performance)
-        chromium.setGraphicsMode = false;
-        
-        const executablePath = await chromium.executablePath();
-        console.log('[PDF-HTML] Chromium executable path:', executablePath);
-        
-        this.browser = await puppeteerCore.launch({
-          args: chromium.args,
-          defaultViewport: { width: 1920, height: 1080 },
-          executablePath,
-          headless: true,
-        }) as Browser;
-      } else {
-        console.log('[PDF-HTML] Running locally - using local puppeteer');
-        // For local development, try to use system Chrome or Puppeteer's bundled Chromium
+
+      // Detect TRUE serverless: must have env flag AND be on Linux (not macOS/Windows dev)
+      const isServerless = (process.env.VERCEL === '1' || !!process.env.AWS_LAMBDA_FUNCTION_NAME)
+        && process.platform === 'linux';
+
+      // Strategy 1: Try local `puppeteer` (bundles its own Chromium -- works on dev machines)
+      if (!isServerless) {
         try {
-          // Try puppeteer-core with default Chrome locations
+          console.log('[PDF-HTML] Trying local puppeteer...');
           const puppeteer = await import('puppeteer');
           this.browser = await puppeteer.default.launch({
             headless: true,
-            args: [
-              '--no-sandbox',
-              '--disable-setuid-sandbox',
-              '--disable-dev-shm-usage',
-              '--disable-gpu',
-              '--font-render-hinting=none',
-            ],
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--font-render-hinting=none'],
           }) as unknown as Browser;
+          console.log('[PDF-HTML] Browser launched via local puppeteer');
+          return this.browser;
         } catch (localError) {
-          console.warn('[PDF-HTML] Local puppeteer failed, trying puppeteer-core:', localError);
-          // Fallback to puppeteer-core with common Chrome paths
-          const possiblePaths = [
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', // macOS
-            '/usr/bin/google-chrome', // Linux
-            '/usr/bin/chromium-browser', // Linux Chromium
-            'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe', // Windows
-          ];
-          
-          let execPath = '';
-          for (const path of possiblePaths) {
-            try {
-              const fs = await import('fs');
-              if (fs.existsSync(path)) {
-                execPath = path;
-                break;
-              }
-            } catch {
-              continue;
-            }
-          }
-          
-          if (execPath) {
-            this.browser = await puppeteerCore.launch({
-              headless: true,
-              executablePath: execPath,
-              args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-gpu',
-              ],
-            }) as Browser;
-          } else {
-            throw new Error('Could not find Chrome/Chromium installation');
-          }
+          console.warn('[PDF-HTML] Local puppeteer failed, trying system Chrome...', localError);
         }
+
+        // Strategy 2: Try system Chrome/Chromium installations
+        const possiblePaths = [
+          '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+          '/usr/bin/google-chrome',
+          '/usr/bin/chromium-browser',
+          '/usr/bin/chromium',
+          'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+          'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+        ];
+        for (const p of possiblePaths) {
+          try {
+            if (fs.existsSync(p)) {
+              console.log('[PDF-HTML] Found system Chrome at:', p);
+              this.browser = await puppeteerCore.launch({
+                headless: true,
+                executablePath: p,
+                args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu', '--font-render-hinting=none'],
+              }) as Browser;
+              console.log('[PDF-HTML] Browser launched via system Chrome');
+              return this.browser;
+            }
+          } catch { continue; }
+        }
+
+        throw new Error('[PDF-HTML] Could not find Chrome/Chromium. Install puppeteer or Google Chrome.');
       }
-      
-      console.log('[PDF-HTML] Browser launched successfully');
+
+      // Strategy 3: Serverless -- use @sparticuz/chromium (Linux only)
+      console.log('[PDF-HTML] Running on serverless -- using @sparticuz/chromium');
+      chromium.setGraphicsMode = false;
+      const executablePath = await chromium.executablePath();
+      this.browser = await puppeteerCore.launch({
+        args: chromium.args,
+        defaultViewport: { width: 1920, height: 1080 },
+        executablePath,
+        headless: true,
+      }) as Browser;
+      console.log('[PDF-HTML] Browser launched via @sparticuz/chromium');
     }
     return this.browser;
   }
 
-  /**
-   * Close the browser instance
-   */
   static async closeBrowser(): Promise<void> {
-    if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
-    }
+    if (this.browser) { await this.browser.close(); this.browser = null; }
   }
 
-  /**
-   * Fetch an image from URL and convert to base64 data URL
-   * This avoids CORS issues when embedding images in the PDF
-   */
   private static async fetchImageAsBase64(url: string): Promise<string | undefined> {
     if (!url) return undefined;
-    
-    // If already a data URL, return as-is
-    if (url.startsWith('data:')) {
-      return url;
-    }
-    
+    if (url.startsWith('data:')) return url;
     try {
-      console.log(`[PDF-HTML] Fetching image: ${url}`);
       const response = await fetch(url);
-      
-      if (!response.ok) {
-        console.error(`[PDF-HTML] Failed to fetch image: ${response.status} ${response.statusText}`);
-        return undefined;
-      }
-      
+      if (!response.ok) return undefined;
       const buffer = await response.arrayBuffer();
       const base64 = Buffer.from(buffer).toString('base64');
       const mimeType = response.headers.get('content-type') || 'image/png';
-      const dataUrl = `data:${mimeType};base64,${base64}`;
-      
-      console.log(`[PDF-HTML] Image fetched successfully, size: ${buffer.byteLength} bytes`);
-      return dataUrl;
-    } catch (error) {
-      console.error(`[PDF-HTML] Error fetching image:`, error);
-      return undefined;
-    }
+      return `data:${mimeType};base64,${base64}`;
+    } catch { return undefined; }
   }
 
-  /**
-   * Generate PDF from book data using HTML/CSS
-   */
-  static async generateBookPDF(book: BookExport): Promise<Buffer> {
-    console.log(`[PDF-HTML] Generating PDF for: ${book.title}`);
-    console.log(`[PDF-HTML] Layout: ${book.layoutType || 'novel-classic'}`);
-    console.log(`[PDF-HTML] Chapters: ${book.chapters?.length || 0}`);
-    console.log(`[PDF-HTML] Cover URL: ${book.coverUrl ? 'Yes' : 'No'}`);
-    console.log(`[PDF-HTML] Back Cover URL: ${book.backCoverUrl ? 'Yes' : 'No'}`);
+  // ============================================================
+  // MAIN PDF GENERATION
+  // ============================================================
 
-    // Pre-fetch cover images and convert to base64 to avoid CORS issues
+  static async generateBookPDF(book: BookExport): Promise<Buffer> {
+    console.log(`[PDF-HTML] Generating PDF for: ${book.title} (${book.chapters?.length || 0} chapters)`);
+
+    // Pre-fetch cover images as base64
     let coverBase64: string | undefined;
     let backCoverBase64: string | undefined;
-    
-    if (book.coverUrl) {
-      console.log(`[PDF-HTML] Pre-fetching cover image...`);
-      coverBase64 = await this.fetchImageAsBase64(book.coverUrl);
-      if (coverBase64) {
-        console.log(`[PDF-HTML] Cover image converted to base64`);
-      }
-    }
-    
-    if (book.backCoverUrl) {
-      console.log(`[PDF-HTML] Pre-fetching back cover image...`);
-      backCoverBase64 = await this.fetchImageAsBase64(book.backCoverUrl);
-      if (backCoverBase64) {
-        console.log(`[PDF-HTML] Back cover image converted to base64`);
-      }
-    }
+    if (book.coverUrl) coverBase64 = await this.fetchImageAsBase64(book.coverUrl);
+    if (book.backCoverUrl) backCoverBase64 = await this.fetchImageAsBase64(book.backCoverUrl);
 
-    // Create a modified book object with base64 images
-    const bookWithBase64Images: BookExport = {
+    const bookWithImages: BookExport = {
       ...book,
       coverUrl: coverBase64 || book.coverUrl,
       backCoverUrl: backCoverBase64 || book.backCoverUrl,
@@ -217,283 +177,94 @@ export class PDFHTMLService {
 
     try {
       page = await browser.newPage();
-
-      // Get layout configuration
       const layoutType = book.layoutType || 'novel-classic';
       const layout = BOOK_LAYOUTS[layoutType] || BOOK_LAYOUTS['novel-classic'];
       const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
 
-      // Generate HTML content with full publishing settings (using base64 images)
-      const html = this.generateBookHTML(bookWithBase64Images, layout, settings);
+      const html = this.generateBookHTML(bookWithImages, layout, settings);
 
-      // Set content with proper encoding
-      await page.setContent(html, {
-        waitUntil: ['networkidle0', 'domcontentloaded'],
-        timeout: 60000,
-      });
-
-      // Wait for fonts and images to load
+      await page.setContent(html, { waitUntil: ['networkidle0', 'domcontentloaded'], timeout: 60000 });
       await page.evaluateHandle('document.fonts.ready');
-      
-      // Wait for images to load
+
+      // Wait for images
       await page.evaluate(async () => {
         const images = Array.from(document.images);
-        await Promise.all(
-          images.map((img) => {
-            if (img.complete) return Promise.resolve();
-            return new Promise((resolve) => {
-              img.onload = resolve;
-              img.onerror = resolve; // Don't fail on image errors
-              setTimeout(resolve, 5000); // Timeout after 5s
-            });
-          })
-        );
+        await Promise.all(images.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.onload = resolve;
+            img.onerror = resolve;
+            setTimeout(resolve, 5000);
+          });
+        }));
       });
-      
-      // Small delay for rendering
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Inject Paged.js
+      console.log('[PDF-HTML] Injecting Paged.js...');
+      await page.addScriptTag({ content: getPagedJsScript() });
+
+      // Wait for pagination
+      console.log('[PDF-HTML] Waiting for Paged.js pagination...');
+      await page.evaluate(() => {
+        return new Promise<void>((resolve) => {
+          const el = document.documentElement;
+          if (el.classList.contains('pagedjs_ready')) { resolve(); return; }
+          const obs = new MutationObserver(() => {
+            if (el.classList.contains('pagedjs_ready')) { obs.disconnect(); resolve(); }
+          });
+          obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+          setTimeout(() => { obs.disconnect(); resolve(); }, 120000);
+        });
+      });
+      console.log('[PDF-HTML] Pagination complete');
+
       await new Promise(resolve => setTimeout(resolve, 500));
+      await page.evaluateHandle('document.fonts.ready');
 
-      // Get page dimensions from publishing settings
-      const pageDimensions = this.getPageDimensions(layout, settings);
-
-      // Check if page numbers are enabled in settings
-      const footerEnabled = settings.headerFooter?.footerEnabled ?? true;
-      const footerCenterContent = settings.headerFooter?.footerCenterContent ?? 'page-number';
-      const showPageNumbers = footerEnabled && footerCenterContent === 'page-number';
-      const footerFontSize = settings.headerFooter?.footerFontSize ?? 10;
-
-      // Footer template for Puppeteer - shows page number centered at bottom
-      // Note: Page numbers will appear on all pages including front matter
-      // This is standard for many published books
-      const footerTemplate = showPageNumbers ? `
-        <div style="width: 100%; font-size: ${footerFontSize}pt; font-family: Georgia, 'Times New Roman', serif; text-align: center; color: #444; margin: 0 auto;">
-          <span class="pageNumber"></span>
-        </div>
-      ` : '<div></div>';
-
-      // Header template (empty but required)
-      const headerTemplate = '<div></div>';
-
-      // Generate PDF with page numbers via Puppeteer's displayHeaderFooter
+      const dims = this.getPageDimensions(layout, settings);
       const pdfOptions: PDFOptions = {
-        format: undefined, // We'll use width/height instead
-        width: pageDimensions.width,
-        height: pageDimensions.height,
+        format: undefined,
+        width: dims.width,
+        height: dims.height,
         printBackground: true,
-        displayHeaderFooter: showPageNumbers,
-        headerTemplate: headerTemplate,
-        footerTemplate: footerTemplate,
+        displayHeaderFooter: false,
+        margin: { top: 0, right: 0, bottom: 0, left: 0 },
         preferCSSPageSize: true,
-        // Margins needed for footer to be visible
-        margin: showPageNumbers 
-          ? { top: '0.25in', right: 0, bottom: '0.5in', left: 0 }
-          : { top: 0, right: 0, bottom: 0, left: 0 },
         timeout: 120000,
       };
 
       const pdfBuffer = await page.pdf(pdfOptions);
-
-      console.log(`[PDF-HTML] PDF generated successfully. Size: ${pdfBuffer.length} bytes`);
-
+      console.log(`[PDF-HTML] PDF generated: ${pdfBuffer.length} bytes`);
       return Buffer.from(pdfBuffer);
     } catch (error) {
-      console.error('[PDF-HTML] Error generating PDF:', error);
+      console.error('[PDF-HTML] Error:', error);
       throw error;
     } finally {
-      if (page) {
-        await page.close();
-      }
+      if (page) await page.close();
     }
   }
 
-  /**
-   * Get page dimensions from publishing settings
-   */
-  private static getPageDimensions(
-    layout: LayoutConfig,
-    settings: PublishingSettings
-  ): { width: string; height: string } {
-    // Priority: publishing settings > layout config
+  private static getPageDimensions(layout: LayoutConfig, settings: PublishingSettings): { width: string; height: string } {
     if (settings?.trimSize) {
-      const trimSize = TRIM_SIZES.find(t => t.id === settings.trimSize);
-      if (trimSize) {
-        const isLandscape = settings.orientation === 'landscape';
-        return {
-          width: `${isLandscape ? trimSize.height : trimSize.width}in`,
-          height: `${isLandscape ? trimSize.width : trimSize.height}in`,
-        };
+      const ts = TRIM_SIZES.find(t => t.id === settings.trimSize);
+      if (ts) {
+        const landscape = settings.orientation === 'landscape';
+        return { width: `${landscape ? ts.height : ts.width}in`, height: `${landscape ? ts.width : ts.height}in` };
       }
     }
-
-    // Parse from layout page size
-    const pageSize = layout.page.size;
-    if (pageSize === 'letter') {
-      return { width: '8.5in', height: '11in' };
-    }
-    if (pageSize === 'A4') {
-      return { width: '210mm', height: '297mm' };
-    }
-
-    const parts = pageSize.split(' ');
-    return {
-      width: parts[0],
-      height: parts[1] || parts[0],
-    };
+    const ps = layout.page.size;
+    if (ps === 'letter') return { width: '8.5in', height: '11in' };
+    if (ps === 'A4') return { width: '210mm', height: '297mm' };
+    const parts = ps.split(' ');
+    return { width: parts[0], height: parts[1] || parts[0] };
   }
 
-  /**
-   * Estimate the page number where each chapter starts
-   * This is used for accurate TOC page numbers
-   */
-  private static estimateChapterPageNumbers(
-    book: BookExport,
-    settings: PublishingSettings
-  ): number[] {
-    // Get page dimensions
-    const trimSize = TRIM_SIZES.find(t => t.id === settings.trimSize);
-    const pageWidth = trimSize ? trimSize.width : 5.5; // inches
-    const pageHeight = trimSize ? trimSize.height : 8.5; // inches
-    
-    // Calculate content area
-    const margins = settings.margins;
-    const contentWidth = pageWidth - margins.inside - margins.outside;
-    const contentHeight = pageHeight - margins.top - margins.bottom;
-    
-    // Typography settings
-    const fontSize = settings.typography.bodyFontSize || 11; // points
-    const lineHeight = settings.typography.bodyLineHeight || 1.5;
-    
-    // Approximate characters per line and lines per page
-    // Average character width is roughly fontSize * 0.5 points = fontSize * 0.007 inches
-    const charsPerLine = Math.floor(contentWidth / (fontSize * 0.007));
-    // Line height in inches: fontSize (points) / 72 * lineHeight
-    const lineHeightInches = (fontSize / 72) * lineHeight;
-    const linesPerPage = Math.floor(contentHeight / lineHeightInches);
-    
-    // Characters per page (rough estimate)
-    const charsPerPage = charsPerLine * linesPerPage * 0.85; // 85% fill factor
-    
-    // Count front matter pages
-    let frontMatterPages = 1; // Cover page
-    if (settings.frontMatter.halfTitlePage) frontMatterPages += 1;
-    if (settings.frontMatter.titlePage) frontMatterPages += 1;
-    if (settings.frontMatter.copyrightPage) frontMatterPages += 1;
-    if (settings.frontMatter.dedicationPage) frontMatterPages += 1;
-    if (settings.frontMatter.tableOfContents) {
-      // TOC pages based on number of chapters
-      frontMatterPages += Math.ceil(book.chapters.length / 20); // ~20 entries per page
-    }
-    
-    // Calculate page numbers for each chapter
-    const chapterPageNumbers: number[] = [];
-    let currentPage = frontMatterPages + 1; // First chapter starts after front matter
-    
-    for (const chapter of book.chapters) {
-      chapterPageNumbers.push(currentPage);
-      
-      // Estimate pages for this chapter
-      const chapterContent = chapter.content || '';
-      const charCount = chapterContent.length;
-      
-      // Each chapter starts on a new page, plus content pages
-      // Add 1 for chapter header/title area
-      const contentPages = Math.max(1, Math.ceil(charCount / charsPerPage));
-      currentPage += contentPages;
-    }
-    
-    return chapterPageNumbers;
-  }
+  // ============================================================
+  // HTML GENERATION
+  // ============================================================
 
-  /**
-   * Estimate the total number of pages in the PDF
-   */
-  private static estimateTotalPages(
-    book: BookExport,
-    settings: PublishingSettings,
-    chapterPageNumbers: number[]
-  ): number {
-    if (chapterPageNumbers.length === 0) return 1;
-    
-    // Last chapter's start page
-    const lastChapterStartPage = chapterPageNumbers[chapterPageNumbers.length - 1];
-    
-    // Estimate pages for last chapter
-    const lastChapter = book.chapters[book.chapters.length - 1];
-    const charsPerPage = this.getCharsPerPage(settings);
-    const lastChapterPages = Math.max(1, Math.ceil((lastChapter?.content?.length || 0) / charsPerPage));
-    
-    let totalPages = lastChapterStartPage + lastChapterPages - 1;
-    
-    // Add bibliography pages if enabled
-    if (book.bibliography?.config?.enabled && book.bibliography.references?.length > 0) {
-      totalPages += 1 + Math.ceil(book.bibliography.references.length / 15); // ~15 refs per page
-    }
-    
-    // Add back cover if present
-    if (book.backCoverUrl) {
-      totalPages += 1;
-    }
-    
-    return totalPages;
-  }
-
-  /**
-   * Count the number of front matter pages
-   */
-  private static countFrontMatterPages(book: BookExport, settings: PublishingSettings): number {
-    let pages = 0;
-    
-    // Cover page (always present)
-    pages += 1;
-    
-    const frontMatter = settings.frontMatter;
-    if (frontMatter.halfTitlePage) pages += 1;
-    if (frontMatter.titlePage) pages += 1;
-    if (frontMatter.copyrightPage) pages += 1;
-    if (frontMatter.dedicationPage) pages += 1;
-    if (frontMatter.tableOfContents) {
-      // Estimate TOC pages based on chapter count
-      pages += Math.ceil(book.chapters.length / 20);
-    }
-    
-    return pages;
-  }
-
-  /**
-   * Helper to calculate characters per page
-   */
-  private static getCharsPerPage(settings: PublishingSettings): number {
-    const trimSize = TRIM_SIZES.find(t => t.id === settings.trimSize);
-    const pageWidth = trimSize ? trimSize.width : 5.5;
-    const pageHeight = trimSize ? trimSize.height : 8.5;
-    const margins = settings.margins;
-    const contentWidth = pageWidth - margins.inside - margins.outside;
-    const contentHeight = pageHeight - margins.top - margins.bottom;
-    const fontSize = settings.typography.bodyFontSize || 11;
-    const lineHeight = settings.typography.bodyLineHeight || 1.5;
-    
-    const charsPerLine = Math.floor(contentWidth / (fontSize * 0.007));
-    const lineHeightInches = (fontSize / 72) * lineHeight;
-    const linesPerPage = Math.floor(contentHeight / lineHeightInches);
-    
-    return charsPerLine * linesPerPage * 0.85;
-  }
-
-  /**
-   * Generate complete HTML document for the book
-   */
-  private static generateBookHTML(
-    book: BookExport, 
-    layout: LayoutConfig, 
-    settings: PublishingSettings
-  ): string {
-    const metadata = {
-      title: book.title,
-      author: book.author,
-      chapters: book.chapters.map(c => ({ number: c.number, title: c.title })),
-    };
-
-    // Get required fonts and generate import
+  private static generateBookHTML(book: BookExport, layout: LayoutConfig, settings: PublishingSettings): string {
     const requiredFonts = getRequiredFontsForSettings({
       bodyFont: settings.typography.bodyFont,
       headingFont: settings.typography.headingFont,
@@ -503,26 +274,12 @@ export class PDFHTMLService {
     });
     const fontLinks = getGoogleFontsLinkElement(requiredFonts);
     const fontImport = generateGoogleFontImport(requiredFonts);
+    const css = this.generateBookCSS(layout, settings, { title: book.title, author: book.author });
 
-    // Generate CSS with publishing settings
-    const css = this.generateBookCSS(layout, settings, metadata);
-
-    // Calculate estimated page numbers for TOC
-    const chapterPageNumbers = this.estimateChapterPageNumbers(book, settings);
-
-    // Generate HTML sections based on settings
-    const coverPage = this.generateCoverPage(book);
-    const frontMatter = this.generateFrontMatter(book, settings, chapterPageNumbers);
-    const mainContent = this.generateMainContent(book, settings);
-    const backMatter = this.generateBackMatter(book, settings);
-    const backCoverPage = this.generateBackCoverPage(book);
-
-    return `
-<!DOCTYPE html>
+    return `<!DOCTYPE html>
 <html lang="${settings.language || 'en'}">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${this.escapeHtml(book.title)}</title>
   ${fontLinks}
   <style>
@@ -531,33 +288,30 @@ export class PDFHTMLService {
   </style>
 </head>
 <body>
-  <!-- Cover Page -->
-  ${coverPage}
-
-  <!-- Front Matter -->
-  <div class="front-matter">
-    ${frontMatter}
-  </div>
-
-  <!-- Main Content -->
-  <main class="book-content">
-    ${mainContent}
-  </main>
-
-  <!-- Back Matter -->
-  <div class="back-matter">
-    ${backMatter}
-  </div>
-
-  <!-- Back Cover Page -->
-  ${backCoverPage}
+${this.generateCoverPage(book)}
+<section class="front-matter">
+${this.generateFrontMatter(book, settings)}
+</section>
+<section class="book-content">
+${this.generateMainContent(book, settings)}
+</section>
+<section class="back-matter">
+${this.generateBackMatter(book, settings)}
+</section>
+${this.generateBackCoverPage(book)}
 </body>
 </html>`;
   }
 
-  /**
-   * Generate CSS based on publishing settings
-   */
+  // ============================================================
+  // CSS GENERATION -- follows Paged.js patterns exactly
+  //
+  // Named pages used ONLY for cover + front-matter.
+  // Chapters use the DEFAULT @page which has header/footer margin boxes.
+  // string(chapter-title, first-except) auto-suppresses headers on
+  // chapter opening pages without needing a named page transition.
+  // ============================================================
+
   private static generateBookCSS(
     layout: LayoutConfig,
     settings: PublishingSettings,
@@ -566,289 +320,423 @@ export class PDFHTMLService {
     const typo = settings.typography;
     const margins = settings.margins;
     const chapters = settings.chapters;
-    const headerFooter = settings.headerFooter;
 
-    // Get actual font families
-    const bodyFontFamily = getFontFamily(typo.bodyFont);
-    const headingFontFamily = typo.headingFont === 'inherit' 
-      ? bodyFontFamily 
-      : getFontFamily(typo.headingFont);
-    const dropCapFontFamily = typo.dropCapFont === 'inherit'
-      ? headingFontFamily
-      : getFontFamily(typo.dropCapFont);
+    // Migrate old header defaults: author+title → title+chapter (more professional)
+    const hf = { ...settings.headerFooter };
+    if (hf.headerLeftContent === 'author' && hf.headerRightContent === 'title') {
+      hf.headerLeftContent = 'title';
+      hf.headerRightContent = 'chapter';
+    }
 
-    // Get page size
-    const trimSize = TRIM_SIZES.find(t => t.id === settings.trimSize);
-    const isLandscape = settings.orientation === 'landscape';
-    const pageWidth = trimSize 
-      ? (isLandscape ? trimSize.height : trimSize.width) 
-      : 5.5;
-    const pageHeight = trimSize 
-      ? (isLandscape ? trimSize.width : trimSize.height) 
-      : 8.5;
+    const bodyFont = getFontFamily(typo.bodyFont);
+    const headingFont = typo.headingFont === 'inherit' ? bodyFont : getFontFamily(typo.headingFont);
+    const dropCapFont = typo.dropCapFont === 'inherit' ? headingFont : getFontFamily(typo.dropCapFont);
+    const headerFont = hf.headerFont && hf.headerFont !== 'inherit' ? getFontFamily(hf.headerFont) : bodyFont;
+    const footerFont = hf.footerFont && hf.footerFont !== 'inherit' ? getFontFamily(hf.footerFont) : bodyFont;
 
-    // Calculate paragraph indent
-    const indentValue = typo.paragraphIndentUnit === 'em' 
-      ? `${typo.paragraphIndent}em`
-      : typo.paragraphIndentUnit === 'px'
-        ? `${typo.paragraphIndent}px`
-        : `${typo.paragraphIndent}in`;
+    const ts = TRIM_SIZES.find(t => t.id === settings.trimSize);
+    const landscape = settings.orientation === 'landscape';
+    const pw = ts ? (landscape ? ts.height : ts.width) : 5.5;
+    const ph = ts ? (landscape ? ts.width : ts.height) : 8.5;
 
-    // Paragraph spacing
-    const paraSpacingMap = {
-      'none': '0',
-      'small': '0.25em',
-      'medium': '0.5em',
-      'large': '1em',
+    const indent = typo.paragraphIndentUnit === 'em' ? `${typo.paragraphIndent}em`
+      : typo.paragraphIndentUnit === 'px' ? `${typo.paragraphIndent}px`
+      : `${typo.paragraphIndent}in`;
+
+    const spacingMap: Record<string, string> = { 'none': '0', 'small': '0.25em', 'medium': '0.5em', 'large': '1em' };
+    const paraSpacing = spacingMap[typo.paragraphSpacing] || '0';
+
+    const sceneBreak = this.getSceneBreakSymbol(chapters.sceneBreakStyle, chapters.sceneBreakSymbol);
+    const ornament = this.getChapterOrnamentSymbol(chapters.chapterOrnament);
+
+    // Header style
+    const hStyle = hf.headerStyle === 'italic' ? 'font-style: italic;'
+      : hf.headerStyle === 'small-caps' ? 'font-variant: small-caps;'
+      : hf.headerStyle === 'uppercase' ? 'text-transform: uppercase; letter-spacing: 0.05em;' : '';
+
+    const pageCounter = hf.pageNumberStyle === 'roman-lower' ? 'lower-roman'
+      : hf.pageNumberStyle === 'roman-upper' ? 'upper-roman' : 'decimal';
+
+    const fmCounter = hf.frontMatterNumbering === 'none' ? '' : 'lower-roman';
+
+    // Calculate margins with header/footer space included
+    // Paged.js renders margin boxes (headers/footers) within the @page margin area,
+    // so we need to increase margins to make room for them
+    const marginTop = margins.top + (hf.headerEnabled ? (margins.headerSpace || 0.3) : 0);
+    const marginBottom = margins.bottom + (hf.footerEnabled ? (margins.footerSpace || 0.3) : 0);
+
+    // Resolve margin box content
+    // For chapter headers, use first-except so the header is blank on the page
+    // where the chapter title is set (= the chapter opening page)
+    const resolve = (c: string, forHeader = false): string => {
+      switch (c) {
+        case 'title': return `"${this.escapeHtml(metadata.title)}"`;
+        case 'author': return `"${this.escapeHtml(metadata.author)}"`;
+        case 'chapter': return forHeader ? 'string(chapter-title, first-except)' : 'string(chapter-title)';
+        case 'page-number': return `counter(page, ${pageCounter})`;
+        case 'custom': return '""';
+        case 'none': default: return 'none';
+      }
     };
-    const paraSpacing = paraSpacingMap[typo.paragraphSpacing] || '0';
 
-    // Scene break symbol based on settings
-    const sceneBreakSymbol = this.getSceneBreakSymbol(chapters.sceneBreakStyle, chapters.sceneBreakSymbol);
+    // Build margin boxes for a given page side
+    const boxes = (side: 'left' | 'right'): string => {
+      let out = '';
+      // Determine content (with mirroring)
+      const mirror = hf.mirrorHeaders && side === 'left';
+      const hL = resolve(mirror ? hf.headerRightContent : hf.headerLeftContent, true);
+      const hC = resolve(mirror ? hf.headerCenterContent : hf.headerCenterContent, true);
+      const hR = resolve(mirror ? hf.headerLeftContent : hf.headerRightContent, true);
+      const fL = resolve(mirror ? hf.footerRightContent : hf.footerLeftContent);
+      const fC = resolve(mirror ? hf.footerCenterContent : hf.footerCenterContent);
+      const fR = resolve(mirror ? hf.footerLeftContent : hf.footerRightContent);
 
-    // Chapter ornament symbol
-    const chapterOrnamentSymbol = this.getChapterOrnamentSymbol(chapters.chapterOrnament);
+      const hBorder = hf.headerLine ? 'border-bottom: 0.5pt solid #ccc;' : '';
+      const fBorder = hf.footerLine ? 'border-top: 0.5pt solid #ccc;' : '';
+
+      if (hf.headerEnabled) {
+        if (hL !== 'none') out += `\n  @top-left { content: ${hL}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; ${hBorder} }`;
+        if (hC !== 'none') out += `\n  @top-center { content: ${hC}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; ${hBorder} }`;
+        if (hR !== 'none') out += `\n  @top-right { content: ${hR}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; ${hBorder} }`;
+      }
+      if (hf.footerEnabled) {
+        if (fL !== 'none') out += `\n  @bottom-left { content: ${fL}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; ${fBorder} }`;
+        if (fC !== 'none') out += `\n  @bottom-center { content: ${fC}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; ${fBorder} }`;
+        if (fR !== 'none') out += `\n  @bottom-right { content: ${fR}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; ${fBorder} }`;
+      }
+      return out;
+    };
+
+    // Only include crop marks + bleed when the export settings explicitly request them
+    // (default is ebook quality with cropMarks: false, includeBleed: false)
+    const pdfExport = settings.export?.pdf;
+    const showCropMarks = pdfExport?.cropMarks === true && margins.bleed > 0;
+    const showBleed = pdfExport?.includeBleed === true && margins.bleed > 0;
 
     return `
-/* ==============================================
-   CSS PAGED MEDIA STYLESHEET
-   Generated for: ${metadata.title} by ${metadata.author}
-   Publishing Settings Applied
-   ============================================== */
+/* ====================== PAGE RULES ====================== */
 
-/* ==============================================
-   CSS VARIABLES & ROOT
-   ============================================== */
-:root {
-  --body-font: ${bodyFontFamily};
-  --heading-font: ${headingFontFamily};
-  --drop-cap-font: ${dropCapFontFamily};
-  --body-size: ${typo.bodyFontSize}pt;
-  --line-height: ${typo.bodyLineHeight};
-  --chapter-title-size: ${typo.chapterTitleSize}pt;
-  --text-color: #1a1a1a;
-  --muted-color: #666;
-  --accent-color: #8B4513;
-  
-  /* Page dimensions */
-  --page-width: ${pageWidth}in;
-  --page-height: ${pageHeight}in;
-  --margin-top: ${margins.top}in;
-  --margin-bottom: ${margins.bottom}in;
-  --margin-inside: ${margins.inside}in;
-  --margin-outside: ${margins.outside}in;
-}
-
-/* ==============================================
-   @PAGE RULES - Page Layout
-   ============================================== */
-
-/* Base page */
 @page {
-  size: ${pageWidth}in ${pageHeight}in${isLandscape ? ' landscape' : ''};
-  margin: ${margins.top}in ${margins.outside}in ${margins.bottom}in ${margins.inside}in;
-  
-  ${margins.bleed > 0 ? `
-  marks: crop cross;
-  bleed: ${margins.bleed}in;
-  ` : ''}
+  size: ${pw}in ${ph}in;
+  margin: ${marginTop}in ${margins.outside}in ${marginBottom}in ${margins.inside}in;
+  ${showCropMarks ? `marks: crop cross;` : ''}
+  ${showBleed ? `bleed: ${margins.bleed}in;` : ''}
 }
 
-/* Cover pages - no margins */
-@page cover {
-  margin: 0;
+/* Default right (odd/recto) pages -- has headers + footers */
+@page :right {
+  margin-left: ${margins.inside}in;
+  margin-right: ${margins.outside}in;
+  ${boxes('right')}
 }
 
-/* Left (verso) pages - even page numbers */
+/* Default left (even/verso) pages */
 @page :left {
   margin-left: ${margins.outside}in;
   margin-right: ${margins.inside}in;
+  ${boxes('left')}
 }
 
-/* Right (recto) pages - odd page numbers */
-@page :right {
+/* BLANK pages (inserted by break-before: right) -- no headers/footers */
+@page :blank {
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right { content: none; }
+}
+
+/* COVER -- zero margins, no headers/footers, no marks */
+@page coverPage {
+  margin: 0;
+  marks: none;
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right { content: none; }
+}
+
+/* FRONT MATTER -- no headers, optional roman numerals in footer, no marks */
+@page frontMatterPage {
+  margin: ${marginTop}in ${margins.outside}in ${marginBottom}in ${margins.inside}in;
+  marks: none;
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  ${fmCounter && hf.footerEnabled
+    ? `@bottom-center { content: counter(page, ${fmCounter}); font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; }`
+    : `@bottom-center { content: none; }`}
+  @bottom-right { content: none; }
+}
+
+@page frontMatterPage:left {
+  margin-left: ${margins.outside}in;
+  margin-right: ${margins.inside}in;
+}
+@page frontMatterPage:right {
   margin-left: ${margins.inside}in;
   margin-right: ${margins.outside}in;
 }
 
-/* Front matter pages - no page numbers */
-@page front-matter {
-  /* No margin box content - Puppeteer doesn't support @bottom-center etc. */
+/* BLANK pages within front matter -- suppress all margin boxes */
+@page frontMatterPage:blank {
+  @top-left { content: none; }
+  @top-center { content: none; }
+  @top-right { content: none; }
+  @bottom-left { content: none; }
+  @bottom-center { content: none; }
+  @bottom-right { content: none; }
 }
 
-/* Chapter pages */
-@page chapter-start {
-  /* Chapter opening pages */
-}
+/* ====================== BASE TYPOGRAPHY ====================== */
 
-/* ==============================================
-   BASE TYPOGRAPHY
-   ============================================== */
-
-* {
-  box-sizing: border-box;
-}
-
-html {
-  font-size: ${typo.bodyFontSize}pt;
-}
+*, *::before, *::after { box-sizing: border-box; }
 
 body {
-  font-family: var(--body-font);
-  font-size: var(--body-size);
-  line-height: var(--line-height);
-  color: var(--text-color);
-  text-align: ${typo.bodyAlignment};
-  ${typo.hyphenation ? `
-  hyphens: auto;
-  -webkit-hyphens: auto;
-  ` : ''}
-  ${typo.orphanControl ? 'orphans: 2;' : ''}
-  ${typo.widowControl ? 'widows: 2;' : ''}
   margin: 0;
   padding: 0;
+  font-family: ${bodyFont};
+  font-size: ${typo.bodyFontSize}pt;
+  line-height: ${typo.bodyLineHeight};
+  color: #1a1a1a;
+  text-align: ${typo.bodyAlignment};
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  ${typo.hyphenation ? 'hyphens: auto; -webkit-hyphens: auto;' : ''}
+  ${typo.orphanControl ? 'orphans: 2;' : ''}
+  ${typo.widowControl ? 'widows: 2;' : ''}
 }
 
-/* Paragraphs */
 p {
-  margin: 0;
-  margin-bottom: ${paraSpacing};
-  text-indent: ${indentValue};
+  margin: 0 0 ${paraSpacing} 0;
+  text-indent: ${indent};
 }
 
-/* First paragraph handling */
+/* No indent on first paragraph after headings / scene breaks */
 ${!typo.firstParagraphIndent ? `
-p:first-of-type,
-h1 + p,
-h2 + p,
-h3 + p,
-.no-indent + p,
+h1 + p, h2 + p, h3 + p,
 .scene-break + p,
-.chapter-header + .chapter-content > p:first-of-type {
+.chapter-header + .chapter-text > p:first-child {
   text-indent: 0;
-}
-` : ''}
+}` : ''}
 
-/* Drop Caps */
+/* Drop caps */
 ${typo.dropCapEnabled ? `
-.chapter-content > p:first-of-type::first-letter,
-.drop-cap::first-letter {
+.chapter-text > p:first-child::first-letter,
+p.drop-cap::first-letter {
   float: left;
-  font-family: var(--drop-cap-font);
-  font-size: ${typo.dropCapLines * 1.15}em;
-  line-height: 0.85;
-  padding-right: 0.1em;
-  margin-top: 0.05em;
-  font-weight: normal;
-  color: var(--text-color);
-}
-` : ''}
+  font-family: ${dropCapFont};
+  font-size: ${typo.dropCapLines * 1.2}em;
+  line-height: 0.8;
+  padding-right: 0.08em;
+  margin-top: 0.02em;
+  color: #1a1a1a;
+}` : ''}
 
-/* ==============================================
-   HEADINGS
-   ============================================== */
+/* ====================== HEADINGS ====================== */
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--heading-font);
-  margin: 0;
+  font-family: ${headingFont};
+  break-after: avoid;
   page-break-after: avoid;
+}
+h1 { font-size: ${typo.chapterTitleSize}pt; font-weight: normal; text-align: ${typo.headingAlignment}; margin-bottom: 0.8em; }
+h2 { font-size: 1.4em; font-weight: 600; margin: 1.5em 0 0.4em; }
+h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
+
+/* ====================== COVER PAGE ====================== */
+
+.cover-wrapper {
+  page: coverPage;
+  overflow: hidden;
   break-after: avoid;
 }
 
-h1 {
-  font-size: var(--chapter-title-size);
-  font-weight: normal;
-  text-align: ${typo.headingAlignment};
-  margin-bottom: 1em;
-}
-
-h2 {
-  font-size: 1.5em;
-  font-weight: 600;
-  margin-top: 1.5em;
-  margin-bottom: 0.5em;
-}
-
-h3 {
-  font-size: 1.2em;
-  font-weight: 600;
-  margin-top: 1em;
-  margin-bottom: 0.3em;
-}
-
-/* ==============================================
-   COVER PAGES
-   ============================================== */
-
-.cover-page {
-  page: cover;
-  break-before: page;
-  page-break-before: always;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  overflow: hidden;
-}
-
-.cover-page img {
-  width: 100%;
-  height: 100%;
+.cover-wrapper img {
+  width: ${pw}in;
+  height: ${ph}in;
   object-fit: cover;
   display: block;
 }
 
-.cover-page.text-cover {
+.cover-wrapper.text-cover {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   background: linear-gradient(135deg, #2c3e50 0%, #1a252f 100%);
   color: white;
-  padding: 2in;
   text-align: center;
+  width: ${pw}in;
+  height: ${ph}in;
 }
 
-.cover-page.text-cover .cover-title {
-  font-family: var(--heading-font);
-  font-size: 3em;
+.cover-wrapper.text-cover .cover-title {
+  font-family: ${headingFont};
+  font-size: 2.8em;
   font-weight: normal;
   margin-bottom: 0.5em;
   letter-spacing: 0.05em;
 }
 
-.cover-page.text-cover .cover-author {
-  font-family: var(--body-font);
-  font-size: 1.5em;
+.cover-wrapper.text-cover .cover-author {
+  font-family: ${bodyFont};
+  font-size: 1.4em;
   font-style: italic;
   opacity: 0.9;
 }
 
-.cover-page.text-cover .cover-genre {
-  font-size: 1em;
+.cover-wrapper.text-cover .cover-genre {
+  font-size: 0.9em;
   text-transform: uppercase;
   letter-spacing: 0.2em;
   margin-top: 2em;
   opacity: 0.7;
 }
 
-/* ==============================================
-   CHAPTER STYLING
-   ============================================== */
+/* ====================== FRONT MATTER ====================== */
 
-.chapter {
-  page: chapter-start;
-  ${chapters.startOnOddPage ? `
-  break-before: right;
-  page-break-before: right;
-  ` : `
-  break-before: page;
-  page-break-before: always;
-  `}
+.front-matter {
+  page: frontMatterPage;
+  margin: 0;
+  padding: 0;
 }
 
-.chapter:first-of-type {
+/* First child inside front-matter: named page transition already creates a break,
+   so suppress the child's own break-before to avoid a double/blank page */
+.front-matter > *:first-child {
+  break-before: auto !important;
+}
+
+/* Also suppress any break between cover and front-matter */
+.cover-wrapper + .front-matter {
   break-before: auto;
-  page-break-before: auto;
+}
+
+.fm-half-title {
+  text-align: center;
+  padding-top: 35%;
+  break-before: page;
+}
+.fm-half-title .book-title { font-size: 1.6em; }
+
+.fm-title-page {
+  text-align: center;
+  padding-top: 25%;
+  break-before: page;
+}
+.book-title { font-family: ${headingFont}; font-size: 2.6em; font-weight: normal; margin-bottom: 0.4em; letter-spacing: 0.04em; }
+.book-author { font-family: ${bodyFont}; font-size: 1.3em; font-style: italic; margin-bottom: 1.5em; }
+.book-genre { font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.15em; color: #666; }
+.book-publisher { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.15em; color: #666; }
+
+.fm-copyright {
+  font-size: 0.78em;
+  line-height: 1.6;
+  text-align: center;
+  break-before: page;
+  /* Push copyright content to the bottom of the page using a top padding
+     relative to the content area width (CSS %-padding is width-based).
+     For A5 (4.2in content width), 60% ≈ 2.5in down, placing content
+     in the lower third of the page -- standard for copyright pages. */
+  padding-top: 60%;
+}
+.fm-copyright p { text-indent: 0; margin-bottom: 0.3em; }
+.fm-copyright .copyright-title { font-weight: 600; font-size: 1.1em; margin-bottom: 0.2em; }
+.fm-copyright .copyright-spacer { display: block; height: 0.6em; }
+
+.fm-dedication {
+  text-align: center;
+  padding-top: 30%;
+  font-style: italic;
+  break-before: page;
+}
+
+.fm-toc {
+  break-before: page;
+}
+.fm-toc h1 {
+  text-align: center;
+  font-size: 1.4em;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 2em;
+}
+
+/* ====================== TABLE OF CONTENTS ====================== */
+/* Float-based overflow approach for reliable dot leaders (Paged.js recommended) */
+
+.toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc-item {
+  margin-bottom: 0.5em;
+  line-height: 1.6;
+  break-inside: avoid;
+  overflow: hidden; /* KEY: enables the dot-leader overflow trick */
+}
+
+.toc-item a {
+  color: inherit;
+  text-decoration: none;
+  display: block;
+}
+
+/* Page number floated right -- white background covers dots behind it */
+.toc-item a::after {
+  content: target-counter(attr(href), page);
+  float: right;
+  font-variant-numeric: tabular-nums;
+  background: white;
+  padding-left: 6px;
+  font-weight: normal;
+  min-width: 1.5em;
+  text-align: right;
+}
+
+/* Dot leaders via float overflow trick */
+.toc-item a::before {
+  float: right;
+  width: 0;
+  white-space: nowrap;
+  content: " . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .";
+  color: #999;
+  font-size: 0.85em;
+  letter-spacing: 0.15em;
+}
+
+.toc-label {
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #666;
+  margin-right: 0.6em;
+}
+
+.toc-title {
+  font-style: italic;
+}
+
+/* ====================== CHAPTERS ====================== */
+/* Chapters use the DEFAULT @page (which has header/footer margin boxes).
+   string-set on .chapter-title feeds running headers.
+   string(chapter-title, first-except) auto-blanks headers on chapter openers. */
+
+.chapter-title {
+  string-set: chapter-title content(text);
+}
+
+.chapter {
+  break-before: page;
 }
 
 .chapter-header {
@@ -857,901 +745,401 @@ h3 {
   margin-bottom: ${chapters.afterChapterTitleSpace}in;
 }
 
-/* Chapter number styling */
 .chapter-number-label {
-  font-family: var(--body-font);
-  font-size: 0.8em;
-  letter-spacing: 0.2em;
+  font-family: ${bodyFont};
+  font-size: 0.75em;
+  letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: var(--muted-color);
-  display: block;
-  margin-bottom: 0.5em;
-}
-
-.chapter-number {
-  font-family: var(--heading-font);
-  font-size: 2.5em;
+  color: #666;
   display: block;
   margin-bottom: 0.3em;
 }
 
+.chapter-number {
+  font-family: ${headingFont};
+  font-size: 2.2em;
+  display: block;
+  margin-bottom: 0.2em;
+}
+
 .chapter-title {
-  font-family: var(--heading-font);
-  font-size: var(--chapter-title-size);
+  font-family: ${headingFont};
+  font-size: ${typo.chapterTitleSize}pt;
   font-weight: normal;
-  margin: 0;
   ${chapters.chapterTitleCase === 'uppercase' ? 'text-transform: uppercase;' : ''}
   ${chapters.chapterTitleCase === 'lowercase' ? 'text-transform: lowercase;' : ''}
 }
 
-/* Chapter ornaments */
 ${chapters.chapterOrnament !== 'none' ? `
 .chapter-ornament {
   text-align: center;
-  font-size: 1.5em;
-  color: var(--accent-color);
-  margin: 1em 0;
+  font-size: 1.4em;
+  color: #8B4513;
+  margin: 0.8em 0;
 }
-
 .chapter-ornament::before {
-  content: "${chapterOrnamentSymbol}";
-}
-` : ''}
+  content: "${ornament}";
+}` : ''}
 
-/* ==============================================
-   SCENE BREAKS
-   ============================================== */
+/* ====================== SCENE BREAKS ====================== */
 
 .scene-break {
   text-align: center;
-  margin: 2em 0;
-  page-break-inside: avoid;
+  margin: 1.8em 0;
   break-inside: avoid;
 }
-
 .scene-break::before {
-  content: "${sceneBreakSymbol}";
-  color: var(--muted-color);
-  letter-spacing: 0.5em;
+  content: "${sceneBreak}";
+  color: #666;
+  letter-spacing: 0.4em;
 }
 
-/* ==============================================
-   FRONT MATTER
-   ============================================== */
+/* ====================== MAIN CONTENT ====================== */
 
-.front-matter {
-  page: front-matter;
+/* The named-page transition (frontMatterPage -> default) automatically creates
+   a page break, so we do NOT add break-before here (that would create a blank page).
+   We only reset the page counter to start Arabic numbering at 1. */
+.book-content {
+  counter-reset: page 1;
 }
 
-.half-title-page {
-  break-before: right;
-  page-break-before: right;
-  text-align: center;
-  padding-top: 40%;
+/* First chapter: suppress its own break-before since the named-page transition
+   already created the break. */
+.book-content > .chapter:first-child {
+  break-before: auto;
 }
 
-.half-title-page .book-title {
-  font-size: 1.8em;
-}
+/* ====================== BACK MATTER ====================== */
 
-.title-page {
-  break-before: right;
-  page-break-before: right;
-  text-align: center;
-  padding-top: 30%;
-}
+.back-matter { margin: 0; padding: 0; }
+.bibliography { break-before: page; }
+.bibliography-entry { text-indent: -1.5em; padding-left: 1.5em; margin-bottom: 0.4em; }
+.about-author { break-before: page; text-align: center; padding-top: 25%; }
+.also-by { break-before: page; padding-top: 15%; }
 
-.book-title {
-  font-family: var(--heading-font);
-  font-size: 3em;
-  font-weight: normal;
-  margin-bottom: 0.5em;
-  letter-spacing: 0.05em;
-}
+/* ====================== SPECIAL ELEMENTS ====================== */
 
-.book-author {
-  font-family: var(--body-font);
-  font-size: 1.5em;
-  font-style: italic;
-  margin-bottom: 2em;
-}
+blockquote { font-style: italic; margin: 1.2em 1.5em; }
+blockquote p { text-indent: 0; }
 
-.book-genre {
-  font-size: 1em;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--muted-color);
-}
+img { max-width: 100%; height: auto; }
 
-.book-publisher {
-  font-size: 0.9em;
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--muted-color);
-}
+/* ====================== UTILITIES ====================== */
 
-.copyright-page {
-  break-before: left;
-  page-break-before: left;
-  font-size: 0.85em;
-  text-align: center;
-  padding-top: 60%;
-}
+.break-before { break-before: page; }
+.break-inside-avoid { break-inside: avoid; }
 
-.copyright-page p {
-  text-indent: 0;
-  margin-bottom: 0.5em;
-}
-
-.dedication-page {
-  break-before: right;
-  page-break-before: right;
-  text-align: center;
-  padding-top: 35%;
-  font-style: italic;
-}
-
-.toc-page {
-  break-before: right;
-  page-break-before: right;
-}
-
-.toc-title {
-  text-align: center;
-  font-size: 1.5em;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  margin-bottom: 2em;
-}
-
-.toc-entry {
-  display: flex;
-  align-items: baseline;
-  margin-bottom: 0.5em;
-}
-
-.toc-chapter-label {
-  font-size: 0.85em;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--muted-color);
-  margin-right: 1em;
-}
-
-.toc-chapter-title {
-  flex: 1;
-}
-
-.toc-leader {
-  flex: 1;
-  border-bottom: 1px dotted var(--muted-color);
-  margin: 0 0.5em;
-  height: 0.8em;
-}
-
-.toc-page-number {
-  font-variant-numeric: tabular-nums;
-}
-
-/* ==============================================
-   BACK MATTER
-   ============================================== */
-
-.bibliography {
-  break-before: page;
-  page-break-before: always;
-}
-
-.bibliography-entry {
-  text-indent: -1.5em;
-  padding-left: 1.5em;
-  margin-bottom: 0.5em;
-}
-
-.about-author {
-  break-before: page;
-  page-break-before: always;
-  text-align: center;
-}
-
-.also-by {
-  break-before: page;
-  page-break-before: always;
-}
-
-/* ==============================================
-   SPECIAL ELEMENTS
-   ============================================== */
-
-blockquote {
-  font-style: italic;
-  margin: 1.5em 2em;
-  text-indent: 0;
-}
-
-blockquote p {
-  text-indent: 0;
-}
-
-.epigraph {
-  font-style: italic;
-  text-align: right;
-  margin: 2em 10% 3em;
-  font-size: 0.95em;
-}
-
-.epigraph-author {
-  font-style: normal;
-  display: block;
-  margin-top: 0.5em;
-}
-
-.epigraph-author::before {
-  content: "— ";
-}
-
-/* ==============================================
-   IMAGES
-   ============================================== */
-
-img {
-  max-width: 100%;
-  height: auto;
-}
-
-/* ==============================================
-   PRINT UTILITIES
-   ============================================== */
-
-.no-break {
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-.break-before {
-  break-before: page;
-  page-break-before: always;
-}
-
-.break-after {
-  break-after: page;
-  page-break-after: always;
-}
-
-.keep-together {
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-/* ==============================================
-   CUSTOM STYLES
-   ============================================== */
-
+/* ====================== CUSTOM CSS ====================== */
 ${settings.customCSS || ''}
 `;
   }
 
-  /**
-   * Generate header CSS for page margins
-   */
-  private static generateHeaderCSS(
-    page: 'left' | 'right', 
-    headerFooter: HeaderFooterSettings,
-    metadata: { title: string; author: string }
-  ): string {
-    const getContent = (content: string) => {
-      switch (content) {
-        case 'title': return `"${metadata.title}"`;
-        case 'author': return `"${metadata.author}"`;
-        case 'chapter': return 'string(chapter-title)';
-        case 'page-number': return 'counter(page)';
-        case 'none': return 'none';
-        default: return 'none';
-      }
-    };
+  // ============================================================
+  // SYMBOL HELPERS
+  // ============================================================
 
-    const fontStyle = headerFooter.headerStyle === 'italic' ? 'font-style: italic;' :
-                      headerFooter.headerStyle === 'small-caps' ? 'font-variant: small-caps;' :
-                      headerFooter.headerStyle === 'uppercase' ? 'text-transform: uppercase;' : '';
-
-    // Mirror headers if enabled
-    let leftContent, centerContent, rightContent;
-    if (headerFooter.mirrorHeaders && page === 'left') {
-      leftContent = getContent(headerFooter.headerRightContent);
-      centerContent = getContent(headerFooter.headerCenterContent);
-      rightContent = getContent(headerFooter.headerLeftContent);
-    } else {
-      leftContent = getContent(headerFooter.headerLeftContent);
-      centerContent = getContent(headerFooter.headerCenterContent);
-      rightContent = getContent(headerFooter.headerRightContent);
-    }
-
-    return `
-  @top-left {
-    content: ${leftContent};
-    font-family: var(--body-font);
-    font-size: ${headerFooter.headerFontSize}pt;
-    ${fontStyle}
-    color: var(--muted-color);
-    vertical-align: bottom;
-    padding-bottom: 0.5em;
-  }
-  @top-center {
-    content: ${centerContent};
-    font-family: var(--body-font);
-    font-size: ${headerFooter.headerFontSize}pt;
-    ${fontStyle}
-    color: var(--muted-color);
-  }
-  @top-right {
-    content: ${rightContent};
-    font-family: var(--body-font);
-    font-size: ${headerFooter.headerFontSize}pt;
-    ${fontStyle}
-    color: var(--muted-color);
-    vertical-align: bottom;
-    padding-bottom: 0.5em;
-  }`;
-  }
-
-  /**
-   * Generate footer CSS for page margins
-   */
-  private static generateFooterCSS(
-    page: 'left' | 'right',
-    headerFooter: HeaderFooterSettings
-  ): string {
-    const getContent = (content: string) => {
-      switch (content) {
-        case 'page-number': 
-          const style = headerFooter.pageNumberStyle === 'roman-lower' ? 'lower-roman' :
-                        headerFooter.pageNumberStyle === 'roman-upper' ? 'upper-roman' : 'decimal';
-          return `counter(page, ${style})`;
-        case 'none': return 'none';
-        default: return 'none';
-      }
-    };
-
-    // Mirror footers if mirror headers is enabled
-    let leftContent, centerContent, rightContent;
-    if (headerFooter.mirrorHeaders && page === 'left') {
-      leftContent = getContent(headerFooter.footerRightContent);
-      centerContent = getContent(headerFooter.footerCenterContent);
-      rightContent = getContent(headerFooter.footerLeftContent);
-    } else {
-      leftContent = getContent(headerFooter.footerLeftContent);
-      centerContent = getContent(headerFooter.footerCenterContent);
-      rightContent = getContent(headerFooter.footerRightContent);
-    }
-
-    return `
-  @bottom-left {
-    content: ${leftContent};
-    font-family: var(--body-font);
-    font-size: ${headerFooter.footerFontSize}pt;
-  }
-  @bottom-center {
-    content: ${centerContent};
-    font-family: var(--body-font);
-    font-size: ${headerFooter.footerFontSize}pt;
-  }
-  @bottom-right {
-    content: ${rightContent};
-    font-family: var(--body-font);
-    font-size: ${headerFooter.footerFontSize}pt;
-  }`;
-  }
-
-  /**
-   * Get scene break symbol
-   */
   private static getSceneBreakSymbol(style: string, customSymbol?: string): string {
     switch (style) {
       case 'blank-line': return '';
       case 'asterisks': return '* * *';
-      case 'ornament': return '❦';
-      case 'number': return '•';
+      case 'ornament': return '\\2766';
+      case 'number': return '\\2022';
       case 'custom': return customSymbol || '* * *';
       default: return '* * *';
     }
   }
 
-  /**
-   * Get chapter ornament symbol
-   */
   private static getChapterOrnamentSymbol(ornament: string): string {
     switch (ornament) {
-      case 'line': return '━━━━━━━━━';
-      case 'flourish': return '❧';
-      case 'stars': return '✦ ✦ ✦';
-      case 'dots': return '• • •';
+      case 'line': return '\\2501\\2501\\2501\\2501\\2501\\2501\\2501\\2501\\2501';
+      case 'flourish': return '\\2767';
+      case 'stars': return '\\2726 \\2726 \\2726';
+      case 'dots': return '\\2022 \\2022 \\2022';
       default: return '';
     }
   }
 
-  /**
-   * Generate cover page HTML
-   */
+  // ============================================================
+  // HTML SECTION GENERATORS
+  // ============================================================
+
   private static generateCoverPage(book: BookExport): string {
     if (!book.coverUrl) {
-      // Generate a text-based cover if no image
       return `
-      <section class="cover-page text-cover">
-        <h1 class="cover-title">${this.escapeHtml(book.title)}</h1>
-        <p class="cover-author">${this.escapeHtml(book.author)}</p>
-        ${book.genre ? `<p class="cover-genre">${this.escapeHtml(book.genre)}</p>` : ''}
-      </section>`;
+<section class="cover-wrapper text-cover">
+  <div class="cover-title">${this.escapeHtml(book.title)}</div>
+  <div class="cover-author">${this.escapeHtml(book.author)}</div>
+  ${book.genre ? `<div class="cover-genre">${this.escapeHtml(book.genre)}</div>` : ''}
+</section>`;
     }
-
     return `
-    <section class="cover-page">
-      <img src="${book.coverUrl}" alt="${this.escapeHtml(book.title)} Cover" />
-    </section>`;
+<section class="cover-wrapper">
+  <img src="${book.coverUrl}" alt="Cover" />
+</section>`;
   }
 
-  /**
-   * Generate back cover page HTML
-   */
   private static generateBackCoverPage(book: BookExport): string {
-    if (!book.backCoverUrl) {
-      return '';
-    }
-
+    if (!book.backCoverUrl) return '';
     return `
-    <section class="cover-page">
-      <img src="${book.backCoverUrl}" alt="${this.escapeHtml(book.title)} Back Cover" />
-    </section>`;
+<section class="cover-wrapper">
+  <img src="${book.backCoverUrl}" alt="Back Cover" />
+</section>`;
   }
 
-  /**
-   * Generate front matter HTML based on settings
-   */
-  private static generateFrontMatter(book: BookExport, settings: PublishingSettings, chapterPageNumbers: number[]): string {
-    const currentYear = new Date().getFullYear();
-    const frontMatter = settings.frontMatter;
+  private static generateFrontMatter(book: BookExport, settings: PublishingSettings): string {
+    const fm = settings.frontMatter;
+    const year = new Date().getFullYear();
+    const novelLabel = isNovel(book.genre, settings?.bookType);
     let html = '';
-    
-    // Determine if this book should show "A Novel By" label
-    const bookType = settings?.bookType;
-    const showNovelLabel = isNovel(book.genre, bookType);
 
-    // Half-title page
-    if (frontMatter.halfTitlePage) {
-      html += `
-      <section class="half-title-page break-after">
-        <h1 class="book-title">${this.escapeHtml(book.title)}</h1>
-      </section>`;
+    // Half-title: skip when a cover image is present (the cover already introduces the book,
+    // so the half-title feels redundant in digital PDF output)
+    if (fm.halfTitlePage && !book.coverUrl) {
+      html += `<div class="fm-half-title"><h1 class="book-title">${this.escapeHtml(book.title)}</h1></div>`;
     }
 
-    // Title page - conditionally show "A Novel By" only for novels
-    if (frontMatter.titlePage) {
-      const authorSection = showNovelLabel 
-        ? `<p class="book-author-label" style="font-size: 0.7em; letter-spacing: 0.2em; text-transform: uppercase; color: #666; margin-bottom: 0.5em;">A Novel By</p>
-           <p class="book-author">${this.escapeHtml(book.author)}</p>`
+    // Title page
+    if (fm.titlePage) {
+      const authorLine = novelLabel
+        ? `<p style="font-size: 0.65em; letter-spacing: 0.15em; text-transform: uppercase; color: #666; margin-bottom: 0.3em;">A Novel By</p><p class="book-author">${this.escapeHtml(book.author)}</p>`
         : `<p class="book-author">by ${this.escapeHtml(book.author)}</p>`;
-      
       html += `
-      <section class="title-page break-after">
-        <h1 class="book-title">${this.escapeHtml(book.title)}</h1>
-        ${authorSection}
-        ${book.genre ? `<p class="book-genre">${this.escapeHtml(book.genre)}</p>` : ''}
-        ${book.description ? `
-        <div class="book-description" style="margin-top: 3em; font-style: italic; max-width: 80%; margin-left: auto; margin-right: auto;">
-          ${this.escapeHtml(book.description)}
-        </div>` : ''}
-        ${settings.publisher ? `<p class="book-publisher" style="margin-top: 3em;">${this.escapeHtml(settings.publisher)}</p>` : ''}
-      </section>`;
+<div class="fm-title-page">
+  <h1 class="book-title">${this.escapeHtml(book.title)}</h1>
+  ${authorLine}
+  ${book.genre ? `<p class="book-genre">${this.escapeHtml(book.genre)}</p>` : ''}
+  ${book.description ? `<p style="margin-top: 2em; font-style: italic; max-width: 80%; margin-left: auto; margin-right: auto; text-indent: 0;">${this.escapeHtml(book.description)}</p>` : ''}
+  ${settings.publisher ? `<p class="book-publisher" style="margin-top: 2em;">${this.escapeHtml(settings.publisher)}</p>` : ''}
+</div>`;
     }
 
-    // Copyright page
-    if (frontMatter.copyrightPage) {
+    // Copyright
+    if (fm.copyrightPage) {
       html += `
-      <section class="copyright-page break-after">
-        <p><strong>${this.escapeHtml(book.title)}</strong></p>
-        <p>by ${this.escapeHtml(book.author)}</p>
-        <br>
-        <p>Copyright © ${currentYear} ${this.escapeHtml(book.author)}</p>
-        <p>All rights reserved.</p>
-        <br>
-        <p style="font-size: 0.8em; color: #666;">
-          No part of this publication may be reproduced, stored in a retrieval system,
-          or transmitted in any form or by any means, electronic, mechanical, photocopying,
-          recording, or otherwise, without the prior written permission of the copyright holder.
-        </p>
-        ${settings.isbn ? `<br><p style="font-size: 0.85em;">ISBN: ${settings.isbn}</p>` : ''}
-        ${settings.publisher ? `
-        <br>
-        <p style="font-size: 0.9em;">Published by ${this.escapeHtml(settings.publisher)}</p>
-        ${settings.publisherLocation ? `<p style="font-size: 0.8em; color: #888;">${this.escapeHtml(settings.publisherLocation)}</p>` : ''}
-        ` : `
-        <br>
-        <p style="font-size: 0.9em;">Published by Dynamic Labs Media</p>
-        <p style="font-size: 0.8em; color: #888;">dlmworld.com</p>
-        `}
-        <br>
-        <p style="font-size: 0.75em; font-style: italic; color: #aaa;">Created with PowerWrite</p>
-      </section>`;
+<div class="fm-copyright">
+  <p class="copyright-title">${this.escapeHtml(book.title)}</p>
+  <p>by ${this.escapeHtml(book.author)}</p>
+  <span class="copyright-spacer"></span>
+  <p>Copyright &copy; ${year} ${this.escapeHtml(book.author)}</p>
+  <p>All rights reserved.</p>
+  <span class="copyright-spacer"></span>
+  <p style="font-size: 0.92em; color: #555;">No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means without the prior written permission of the copyright holder.</p>
+  ${settings.isbn ? `<span class="copyright-spacer"></span><p>ISBN: ${settings.isbn}</p>` : ''}
+  <span class="copyright-spacer"></span>
+  ${settings.publisher
+    ? `<p>Published by ${this.escapeHtml(settings.publisher)}</p>${settings.publisherLocation ? `<p style="color: #777;">${this.escapeHtml(settings.publisherLocation)}</p>` : ''}`
+    : `<p>Published by Dynamic Labs Media</p><p style="color: #777;">dlmworld.com</p>`}
+  <span class="copyright-spacer"></span>
+  <p style="font-size: 0.88em; font-style: italic; color: #999;">Created with PowerWrite</p>
+</div>`;
     }
 
-    // Dedication page
-    if (frontMatter.dedicationPage) {
-      html += `
-      <section class="dedication-page break-after">
-        <p>For those who believe in the power of words.</p>
-      </section>`;
+    // Dedication
+    if (fm.dedicationPage) {
+      html += `<div class="fm-dedication"><p>For those who believe in the power of words.</p></div>`;
     }
 
     // Table of Contents
-    if (frontMatter.tableOfContents) {
-      const chapterSettings = settings.chapters;
-      
-      // Calculate bibliography page number (after last chapter)
-      const lastChapterPageNum = chapterPageNumbers[chapterPageNumbers.length - 1] || 1;
-      const lastChapterContent = book.chapters[book.chapters.length - 1]?.content || '';
-      const charsPerPage = this.getCharsPerPage(settings);
-      const lastChapterPages = Math.max(1, Math.ceil(lastChapterContent.length / charsPerPage));
-      const bibliographyPageNum = lastChapterPageNum + lastChapterPages;
-      
+    if (fm.tableOfContents) {
+      const cs = settings.chapters;
+
+      // Deduplicate chapters for TOC by number+title (keeps first occurrence)
+      const seen = new Map<string, { ch: typeof book.chapters[0]; idx: number }>();
+      book.chapters.forEach((ch, idx) => {
+        const key = `${ch.number}-${ch.title}`;
+        if (!seen.has(key)) seen.set(key, { ch, idx });
+      });
+      const tocEntries = Array.from(seen.values());
+
       html += `
-      <section class="toc-page break-after">
-        <h1 class="toc-title">Contents</h1>
-        <nav class="toc">
-          ${book.chapters.map((chapter, index) => {
-            const chapterLabel = chapterSettings.showChapterNumber 
-              ? `${chapterSettings.chapterNumberLabel} ${this.formatChapterNumber(chapter.number, chapterSettings.chapterNumberStyle)}`
-              : '';
-            // Use calculated page number instead of index + 1
-            const pageNum = chapterPageNumbers[index] || (index + 1);
-            return `
-          <div class="toc-entry">
-            <span class="toc-chapter-label">${chapterLabel}</span>
-            <span class="toc-chapter-title">${this.escapeHtml(chapter.title)}</span>
-            <span class="toc-leader"></span>
-            <span class="toc-page-number">${pageNum}</span>
-          </div>`;
-          }).join('')}
-          ${book.bibliography?.config?.enabled && book.bibliography.references?.length > 0 ? `
-          <div class="toc-entry" style="margin-top: 1em;">
-            <span class="toc-chapter-label"></span>
-            <span class="toc-chapter-title">Bibliography</span>
-            <span class="toc-leader"></span>
-            <span class="toc-page-number">${bibliographyPageNum}</span>
-          </div>
-          ` : ''}
-        </nav>
-      </section>`;
+<div class="fm-toc">
+  <h1>Contents</h1>
+  <ul class="toc-list">
+    ${tocEntries.map(({ ch, idx }) => {
+      const label = cs.showChapterNumber
+        ? `<span class="toc-label">${cs.chapterNumberLabel} ${this.formatChapterNumber(ch.number, cs.chapterNumberStyle)}</span>`
+        : '';
+      return `<li class="toc-item"><a href="#chapter-idx-${idx}">${label}<span class="toc-title">${this.escapeHtml(ch.title)}</span></a></li>`;
+    }).join('\n    ')}
+    ${book.bibliography?.config?.enabled && book.bibliography.references?.length > 0
+      ? `<li class="toc-item" style="margin-top: 0.8em;"><a href="#bibliography-section"><span class="toc-title">Bibliography</span></a></li>`
+      : ''}
+  </ul>
+</div>`;
     }
 
     return html;
   }
 
-  /**
-   * Generate main content (chapters) HTML
-   */
   private static generateMainContent(book: BookExport, settings: PublishingSettings): string {
-    const chapterSettings = settings.chapters;
-    const typoSettings = settings.typography;
+    const cs = settings.chapters;
+    const typo = settings.typography;
 
-    return book.chapters.map((chapter) => {
-      const content = this.processChapterContent(chapter.content, chapter, typoSettings, chapterSettings);
-      
-      // Determine chapter number display
-      let chapterNumberDisplay = '';
-      if (chapterSettings.showChapterNumber && chapterSettings.chapterNumberPosition !== 'hidden') {
-        chapterNumberDisplay = this.formatChapterNumber(chapter.number, chapterSettings.chapterNumberStyle);
+    return book.chapters.map((chapter, index) => {
+      const content = this.processChapterContent(chapter.content, chapter, typo, cs);
+
+      let numDisplay = '';
+      if (cs.showChapterNumber && cs.chapterNumberPosition !== 'hidden') {
+        numDisplay = this.formatChapterNumber(chapter.number, cs.chapterNumberStyle);
       }
 
-      // Build chapter header based on settings
-      let headerContent = '';
-      
-      // Ornament above number
-      if (chapterSettings.chapterOrnament !== 'none' && chapterSettings.chapterOrnamentPosition === 'above-number') {
-        headerContent += `<div class="chapter-ornament"></div>`;
-      }
+      let hdr = '';
 
-      // Chapter number above title
-      if (chapterSettings.showChapterNumber && chapterSettings.chapterNumberPosition === 'above-title') {
-        headerContent += `
-          <span class="chapter-number-label">${chapterSettings.chapterNumberLabel}</span>
-          <span class="chapter-number">${chapterNumberDisplay}</span>`;
+      if (cs.chapterOrnament !== 'none' && cs.chapterOrnamentPosition === 'above-number') {
+        hdr += '<div class="chapter-ornament"></div>';
       }
-
-      // Ornament between number and title
-      if (chapterSettings.chapterOrnament !== 'none' && chapterSettings.chapterOrnamentPosition === 'between-number-title') {
-        headerContent += `<div class="chapter-ornament"></div>`;
+      if (cs.showChapterNumber && cs.chapterNumberPosition === 'above-title') {
+        hdr += `<span class="chapter-number-label">${cs.chapterNumberLabel}</span><span class="chapter-number">${numDisplay}</span>`;
       }
-
-      // Chapter title (possibly with number before it)
-      if (chapterSettings.showChapterNumber && chapterSettings.chapterNumberPosition === 'before-title') {
-        headerContent += `<h1 class="chapter-title"><span class="chapter-number-inline">${chapterNumberDisplay}.</span> ${this.escapeHtml(chapter.title)}</h1>`;
+      if (cs.chapterOrnament !== 'none' && cs.chapterOrnamentPosition === 'between-number-title') {
+        hdr += '<div class="chapter-ornament"></div>';
+      }
+      if (cs.showChapterNumber && cs.chapterNumberPosition === 'before-title') {
+        hdr += `<h1 class="chapter-title"><span>${numDisplay}.</span> ${this.escapeHtml(chapter.title)}</h1>`;
       } else {
-        headerContent += `<h1 class="chapter-title">${this.escapeHtml(chapter.title)}</h1>`;
+        hdr += `<h1 class="chapter-title">${this.escapeHtml(chapter.title)}</h1>`;
       }
-
-      // Chapter number below title
-      if (chapterSettings.showChapterNumber && chapterSettings.chapterNumberPosition === 'below-title') {
-        headerContent += `
-          <span class="chapter-number-label" style="margin-top: 0.5em;">${chapterSettings.chapterNumberLabel} ${chapterNumberDisplay}</span>`;
+      if (cs.showChapterNumber && cs.chapterNumberPosition === 'below-title') {
+        hdr += `<span class="chapter-number-label" style="margin-top: 0.4em;">${cs.chapterNumberLabel} ${numDisplay}</span>`;
       }
-
-      // Ornament below title
-      if (chapterSettings.chapterOrnament !== 'none' && chapterSettings.chapterOrnamentPosition === 'below-title') {
-        headerContent += `<div class="chapter-ornament"></div>`;
+      if (cs.chapterOrnament !== 'none' && cs.chapterOrnamentPosition === 'below-title') {
+        hdr += '<div class="chapter-ornament"></div>';
       }
 
       return `
-      <article class="chapter" id="chapter-${chapter.number}">
-        <header class="chapter-header">
-          ${headerContent}
-        </header>
-        <div class="chapter-content">
-          ${content}
-        </div>
-      </article>`;
+<article class="chapter" id="chapter-idx-${index}">
+  <header class="chapter-header">${hdr}</header>
+  <div class="chapter-text">${content}</div>
+</article>`;
     }).join('\n');
   }
 
-  /**
-   * Format chapter number based on style
-   */
-  private static formatChapterNumber(num: number, style: string): string {
-    switch (style) {
-      case 'roman':
-        return this.toRoman(num);
-      case 'word':
-        return this.toWord(num);
-      case 'ordinal':
-        return this.toOrdinal(num);
-      default:
-        return String(num);
-    }
-  }
-
-  /**
-   * Process chapter content - convert to HTML with proper formatting
-   */
-  private static processChapterContent(
-    content: string,
-    chapter: { number: number; title: string },
-    typoSettings: TypoSettings,
-    _chapterSettings: ChapterSettings
-  ): string {
-    // Remove duplicate chapter titles from content
+  private static processChapterContent(content: string, chapter: { number: number; title: string }, typo: TypoSettings, _cs: ChapterSettings): string {
     const cleaned = this.sanitizeChapterContent(content, chapter);
-
-    // Split into paragraphs
     const paragraphs = cleaned.split(/\n\n+/).filter(p => p.trim());
 
-    return paragraphs.map((para, index) => {
-      const trimmed = para.trim();
-
-      // Check for scene breaks
-      if (this.isSceneBreak(trimmed)) {
-        return `<div class="scene-break"></div>`;
-      }
-
-      // First paragraph gets special treatment for drop caps
-      if (index === 0 && typoSettings.dropCapEnabled) {
-        return `<p class="drop-cap">${this.escapeHtml(trimmed)}</p>`;
-      }
-
-      // Check for blockquotes (lines starting with >)
-      if (trimmed.startsWith('>')) {
-        const quoteContent = trimmed.replace(/^>\s*/gm, '');
-        return `<blockquote><p>${this.escapeHtml(quoteContent)}</p></blockquote>`;
-      }
-
-      return `<p>${this.escapeHtml(trimmed)}</p>`;
+    return paragraphs.map((para, i) => {
+      const t = para.trim();
+      if (this.isSceneBreak(t)) return '<div class="scene-break"></div>';
+      if (i === 0 && typo.dropCapEnabled) return `<p class="drop-cap">${this.escapeHtml(t)}</p>`;
+      if (t.startsWith('>')) return `<blockquote><p>${this.escapeHtml(t.replace(/^>\s*/gm, ''))}</p></blockquote>`;
+      return `<p>${this.escapeHtml(t)}</p>`;
     }).join('\n');
   }
 
-  /**
-   * Generate back matter HTML based on settings
-   */
   private static generateBackMatter(book: BookExport, settings: PublishingSettings): string {
-    const backMatter = settings.backMatter;
+    const bm = settings.backMatter;
     let html = '';
 
-    // Bibliography
-    if (backMatter.bibliography && book.bibliography?.config?.enabled && book.bibliography.references?.length > 0) {
+    if (bm.bibliography && book.bibliography?.config?.enabled && book.bibliography.references?.length > 0) {
       const refs = book.bibliography.references;
-      const config = book.bibliography.config;
+      const cfg = book.bibliography.config;
       html += `
-      <section class="bibliography break-before">
-        <h1 style="text-align: center; margin-bottom: 2em;">Bibliography</h1>
-        <div class="bibliography-entries">
-          ${refs.map((ref: unknown, index: number) => `
-          <p class="bibliography-entry">
-            ${config.numberingStyle === 'numeric' ? `${index + 1}. ` : ''}
-            ${this.formatReference(ref)}
-          </p>
-          `).join('\n')}
-        </div>
-        <p style="text-align: center; margin-top: 2em; font-style: italic; font-size: 0.85em; color: #888;">
-          References formatted in ${config.citationStyle || 'APA'} style.
-        </p>
-      </section>`;
+<div class="bibliography" id="bibliography-section">
+  <h1 style="text-align: center; margin-bottom: 1.5em;">Bibliography</h1>
+  ${refs.map((ref: unknown, i: number) => `<p class="bibliography-entry">${cfg.numberingStyle === 'numeric' ? `${i + 1}. ` : ''}${this.formatReference(ref)}</p>`).join('\n')}
+  <p style="text-align: center; margin-top: 1.5em; font-style: italic; font-size: 0.85em; color: #888;">References formatted in ${cfg.citationStyle || 'APA'} style.</p>
+</div>`;
     }
 
-    // About the Author
-    if (backMatter.aboutAuthor) {
+    if (bm.aboutAuthor) {
       html += `
-      <section class="about-author break-before">
-        <h1 style="font-size: 1.5em; margin-bottom: 1em;">About the Author</h1>
-        <p style="text-indent: 0;">
-          ${this.escapeHtml(book.author)} is the author of ${this.escapeHtml(book.title)}.
-        </p>
-      </section>`;
+<div class="about-author">
+  <h1 style="font-size: 1.4em; margin-bottom: 0.8em;">About the Author</h1>
+  <p style="text-indent: 0;">${this.escapeHtml(book.author)} is the author of ${this.escapeHtml(book.title)}.</p>
+</div>`;
     }
 
-    // Also By
-    if (backMatter.alsoBy) {
+    if (bm.alsoBy) {
       html += `
-      <section class="also-by break-before">
-        <h1 style="text-align: center; font-size: 1.5em; margin-bottom: 1em;">Also by ${this.escapeHtml(book.author)}</h1>
-        <p style="text-align: center; font-style: italic; color: #666;">
-          More titles coming soon...
-        </p>
-      </section>`;
+<div class="also-by">
+  <h1 style="text-align: center; font-size: 1.4em; margin-bottom: 0.8em;">Also by ${this.escapeHtml(book.author)}</h1>
+  <p style="text-align: center; font-style: italic; color: #666;">More titles coming soon...</p>
+</div>`;
     }
 
     return html;
   }
 
-  /**
-   * Format a reference entry - accepts any format
-   */
+  // ============================================================
+  // UTILITY METHODS
+  // ============================================================
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private static formatReference(ref: any): string {
     const parts: string[] = [];
-
-    // Handle authors (various formats)
     if (ref.authors && Array.isArray(ref.authors) && ref.authors.length > 0) {
-      const authorNames = ref.authors.map((author: unknown) => {
-        if (typeof author === 'string') {
-          return author;
-        }
-        if (typeof author === 'object' && author !== null) {
-          const a = author as { firstName?: string; lastName?: string; organization?: string };
-          if (a.organization) return a.organization;
-          return [a.firstName, a.lastName].filter(Boolean).join(' ');
+      const names = ref.authors.map((a: unknown) => {
+        if (typeof a === 'string') return a;
+        if (typeof a === 'object' && a !== null) {
+          const x = a as { firstName?: string; lastName?: string; organization?: string };
+          if (x.organization) return x.organization;
+          return [x.firstName, x.lastName].filter(Boolean).join(' ');
         }
         return '';
       }).filter(Boolean);
-      if (authorNames.length > 0) {
-        parts.push(authorNames.join(', '));
-      }
+      if (names.length > 0) parts.push(names.join(', '));
     }
-
-    // Handle year (number or string)
-    if (ref.year) {
-      parts.push(`(${ref.year})`);
-    }
-
-    // Title
-    if (ref.title) {
-      parts.push(`<em>${this.escapeHtml(String(ref.title))}</em>`);
-    }
-
-    // Publisher
-    if (ref.publisher) {
-      parts.push(String(ref.publisher));
-    }
-
-    // URL
-    if (ref.url) {
-      parts.push(`<a href="${ref.url}">${ref.url}</a>`);
-    }
-
+    if (ref.year) parts.push(`(${ref.year})`);
+    if (ref.title) parts.push(`<em>${this.escapeHtml(String(ref.title))}</em>`);
+    if (ref.publisher) parts.push(String(ref.publisher));
+    if (ref.url) parts.push(`<a href="${ref.url}">${ref.url}</a>`);
     return parts.join('. ') + '.';
   }
 
-  /**
-   * Sanitize chapter content - remove duplicate titles + AI artifacts
-   */
-  private static sanitizeChapterContent(
-    content: string,
-    chapter: { number: number; title: string }
-  ): string {
-    // First, apply the centralized sanitizer to remove AI artifacts
+  private static sanitizeChapterContent(content: string, chapter: { number: number; title: string }): string {
     let cleaned = sanitizeForExport(content.trim());
-
-    const escapedTitle = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
+    const esc = chapter.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const patterns = [
-      new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+${escapedTitle}[\\s\\.,:;!?]*`, 'im'),
-      new RegExp(`^Chapter\\s+${chapter.number}\\s*[-–—]\\s*${escapedTitle}[\\s\\.,:;!?]*`, 'im'),
-      new RegExp(`^Chapter\\s+${chapter.number}\\s+${escapedTitle}[\\s\\.,:;!?]*`, 'im'),
+      new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]+${esc}[\\s\\.,:;!?]*`, 'im'),
+      new RegExp(`^Chapter\\s+${chapter.number}\\s*[-\\u2013\\u2014]\\s*${esc}[\\s\\.,:;!?]*`, 'im'),
+      new RegExp(`^Chapter\\s+${chapter.number}\\s+${esc}[\\s\\.,:;!?]*`, 'im'),
       new RegExp(`^Chapter\\s+${chapter.number}[:\\s-]*[\\s\\.,:;!?]*`, 'im'),
-      new RegExp(`^${escapedTitle}[\\s\\.,:;!?]*`, 'im'),
+      new RegExp(`^${esc}[\\s\\.,:;!?]*`, 'im'),
     ];
-
-    for (const pattern of patterns) {
-      cleaned = cleaned.replace(pattern, '').trim();
-    }
-
+    for (const p of patterns) { cleaned = cleaned.replace(p, '').trim(); }
     return cleaned.replace(/\n{3,}/g, '\n\n');
   }
 
-  /**
-   * Check if text is a scene break
-   */
-  private static isSceneBreak(text: string): boolean {
-    const trimmed = text.trim();
-    return trimmed === '***' || 
-           trimmed === '* * *' || 
-           trimmed === '---' || 
-           trimmed === '- - -' || 
-           trimmed === '❧' ||
-           trimmed === '• • •' ||
-           (trimmed.length <= 5 && /^[*\-•]+$/.test(trimmed.replace(/\s/g, '')));
-  }
-
-  /**
-   * Escape HTML special characters
-   */
-  private static escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  /**
-   * Convert number to Roman numerals
-   */
-  private static toRoman(num: number): string {
-    const romanNumerals: [number, string][] = [
-      [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
-      [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
-      [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']
-    ];
-
-    let result = '';
-    for (const [value, numeral] of romanNumerals) {
-      while (num >= value) {
-        result += numeral;
-        num -= value;
-      }
+  private static formatChapterNumber(num: number, style: string): string {
+    switch (style) {
+      case 'roman': return this.toRoman(num);
+      case 'word': return this.toWord(num);
+      case 'ordinal': return this.toOrdinal(num);
+      default: return String(num);
     }
-    return result;
   }
 
-  /**
-   * Convert number to word
-   */
+  private static isSceneBreak(text: string): boolean {
+    const t = text.trim();
+    return t === '***' || t === '* * *' || t === '---' || t === '- - -' ||
+      t === '\u2767' || t === '\u2022 \u2022 \u2022' ||
+      (t.length <= 5 && /^[*\-\u2022]+$/.test(t.replace(/\s/g, '')));
+  }
+
+  private static escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  }
+
+  private static toRoman(num: number): string {
+    const map: [number, string][] = [[1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],[100,'C'],[90,'XC'],[50,'L'],[40,'XL'],[10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I']];
+    let r = '';
+    for (const [v, s] of map) { while (num >= v) { r += s; num -= v; } }
+    return r;
+  }
+
   private static toWord(num: number): string {
-    const words = [
-      '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
-      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen',
-      'Eighteen', 'Nineteen', 'Twenty', 'Twenty-One', 'Twenty-Two', 'Twenty-Three',
-      'Twenty-Four', 'Twenty-Five', 'Twenty-Six', 'Twenty-Seven', 'Twenty-Eight',
-      'Twenty-Nine', 'Thirty'
-    ];
-    return num <= 30 ? words[num] : String(num);
+    const w = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen','Twenty','Twenty-One','Twenty-Two','Twenty-Three','Twenty-Four','Twenty-Five','Twenty-Six','Twenty-Seven','Twenty-Eight','Twenty-Nine','Thirty'];
+    return num <= 30 ? w[num] : String(num);
   }
 
-  /**
-   * Convert number to ordinal
-   */
   private static toOrdinal(num: number): string {
-    const ordinals = [
-      '', 'First', 'Second', 'Third', 'Fourth', 'Fifth', 'Sixth', 'Seventh', 'Eighth', 'Ninth', 'Tenth',
-      'Eleventh', 'Twelfth', 'Thirteenth', 'Fourteenth', 'Fifteenth', 'Sixteenth', 'Seventeenth',
-      'Eighteenth', 'Nineteenth', 'Twentieth'
-    ];
-    return num <= 20 ? ordinals[num] : String(num);
+    const o = ['','First','Second','Third','Fourth','Fifth','Sixth','Seventh','Eighth','Ninth','Tenth','Eleventh','Twelfth','Thirteenth','Fourteenth','Fifteenth','Sixteenth','Seventeenth','Eighteenth','Nineteenth','Twentieth'];
+    return num <= 20 ? o[num] : String(num);
   }
 
-  /**
-   * Generate a preview HTML (without PDF conversion)
-   */
   static generatePreviewHTML(book: BookExport): string {
-    const layoutType = book.layoutType || 'novel-classic';
-    const layout = BOOK_LAYOUTS[layoutType] || BOOK_LAYOUTS['novel-classic'];
-    const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
-    return this.generateBookHTML(book, layout, settings);
+    const layout = BOOK_LAYOUTS[book.layoutType || 'novel-classic'] || BOOK_LAYOUTS['novel-classic'];
+    return this.generateBookHTML(book, layout, book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS);
   }
 }

@@ -228,10 +228,11 @@ export default function CoverGenerator({
     textZone: 'full',
   });
   
-  // Visual Options
+  // Visual Options - initialize colorScheme and style from genre defaults to avoid
+  // always sending 'monochrome' which causes black-and-white covers
   const [visualOptions, setVisualOptions] = useState<CoverVisualOptions>({
-    style: 'photographic',
-    colorScheme: 'monochrome',
+    style: genreDefaults.style || 'photographic',
+    colorScheme: genreDefaults.colorScheme || 'vibrant',
     mood: '',
     atmosphere: 'dramatic',
     visualElements: [],

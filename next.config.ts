@@ -108,10 +108,10 @@ const nextConfig: NextConfig = {
         canvas: false,
       };
       
-      // Externalize pdfkit to use the Node.js version
+      // Externalize pdfkit, pagedjs and other node-only packages
       config.externals = config.externals || [];
       if (Array.isArray(config.externals)) {
-        config.externals.push('pdfkit', 'canvas');
+        config.externals.push('pdfkit', 'canvas', 'pagedjs');
       }
       
       // Handle @react-pdf/renderer for server-side

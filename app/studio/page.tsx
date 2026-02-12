@@ -70,7 +70,7 @@ function StudioPageContent() {
   const { userTier, isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
   
   // Use books context for cache invalidation
-  const { refreshBooks } = useBooks();
+  const { refreshBooks, addBookToList } = useBooks();
   
   const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
@@ -256,7 +256,7 @@ function StudioPageContent() {
 
         // Check if complete
         if (data.phase === 'completed' && data.book) {
-          // Clear caches
+          // Clear browser caches
           if (typeof window !== 'undefined' && 'caches' in window) {
             try {
               const cacheNames = await caches.keys();
@@ -279,20 +279,36 @@ function StudioPageContent() {
             message: 'Book generated successfully!',
           });
 
-          // Show success message and redirect to the new book
-          setTimeout(async () => {
-            // Refresh books cache so library shows new book immediately
-            await refreshBooks();
-            
-            alert(
-              `Book generated successfully!\n\n` +
-              `Title: ${data.book.title}\n` +
-              `Chapters: ${data.book.chapters}\n` +
-              `Words: ${data.book.wordCount.toLocaleString()}\n\n` +
-              `Book ID: ${data.book.id}`
-            );
-            router.push(`/library/${data.book.id}`);
-          }, 500);
+          // Immediately add the new book to the cache so it appears in library
+          addBookToList({
+            id: data.book.id,
+            title: data.book.title,
+            author: workingOutline.author || config.basicInfo?.author || '',
+            genre: workingOutline.genre || config.basicInfo?.genre || '',
+            status: 'completed',
+            coverUrl: data.book.coverUrl,
+            createdAt: new Date().toISOString(),
+            outline: workingOutline,
+            config: config,
+            metadata: {
+              wordCount: data.book.wordCount || 0,
+              chapters: data.book.chapters || data.totalChapters,
+              modelUsed: chapterModel,
+            },
+          });
+
+          // Refresh books cache in background, then show success and navigate
+          // Ensure refreshBooks completes before navigation so library is up-to-date
+          await refreshBooks();
+          
+          alert(
+            `Book generated successfully!\n\n` +
+            `Title: ${data.book.title}\n` +
+            `Chapters: ${data.book.chapters}\n` +
+            `Words: ${data.book.wordCount.toLocaleString()}\n\n` +
+            `Book ID: ${data.book.id}`
+          );
+          router.push(`/library/${data.book.id}`);
           
           break;
         }
@@ -320,8 +336,8 @@ function StudioPageContent() {
         );
         
         if (retry) {
-          // Recursive call to continue
-          handleGenerateBook();
+          // Continue from existing book to avoid creating a duplicate
+          handleGenerateBook(currentBookId);
           return;
         }
       } else {
@@ -341,7 +357,7 @@ function StudioPageContent() {
         }
       }, 500);
     }
-  }, [outline, config, router]);
+  }, [outline, config, router, refreshBooks, addBookToList]);
 
   // Cancel generation
   const handleCancelGeneration = useCallback(() => {
@@ -502,7 +518,7 @@ function StudioPageContent() {
                   message: data.message || 'Book generation complete!',
                 }));
 
-                // Clear caches and redirect
+                // Clear browser caches
                 if (typeof window !== 'undefined' && 'caches' in window) {
                   try {
                     const cacheNames = await caches.keys();
@@ -515,19 +531,36 @@ function StudioPageContent() {
                   }
                 }
 
-                setTimeout(async () => {
-                  // Refresh books cache so library shows new book immediately
-                  await refreshBooks();
-                  
-                  alert(
-                    `Book generated successfully!\n\n` +
-                    `Title: ${data.title}\n` +
-                    `Chapters: ${data.chaptersCompleted}\n` +
-                    `Words: ${data.totalWords?.toLocaleString()}\n\n` +
-                    `Book ID: ${data.bookId}`
-                  );
-                  router.push(`/library/${data.bookId}`);
-                }, 500);
+                // Immediately add the new book to the cache so it appears in library
+                if (data.bookId) {
+                  addBookToList({
+                    id: data.bookId,
+                    title: data.title || workingOutline.title || '',
+                    author: workingOutline.author || config.basicInfo?.author || '',
+                    genre: workingOutline.genre || config.basicInfo?.genre || '',
+                    status: 'completed',
+                    createdAt: new Date().toISOString(),
+                    outline: workingOutline,
+                    config: config,
+                    metadata: {
+                      wordCount: data.totalWords || 0,
+                      chapters: data.chaptersCompleted || totalChapters,
+                      modelUsed: chapterModel,
+                    },
+                  });
+                }
+
+                // Refresh cache then show success and navigate
+                await refreshBooks();
+                
+                alert(
+                  `Book generated successfully!\n\n` +
+                  `Title: ${data.title}\n` +
+                  `Chapters: ${data.chaptersCompleted}\n` +
+                  `Words: ${data.totalWords?.toLocaleString()}\n\n` +
+                  `Book ID: ${data.bookId}`
+                );
+                router.push(`/library/${data.bookId}`);
               } else if (data.error) {
                 throw new Error(data.error);
               }
@@ -598,7 +631,8 @@ function StudioPageContent() {
           `Progress has been saved. Would you like to retry?`
         );
         if (retry) {
-          handleGenerateBookStreaming();
+          // Resume via incremental mode with the existing book ID to avoid duplication
+          handleGenerateBook(generationProgressRef.current.bookId);
           return;
         }
       } else {
@@ -618,7 +652,7 @@ function StudioPageContent() {
         }
       }, 500);
     }
-  }, [outline, config, router, refreshBooks, handleGenerateBook]);
+  }, [outline, config, router, refreshBooks, addBookToList, handleGenerateBook]);
 
   // Handle generate book click - check for outline first
   const handleGenerateBookClick = useCallback(() => {
