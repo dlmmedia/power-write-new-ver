@@ -540,7 +540,9 @@ export default function CoverGenerator({
   const handleStyleChange = (style: CoverDesignOptions['style']) => {
     setDesignOptions(prev => ({ ...prev, style }));
     // Sync visualOptions.style so the enhanced AI prompt uses the selected style
-    setVisualOptions(prev => ({ ...prev, style }));
+    if (style) {
+      setVisualOptions(prev => ({ ...prev, style }));
+    }
   };
 
   const handleColorSchemeChange = (colorScheme: CoverDesignOptions['colorScheme']) => {
@@ -548,7 +550,9 @@ export default function CoverGenerator({
     // Sync visualOptions.colorScheme so the enhanced AI prompt uses the selected color scheme
     // This was the main cause of B&W covers — only designOptions was updated,
     // but the prompt generation reads from visualOptions.colorScheme
-    setVisualOptions(prev => ({ ...prev, colorScheme }));
+    if (colorScheme) {
+      setVisualOptions(prev => ({ ...prev, colorScheme }));
+    }
   };
 
   const handleMethodChange = (method: 'ai' | 'template' | 'hybrid') => {
