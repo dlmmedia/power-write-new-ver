@@ -213,7 +213,7 @@ export const GENRE_COVER_DEFAULTS: Record<string, Partial<CoverDesignOptions>> =
   },
   'Mystery': {
     style: 'abstract',
-    colorScheme: 'monochrome',
+    colorScheme: 'dark',
     typography: { titleFont: 'serif', authorFont: 'serif', fontSize: 'medium', alignment: 'center' },
     layout: 'classic',
   },
@@ -225,7 +225,7 @@ export const GENRE_COVER_DEFAULTS: Record<string, Partial<CoverDesignOptions>> =
   },
   'Literary Fiction': {
     style: 'minimalist',
-    colorScheme: 'monochrome',
+    colorScheme: 'cool',
     typography: { titleFont: 'serif', authorFont: 'serif', fontSize: 'medium', alignment: 'center' },
     layout: 'elegant',
   },

@@ -1535,7 +1535,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
       if (response.status === 400 || response.status === 402 || response.status === 404 || response.status === 422 || response.status === 429) {
         console.log(`OpenRouter error ${response.status}, falling back to DALL-E...`);
         if (OPENAI_API_KEY) {
-          return await this.generateWithDallE(title, author, genre, description, style);
+          // Pass customPrompt so user's settings are preserved in the fallback
+          return await this.generateWithDallE(title, author, genre, description, style, customPrompt);
         }
         // Provide helpful error messages for specific issues
         if (response.status === 402) {
@@ -1645,7 +1646,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     // Fall back to DALL-E if available
     if (OPENAI_API_KEY) {
       console.log('Falling back to DALL-E due to unexpected response format...');
-      return await this.generateWithDallE(title, author, genre, description, style);
+      // Pass customPrompt so user's settings are preserved in the fallback
+      return await this.generateWithDallE(title, author, genre, description, style, customPrompt);
     }
     
     throw new Error('Could not extract image URL from OpenRouter response. Full response logged above.');

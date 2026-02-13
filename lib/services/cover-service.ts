@@ -161,7 +161,7 @@ ${visualOptions.customColors.background ? `- Background: ${visualOptions.customC
         const colorSchemeDescriptions: Record<string, string> = {
           'warm': 'warm, rich color palette (golds, reds, oranges, warm browns)',
           'cool': 'cool-toned palette (blues, teals, silvers, cool grays)',
-          'monochrome': 'monochromatic / black-and-white palette',
+          'monochrome': 'sophisticated monochromatic palette with subtle tonal variation (NOT pure black-and-white — use rich grays, charcoals, and one elegant accent color for depth)',
           'vibrant': 'vivid, saturated, eye-catching colors with strong contrast',
           'pastel': 'soft pastel color palette (light pinks, lavenders, mints)',
           'dark': 'dark, moody palette (deep blacks, dark blues, rich shadows)',
