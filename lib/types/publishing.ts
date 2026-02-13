@@ -478,7 +478,7 @@ export const DEFAULT_PUBLISHING_SETTINGS: PublishingSettings = {
   },
   
   headerFooter: {
-    headerEnabled: true,
+    headerEnabled: false,
     headerLeftContent: 'title',
     headerCenterContent: 'none',
     headerRightContent: 'chapter',

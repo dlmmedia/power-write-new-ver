@@ -401,9 +401,9 @@ ${this.generateBackCoverPage(book)}
 
       if (hf.headerEnabled) {
         // padding-bottom creates a clear gap between the running header and the body text
-        if (hL !== 'none') out += `\n  @top-left { content: ${hL}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.12in; ${hBorder} }`;
-        if (hC !== 'none') out += `\n  @top-center { content: ${hC}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.12in; ${hBorder} }`;
-        if (hR !== 'none') out += `\n  @top-right { content: ${hR}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.12in; ${hBorder} }`;
+        if (hL !== 'none') out += `\n  @top-left { content: ${hL}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.2in; ${hBorder} }`;
+        if (hC !== 'none') out += `\n  @top-center { content: ${hC}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.2in; ${hBorder} }`;
+        if (hR !== 'none') out += `\n  @top-right { content: ${hR}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.2in; ${hBorder} }`;
       }
       if (hf.footerEnabled) {
         // padding-top creates a clear gap between the body text and the footer
@@ -638,13 +638,14 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
 .fm-title-page {
   text-align: center;
   text-align-last: center;
-  padding-top: 25%;
+  padding-top: 1.2in;
   break-before: page;
 }
-.book-title { font-family: ${headingFont}; font-size: 2.6em; font-weight: normal; margin-bottom: 0.4em; letter-spacing: 0.04em; }
-.book-author { font-family: ${bodyFont}; font-size: 1.3em; font-style: italic; margin-bottom: 1.5em; }
+.book-title { font-family: ${headingFont}; font-size: 2.2em; font-weight: normal; margin-bottom: 0.3em; letter-spacing: 0.04em; }
+.book-author { font-family: ${bodyFont}; font-size: 1.2em; font-style: italic; margin-bottom: 1em; }
 .book-genre { font-size: 0.9em; text-transform: uppercase; letter-spacing: 0.15em; color: #666; }
 .book-publisher { font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.15em; color: #666; }
+.book-description { font-size: 0.78em; line-height: 1.45; font-style: italic; max-width: 80%; margin-left: auto; margin-right: auto; text-indent: 0; margin-top: 1em; max-height: 5.5em; overflow: hidden; }
 
 .fm-copyright {
   font-size: 0.78em;
@@ -715,7 +716,7 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
   font-size: 1.4em;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  margin-bottom: 2em;
+  margin-bottom: 2.5em;
 }
 
 /* ====================== TABLE OF CONTENTS ====================== */
@@ -728,8 +729,8 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
 }
 
 .toc-item {
-  margin-bottom: 0.5em;
-  line-height: 1.6;
+  margin-bottom: 0.75em;
+  line-height: 1.7;
   break-inside: avoid;
   overflow: hidden; /* KEY: enables the dot-leader overflow trick */
 }
@@ -973,7 +974,7 @@ ${settings.customCSS || ''}
   <h1 class="book-title">${this.escapeHtml(book.title)}</h1>
   ${authorLine}
   ${book.genre ? `<p class="book-genre">${this.escapeHtml(book.genre)}</p>` : ''}
-  ${book.description ? `<p style="margin-top: 2em; font-style: italic; max-width: 80%; margin-left: auto; margin-right: auto; text-indent: 0;">${this.escapeHtml(book.description)}</p>` : ''}
+  ${book.description ? `<p class="book-description">${this.escapeHtml(book.description.length > 300 ? book.description.slice(0, 297).trim() + '...' : book.description)}</p>` : ''}
   ${settings.publisher ? `<p class="book-publisher" style="margin-top: 2em;">${this.escapeHtml(settings.publisher)}</p>` : ''}
 </div>`;
     }
