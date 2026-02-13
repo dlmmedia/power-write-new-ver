@@ -523,7 +523,8 @@ export class PDFServicePDFKit {
         addPage();
         
         const currentYear = new Date().getFullYear();
-        const copyrightY = dims.height * 0.4;
+        // Position copyright content in the lower portion of the page
+        const copyrightY = dims.height * 0.38;
         
         doc.font('Times-Bold')
            .fontSize(11)
@@ -536,7 +537,7 @@ export class PDFServicePDFKit {
         doc.font('Times-Italic')
            .fontSize(10)
            .fillColor('#444444')
-           .text(`by ${book.author}`, dims.marginInside, copyrightY + 18, {
+           .text(`by ${book.author}`, dims.marginInside, copyrightY + 20, {
              width: dims.contentWidth,
              align: 'center',
            });
@@ -545,29 +546,30 @@ export class PDFServicePDFKit {
         doc.font('Times-Roman')
            .fontSize(9)
            .fillColor('#555555')
-           .text(`Copyright © ${currentYear} ${book.author}`, dims.marginInside, copyrightY + 50, {
+           .text(`Copyright © ${currentYear} ${book.author}`, dims.marginInside, copyrightY + 55, {
              width: dims.contentWidth,
              align: 'center',
            })
-           .text('All rights reserved.', dims.marginInside, copyrightY + 65, {
+           .text('All rights reserved.', dims.marginInside, copyrightY + 72, {
              width: dims.contentWidth,
              align: 'center',
            });
         
-        // Legal text
+        // Legal text - constrained width for better readability
+        const legalInset = dims.contentWidth * 0.08;
         doc.font('Times-Roman')
            .fontSize(8)
            .fillColor('#666666')
            .text(
              'No part of this publication may be reproduced, stored in a retrieval system, ' +
-             'or transmitted in any form or by any means—electronic, mechanical, photocopying, ' +
-             'recording, or otherwise—without the prior written permission of the copyright holder.',
-             dims.marginInside + 20,
-             copyrightY + 95,
+             'or transmitted in any form or by any means\u2014electronic, mechanical, photocopying, ' +
+             'recording, or otherwise\u2014without the prior written permission of the copyright holder.',
+             dims.marginInside + legalInset,
+             copyrightY + 108,
              {
-               width: dims.contentWidth - 40,
+               width: dims.contentWidth - legalInset * 2,
                align: 'center',
-               lineGap: 3,
+               lineGap: 3.5,
              }
            );
         
@@ -575,20 +577,22 @@ export class PDFServicePDFKit {
         doc.font('Times-Bold')
            .fontSize(8)
            .fillColor('#555555')
-           .text('PUBLISHED BY', dims.marginInside, copyrightY + 160, {
+           .text('PUBLISHED BY', dims.marginInside, copyrightY + 180, {
              width: dims.contentWidth,
              align: 'center',
              characterSpacing: 1,
            });
         
+        const publisherName = settings?.publisher || 'Dynamic Labs Media';
+        const publisherUrl = settings?.publisherLocation || 'dlmworld.com';
         doc.font('Times-Roman')
            .fontSize(9)
            .fillColor('#666666')
-           .text('Dynamic Labs Media', dims.marginInside, copyrightY + 175, {
+           .text(publisherName, dims.marginInside, copyrightY + 198, {
              width: dims.contentWidth,
              align: 'center',
            })
-           .text('dlmworld.com', dims.marginInside, copyrightY + 188, {
+           .text(publisherUrl, dims.marginInside, copyrightY + 214, {
              width: dims.contentWidth,
              align: 'center',
            });
@@ -597,7 +601,7 @@ export class PDFServicePDFKit {
         doc.font('Times-Italic')
            .fontSize(8)
            .fillColor('#888888')
-           .text('Created with PowerWrite', dims.marginInside, copyrightY + 220, {
+           .text('Created with PowerWrite', dims.marginInside, copyrightY + 248, {
              width: dims.contentWidth,
              align: 'center',
            });
@@ -799,21 +803,21 @@ export class PDFServicePDFKit {
               addPage(true);
               y = dims.marginTop;
               
-              // Running header on continuation pages
+              // Running header on continuation pages (not chapter opening pages)
               if (headerFooterSettings.headerEnabled) {
                 doc.font('Times-Italic')
                    .fontSize(8)
                    .fillColor('#888888')
-                   .text(book.title.toUpperCase(), dims.marginInside, dims.marginTop - 20, {
+                   .text(book.title.toUpperCase(), dims.marginInside, dims.marginTop - 25, {
                      width: dims.contentWidth / 2 - 10,
                    });
                 
-                doc.text(`Chapter ${chapter.number}`, dims.width / 2 + 10, dims.marginTop - 20, {
+                doc.text(chapter.title || `Chapter ${chapter.number}`, dims.width / 2 + 10, dims.marginTop - 25, {
                   width: dims.contentWidth / 2 - 10,
                   align: 'right',
                 });
                 
-                y = dims.marginTop + 10;
+                y = dims.marginTop + 15;
               }
             }
             
@@ -864,16 +868,16 @@ export class PDFServicePDFKit {
                 doc.font('Times-Italic')
                    .fontSize(8)
                    .fillColor('#888888')
-                   .text(book.title.toUpperCase(), dims.marginInside, dims.marginTop - 20, {
+                   .text(book.title.toUpperCase(), dims.marginInside, dims.marginTop - 25, {
                      width: dims.contentWidth / 2 - 10,
                    });
                 
-                doc.text(`Chapter ${chapter.number}`, dims.width / 2 + 10, dims.marginTop - 20, {
+                doc.text(chapter.title || `Chapter ${chapter.number}`, dims.width / 2 + 10, dims.marginTop - 25, {
                   width: dims.contentWidth / 2 - 10,
                   align: 'right',
                 });
                 
-                y = dims.marginTop + 10;
+                y = dims.marginTop + 15;
               }
             }
             

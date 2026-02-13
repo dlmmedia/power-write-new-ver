@@ -972,10 +972,11 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
                   render={({ pageNumber }) => {
                     const chapterStartPage = FRONT_MATTER_PAGES + chapterIndex + 1;
                     const isFirstPage = pageNumber === chapterStartPage;
-                    if (isFirstPage && !headerFooter.firstPageNumberVisible) return '';
+                    // Suppress headers on chapter opening pages
+                    if (isFirstPage) return '';
                     return headerFooter.headerLeftContent === 'title' ? book.title.toUpperCase() :
                            headerFooter.headerLeftContent === 'author' ? book.author.toUpperCase() :
-                           headerFooter.headerLeftContent === 'chapter' ? `Chapter ${chapter.number}` : '';
+                           headerFooter.headerLeftContent === 'chapter' ? (chapter.title || `Chapter ${chapter.number}`) : '';
                   }}
                 />
                 <Text
@@ -983,10 +984,11 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
                   render={({ pageNumber }) => {
                     const chapterStartPage = FRONT_MATTER_PAGES + chapterIndex + 1;
                     const isFirstPage = pageNumber === chapterStartPage;
-                    if (isFirstPage && !headerFooter.firstPageNumberVisible) return '';
+                    // Suppress headers on chapter opening pages
+                    if (isFirstPage) return '';
                     return headerFooter.headerRightContent === 'title' ? book.title.toUpperCase() :
                            headerFooter.headerRightContent === 'author' ? book.author.toUpperCase() :
-                           headerFooter.headerRightContent === 'chapter' ? `Chapter ${chapter.number}` : '';
+                           headerFooter.headerRightContent === 'chapter' ? (chapter.title || `Chapter ${chapter.number}`) : '';
                   }}
                 />
               </View>

@@ -366,12 +366,17 @@ ${this.generateBackCoverPage(book)}
     const marginBottom = margins.bottom + (hf.footerEnabled ? (margins.footerSpace || 0.3) : 0);
 
     // Resolve margin box content
-    // For chapter headers, use first-except so the header is blank on the page
-    // where the chapter title is set (= the chapter opening page)
+    // For headers, use string() with first-except so ALL header content
+    // (title, author, chapter) is automatically suppressed on chapter opening
+    // pages (the page where the string-set element appears).
     const resolve = (c: string, forHeader = false): string => {
       switch (c) {
-        case 'title': return `"${this.escapeHtml(metadata.title)}"`;
-        case 'author': return `"${this.escapeHtml(metadata.author)}"`;
+        case 'title': return forHeader
+          ? 'string(running-title, first-except)'
+          : `"${this.escapeHtml(metadata.title)}"`;
+        case 'author': return forHeader
+          ? 'string(running-author, first-except)'
+          : `"${this.escapeHtml(metadata.author)}"`;
         case 'chapter': return forHeader ? 'string(chapter-title, first-except)' : 'string(chapter-title)';
         case 'page-number': return `counter(page, ${pageCounter})`;
         case 'custom': return '""';
@@ -395,14 +400,16 @@ ${this.generateBackCoverPage(book)}
       const fBorder = hf.footerLine ? 'border-top: 0.5pt solid #ccc;' : '';
 
       if (hf.headerEnabled) {
-        if (hL !== 'none') out += `\n  @top-left { content: ${hL}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; ${hBorder} }`;
-        if (hC !== 'none') out += `\n  @top-center { content: ${hC}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; ${hBorder} }`;
-        if (hR !== 'none') out += `\n  @top-right { content: ${hR}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; ${hBorder} }`;
+        // padding-bottom creates a clear gap between the running header and the body text
+        if (hL !== 'none') out += `\n  @top-left { content: ${hL}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.12in; ${hBorder} }`;
+        if (hC !== 'none') out += `\n  @top-center { content: ${hC}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.12in; ${hBorder} }`;
+        if (hR !== 'none') out += `\n  @top-right { content: ${hR}; font-family: ${headerFont}; font-size: ${hf.headerFontSize}pt; ${hStyle} color: #555; vertical-align: bottom; padding-bottom: 0.12in; ${hBorder} }`;
       }
       if (hf.footerEnabled) {
-        if (fL !== 'none') out += `\n  @bottom-left { content: ${fL}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; ${fBorder} }`;
-        if (fC !== 'none') out += `\n  @bottom-center { content: ${fC}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; ${fBorder} }`;
-        if (fR !== 'none') out += `\n  @bottom-right { content: ${fR}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; ${fBorder} }`;
+        // padding-top creates a clear gap between the body text and the footer
+        if (fL !== 'none') out += `\n  @bottom-left { content: ${fL}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; padding-top: 0.12in; ${fBorder} }`;
+        if (fC !== 'none') out += `\n  @bottom-center { content: ${fC}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; padding-top: 0.12in; ${fBorder} }`;
+        if (fR !== 'none') out += `\n  @bottom-right { content: ${fR}; font-family: ${footerFont}; font-size: ${hf.footerFontSize}pt; color: #555; vertical-align: top; padding-top: 0.12in; ${fBorder} }`;
       }
       return out;
     };
@@ -504,6 +511,7 @@ body {
   line-height: ${typo.bodyLineHeight};
   color: #1a1a1a;
   text-align: ${typo.bodyAlignment};
+  ${typo.bodyAlignment === 'justify' ? 'text-align-last: left;' : ''}
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   overflow-wrap: break-word;
@@ -621,6 +629,7 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
 
 .fm-half-title {
   text-align: center;
+  text-align-last: center;
   padding-top: 35%;
   break-before: page;
 }
@@ -628,6 +637,7 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
 
 .fm-title-page {
   text-align: center;
+  text-align-last: center;
   padding-top: 25%;
   break-before: page;
 }
@@ -638,21 +648,60 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
 
 .fm-copyright {
   font-size: 0.78em;
-  line-height: 1.6;
+  line-height: 1.75;
   text-align: center;
+  text-align-last: center;
   break-before: page;
-  /* Push copyright content to the bottom of the page using a top padding
-     relative to the content area width (CSS %-padding is width-based).
-     For A5 (4.2in content width), 60% ≈ 2.5in down, placing content
-     in the lower third of the page -- standard for copyright pages. */
-  padding-top: 60%;
+  /* Position copyright content in the lower portion of the page.
+     padding-top % is relative to content-area width (CSS spec).
+     45% provides a balanced position across common trim sizes
+     without risking overflow on smaller pages. */
+  padding-top: 45%;
 }
-.fm-copyright p { text-indent: 0; margin-bottom: 0.3em; }
-.fm-copyright .copyright-title { font-weight: 600; font-size: 1.1em; margin-bottom: 0.2em; }
-.fm-copyright .copyright-spacer { display: block; height: 0.6em; }
+.fm-copyright p {
+  text-indent: 0;
+  margin-bottom: 0.35em;
+  text-align: center;
+  text-align-last: center;
+}
+.fm-copyright .copyright-title {
+  font-weight: 600;
+  font-size: 1.15em;
+  margin-bottom: 0.25em;
+  letter-spacing: 0.02em;
+}
+.fm-copyright .copyright-author {
+  font-style: italic;
+  margin-bottom: 0.2em;
+}
+.fm-copyright .copyright-spacer { display: block; height: 0.9em; }
+.fm-copyright .copyright-legal {
+  font-size: 0.92em;
+  color: #555;
+  max-width: 88%;
+  margin-left: auto;
+  margin-right: auto;
+}
+.fm-copyright .copyright-isbn {
+  letter-spacing: 0.04em;
+}
+.fm-copyright .copyright-publisher {
+  font-variant: small-caps;
+  letter-spacing: 0.03em;
+}
+.fm-copyright .copyright-location {
+  color: #777;
+  font-size: 0.95em;
+}
+.fm-copyright .copyright-credit {
+  font-size: 0.88em;
+  font-style: italic;
+  color: #999;
+}
 
 .fm-dedication {
   text-align: center;
+  text-align-last: center;
   padding-top: 30%;
   font-style: italic;
   break-before: page;
@@ -735,6 +784,22 @@ h3 { font-size: 1.15em; font-weight: 600; margin: 1em 0 0.3em; }
   string-set: chapter-title content(text);
 }
 
+/* Running header strings: re-set on each chapter so first-except
+   suppresses ALL header content on chapter opening pages */
+.running-title { string-set: running-title content(text); }
+.running-author { string-set: running-author content(text); }
+
+/* Visually hidden but kept in document flow so string-set is processed */
+.running-header-data {
+  display: block;
+  height: 0;
+  overflow: hidden;
+  font-size: 0;
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+}
+
 .chapter {
   break-before: page;
 }
@@ -813,8 +878,8 @@ ${chapters.chapterOrnament !== 'none' ? `
 
 .back-matter { margin: 0; padding: 0; }
 .bibliography { break-before: page; }
-.bibliography-entry { text-indent: -1.5em; padding-left: 1.5em; margin-bottom: 0.4em; }
-.about-author { break-before: page; text-align: center; padding-top: 25%; }
+.bibliography-entry { text-indent: -1.5em; padding-left: 1.5em; margin-bottom: 0.4em; text-align-last: left; }
+.about-author { break-before: page; text-align: center; text-align-last: center; padding-top: 25%; }
 .also-by { break-before: page; padding-top: 15%; }
 
 /* ====================== SPECIAL ELEMENTS ====================== */
@@ -918,19 +983,19 @@ ${settings.customCSS || ''}
       html += `
 <div class="fm-copyright">
   <p class="copyright-title">${this.escapeHtml(book.title)}</p>
-  <p>by ${this.escapeHtml(book.author)}</p>
+  <p class="copyright-author">by ${this.escapeHtml(book.author)}</p>
   <span class="copyright-spacer"></span>
   <p>Copyright &copy; ${year} ${this.escapeHtml(book.author)}</p>
   <p>All rights reserved.</p>
   <span class="copyright-spacer"></span>
-  <p style="font-size: 0.92em; color: #555;">No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means without the prior written permission of the copyright holder.</p>
-  ${settings.isbn ? `<span class="copyright-spacer"></span><p>ISBN: ${settings.isbn}</p>` : ''}
+  <p class="copyright-legal">No part of this publication may be reproduced, stored in a retrieval system, or transmitted in any form or by any means without the prior written permission of the copyright holder.</p>
+  ${settings.isbn ? `<span class="copyright-spacer"></span><p class="copyright-isbn">ISBN: ${settings.isbn}</p>` : ''}
   <span class="copyright-spacer"></span>
   ${settings.publisher
-    ? `<p>Published by ${this.escapeHtml(settings.publisher)}</p>${settings.publisherLocation ? `<p style="color: #777;">${this.escapeHtml(settings.publisherLocation)}</p>` : ''}`
-    : `<p>Published by Dynamic Labs Media</p><p style="color: #777;">dlmworld.com</p>`}
+    ? `<p class="copyright-publisher">Published by ${this.escapeHtml(settings.publisher)}</p>${settings.publisherLocation ? `<p class="copyright-location">${this.escapeHtml(settings.publisherLocation)}</p>` : ''}`
+    : `<p class="copyright-publisher">Published by Dynamic Labs Media</p><p class="copyright-location">dlmworld.com</p>`}
   <span class="copyright-spacer"></span>
-  <p style="font-size: 0.88em; font-style: italic; color: #999;">Created with PowerWrite</p>
+  <p class="copyright-credit">Created with PowerWrite</p>
 </div>`;
     }
 
@@ -1008,6 +1073,8 @@ ${settings.customCSS || ''}
 
       return `
 <article class="chapter" id="chapter-idx-${index}">
+  <span class="running-header-data running-title">${this.escapeHtml(book.title)}</span>
+  <span class="running-header-data running-author">${this.escapeHtml(book.author)}</span>
   <header class="chapter-header">${hdr}</header>
   <div class="chapter-text">${content}</div>
 </article>`;
