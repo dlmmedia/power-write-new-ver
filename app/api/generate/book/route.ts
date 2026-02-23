@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     // 2. User's selected chapterModel in config (from AI Models tab)
     // 3. User's selected model in config
     // 4. Default fallback
-    const chapterModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+    const chapterModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4.6';
 
     console.log(`[Book] Starting book generation: ${outline.title} (${outline.chapters.length} chapters)`);
     console.log(`[Book] Model Selection Debug:`);

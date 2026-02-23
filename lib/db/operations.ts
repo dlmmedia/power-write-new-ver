@@ -32,7 +32,7 @@ import {
   VideoExportJob,
   SavedOutline,
 } from './schema';
-import { eq, and, desc, like, inArray } from 'drizzle-orm';
+import { eq, and, desc, like, inArray, sql, lt } from 'drizzle-orm';
 
 // ============ USER OPERATIONS ============
 
@@ -96,6 +96,30 @@ export async function deleteBook(id: number): Promise<void> {
   return withRetry(async () => {
     await db.delete(generatedBooks).where(eq(generatedBooks.id, id));
   }, DEFAULT_RETRY_CONFIG, 'deleteBook');
+}
+
+/**
+ * Reset books stuck in 'generating' status for longer than maxAgeMinutes.
+ * Returns the number of books that were reset to 'failed'.
+ */
+export async function resetStuckBooks(maxAgeMinutes: number = 30): Promise<number> {
+  return withRetry(async () => {
+    const cutoff = new Date(Date.now() - maxAgeMinutes * 60 * 1000);
+    const result = await db
+      .update(generatedBooks)
+      .set({ status: 'failed', updatedAt: new Date() })
+      .where(
+        and(
+          eq(generatedBooks.status, 'generating'),
+          sql`COALESCE(${generatedBooks.generationStartedAt}, ${generatedBooks.createdAt}) < ${cutoff}`
+        )
+      )
+      .returning({ id: generatedBooks.id });
+    if (result.length > 0) {
+      console.log(`[Cleanup] Reset ${result.length} stuck books to failed: ${result.map(r => r.id).join(', ')}`);
+    }
+    return result.length;
+  }, DEFAULT_RETRY_CONFIG, 'resetStuckBooks');
 }
 
 export async function getUserBooks(userId: string): Promise<GeneratedBook[]> {
@@ -428,15 +452,12 @@ export async function deleteReferenceBook(id: number): Promise<void> {
 
 export async function getBookWithChapters(bookId: number | string) {
   const id = typeof bookId === 'string' ? parseInt(bookId, 10) : bookId;
-  const book = await getBook(id);
-  if (!book) {
-    return null;
-  }
-  const chapters = await getBookChapters(id);
-  return {
-    ...book,
-    chapters,
-  };
+  const [book, chapters] = await Promise.all([
+    getBook(id),
+    getBookChapters(id),
+  ]);
+  if (!book) return null;
+  return { ...book, chapters };
 }
 
 export async function duplicateBook(
@@ -484,20 +505,24 @@ export async function getUserBookStats(userId: string): Promise<{
   totalWords: number;
   totalChapters: number;
 }> {
-  const books = await getUserBooks(userId);
-  
-  return {
-    totalBooks: books.length,
-    completedBooks: books.filter(b => b.status === 'completed').length,
-    totalWords: books.reduce((sum, b) => {
-      const metadata = b.metadata as any;
-      return sum + (metadata?.wordCount || 0);
-    }, 0),
-    totalChapters: books.reduce((sum, b) => {
-      const metadata = b.metadata as any;
-      return sum + (metadata?.chapters || 0);
-    }, 0),
-  };
+  return withRetry(async () => {
+    const [result] = await db
+      .select({
+        totalBooks: sql<number>`COUNT(*)::int`,
+        completedBooks: sql<number>`COUNT(*) FILTER (WHERE ${generatedBooks.status} = 'completed')::int`,
+        totalWords: sql<number>`COALESCE(SUM((${generatedBooks.metadata}->>'wordCount')::int), 0)::int`,
+        totalChapters: sql<number>`COALESCE(SUM((${generatedBooks.metadata}->>'chapters')::int), 0)::int`,
+      })
+      .from(generatedBooks)
+      .where(eq(generatedBooks.userId, userId));
+
+    return {
+      totalBooks: result?.totalBooks ?? 0,
+      completedBooks: result?.completedBooks ?? 0,
+      totalWords: result?.totalWords ?? 0,
+      totalChapters: result?.totalChapters ?? 0,
+    };
+  }, DEFAULT_RETRY_CONFIG, 'getUserBookStats');
 }
 
 // ============ BIBLIOGRAPHY OPERATIONS ============
@@ -521,20 +546,24 @@ export async function getBibliographyConfig(bookId: number): Promise<Bibliograph
 }
 
 export async function createBibliographyConfig(data: InsertBibliographyConfig): Promise<BibliographyConfigDB> {
-  const [config] = await db.insert(bibliographyConfigs).values(data).returning();
-  return config;
+  return withRetry(async () => {
+    const [config] = await db.insert(bibliographyConfigs).values(data).returning();
+    return config;
+  }, DEFAULT_RETRY_CONFIG, 'createBibliographyConfig');
 }
 
 export async function updateBibliographyConfig(
   bookId: number,
   data: Partial<InsertBibliographyConfig>
 ): Promise<BibliographyConfigDB | null> {
-  const [config] = await db
-    .update(bibliographyConfigs)
-    .set({ ...data, updatedAt: new Date() })
-    .where(eq(bibliographyConfigs.bookId, bookId))
-    .returning();
-  return config || null;
+  return withRetry(async () => {
+    const [config] = await db
+      .update(bibliographyConfigs)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(bibliographyConfigs.bookId, bookId))
+      .returning();
+    return config || null;
+  }, DEFAULT_RETRY_CONFIG, 'updateBibliographyConfig');
 }
 
 export async function upsertBibliographyConfig(data: InsertBibliographyConfig): Promise<BibliographyConfigDB> {
@@ -564,24 +593,30 @@ export async function getBibliographyReferences(bookId: number): Promise<Bibliog
 }
 
 export async function createBibliographyReference(data: InsertBibliographyReference): Promise<BibliographyReference> {
-  const [ref] = await db.insert(bibliographyReferences).values(data).returning();
-  return ref;
+  return withRetry(async () => {
+    const [ref] = await db.insert(bibliographyReferences).values(data).returning();
+    return ref;
+  }, DEFAULT_RETRY_CONFIG, 'createBibliographyReference');
 }
 
 export async function updateBibliographyReference(
   id: string,
   data: Partial<InsertBibliographyReference>
 ): Promise<BibliographyReference | null> {
-  const [ref] = await db
-    .update(bibliographyReferences)
-    .set({ ...data, updatedAt: new Date() })
-    .where(eq(bibliographyReferences.id, id))
-    .returning();
-  return ref || null;
+  return withRetry(async () => {
+    const [ref] = await db
+      .update(bibliographyReferences)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(bibliographyReferences.id, id))
+      .returning();
+    return ref || null;
+  }, DEFAULT_RETRY_CONFIG, 'updateBibliographyReference');
 }
 
 export async function deleteBibliographyReference(id: string): Promise<void> {
-  await db.delete(bibliographyReferences).where(eq(bibliographyReferences.id, id));
+  return withRetry(async () => {
+    await db.delete(bibliographyReferences).where(eq(bibliographyReferences.id, id));
+  }, DEFAULT_RETRY_CONFIG, 'deleteBibliographyReference');
 }
 
 export async function getBookCitations(bookId: number): Promise<Citation[]> {
@@ -619,12 +654,16 @@ export async function getChapterCitations(chapterId: number): Promise<Citation[]
 }
 
 export async function createCitation(data: InsertCitation): Promise<Citation> {
-  const [citation] = await db.insert(citations).values(data).returning();
-  return citation;
+  return withRetry(async () => {
+    const [citation] = await db.insert(citations).values(data).returning();
+    return citation;
+  }, DEFAULT_RETRY_CONFIG, 'createCitation');
 }
 
 export async function deleteCitation(id: string): Promise<void> {
-  await db.delete(citations).where(eq(citations.id, id));
+  return withRetry(async () => {
+    await db.delete(citations).where(eq(citations.id, id));
+  }, DEFAULT_RETRY_CONFIG, 'deleteCitation');
 }
 
 // Get complete bibliography data for a book (for export)

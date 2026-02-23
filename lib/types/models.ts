@@ -55,10 +55,34 @@ export const OPENAI_MODELS: AIModel[] = [
 export const OPENROUTER_MODELS: AIModel[] = [
   // === FLAGSHIP MODELS ===
   {
+    id: 'anthropic/claude-opus-4.6',
+    name: 'Claude Opus 4.6',
+    provider: 'openrouter',
+    description: 'Anthropic\'s strongest model - 1M context, agentic coding, sustained knowledge work',
+    contextLength: 1000000,
+    pricing: { input: 5, output: 25 },
+    capabilities: { chat: true, streaming: true, functionCalling: true, vision: true },
+    tier: 'premium',
+    recommended: true,
+    category: 'flagship',
+  },
+  {
+    id: 'anthropic/claude-sonnet-4.6',
+    name: 'Claude Sonnet 4.6',
+    provider: 'openrouter',
+    description: 'Latest Sonnet - frontier coding, agents, and professional writing at lower cost',
+    contextLength: 1000000,
+    pricing: { input: 3, output: 15 },
+    capabilities: { chat: true, streaming: true, functionCalling: true, vision: true },
+    tier: 'premium',
+    recommended: true,
+    category: 'flagship',
+  },
+  {
     id: 'anthropic/claude-opus-4.5',
     name: 'Claude Opus 4.5',
     provider: 'openrouter',
-    description: 'Most advanced Claude - exceptional reasoning, creative writing, and analysis',
+    description: 'Advanced Claude - exceptional reasoning, creative writing, and analysis',
     contextLength: 200000,
     pricing: { input: 5, output: 25 },
     capabilities: { chat: true, streaming: true, functionCalling: true, vision: true },
@@ -268,6 +292,28 @@ export const OPENROUTER_MODELS: AIModel[] = [
   
   // === OPEN SOURCE / BUDGET MODELS ===
   {
+    id: 'z-ai/glm-5',
+    name: 'GLM-5',
+    provider: 'openrouter',
+    description: 'Zhipu AI flagship - 744B params, rivals Claude Opus at a fraction of the cost',
+    contextLength: 204800,
+    pricing: { input: 0.95, output: 2.55 },
+    capabilities: { chat: true, streaming: true, functionCalling: true },
+    tier: 'standard',
+    category: 'creative',
+  },
+  {
+    id: 'deepseek/deepseek-v3.2',
+    name: 'DeepSeek V3.2',
+    provider: 'openrouter',
+    description: 'GPT-5 class performance at 1/100th the cost - excellent for long-form writing',
+    contextLength: 163840,
+    pricing: { input: 0.26, output: 0.38 },
+    capabilities: { chat: true, streaming: true, functionCalling: true },
+    tier: 'budget',
+    category: 'creative',
+  },
+  {
     id: 'meta-llama/llama-3.3-70b-instruct',
     name: 'Llama 3.3 70B',
     provider: 'openrouter',
@@ -422,7 +468,7 @@ export function getRecommendedModels(): AIModel[] {
 
 // Default model configurations
 export const DEFAULT_OUTLINE_MODEL = 'openai/gpt-4o-mini';
-export const DEFAULT_CHAPTER_MODEL = 'anthropic/claude-sonnet-4';
+export const DEFAULT_CHAPTER_MODEL = 'anthropic/claude-sonnet-4.6';
 
 // Image Generation Models
 export interface ImageModel {

@@ -19,7 +19,7 @@ export function ModelSelection() {
   const [showAllModels, setShowAllModels] = useState(false);
 
   const currentOutlineModel = config.aiSettings?.model || 'gpt-4o-mini';
-  const currentChapterModel = (config.aiSettings as any)?.chapterModel || 'anthropic/claude-sonnet-4';
+  const currentChapterModel = (config.aiSettings as any)?.chapterModel || 'anthropic/claude-sonnet-4.6';
 
   const categories: { id: ModelCategory; label: string; icon: ReactNode }[] = [
     { id: 'all', label: 'All Models', icon: <LayoutGrid className="w-3.5 h-3.5" /> },

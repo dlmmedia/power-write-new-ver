@@ -257,7 +257,7 @@ export const defaultBookConfiguration: BookConfiguration = {
   aiSettings: {
     provider: 'openrouter',
     model: 'openai/gpt-4o-mini', // Fast model for outlines
-    chapterModel: 'anthropic/claude-sonnet-4', // Premium model for chapter writing
+    chapterModel: 'anthropic/claude-sonnet-4.6', // Premium model for chapter writing
     temperature: 0.85,
     maxTokens: 4000,
     generationStrategy: 'parallel', // Default to parallel for speed
@@ -305,8 +305,8 @@ export const GENERATION_SPEED_OPTIONS = [
     value: 'quality' as const,
     icon: 'star',
     label: 'Quality',
-    description: 'Best writing quality with Claude Sonnet 4',
-    model: 'anthropic/claude-sonnet-4',
+    description: 'Best writing quality with Claude Sonnet 4.6',
+    model: 'anthropic/claude-sonnet-4.6',
     estimatedTime: '2-4 min per batch',
     features: ['Superior coherence', 'Rich prose', 'Best for final drafts'],
   },

@@ -18,7 +18,7 @@ export const dynamic = 'force-dynamic';
 
 // Speed model mapping - only used as fallback when no model explicitly selected
 const SPEED_MODEL_MAP = {
-  quality: 'anthropic/claude-sonnet-4',
+  quality: 'anthropic/claude-sonnet-4.6',
   balanced: 'google/gemini-2.5-flash-preview',
   fast: 'anthropic/claude-3.5-haiku',
 } as const;
@@ -30,7 +30,7 @@ function getSpeedFallbackModel(speed?: GenerationSpeed): string {
   if (speed && SPEED_MODEL_MAP[speed]) {
     return SPEED_MODEL_MAP[speed];
   }
-  return 'anthropic/claude-sonnet-4'; // Default fallback
+  return 'anthropic/claude-sonnet-4.6'; // Default fallback
 }
 
 const CHAPTERS_PER_BATCH = 4;
@@ -125,6 +125,7 @@ export async function POST(request: NextRequest) {
   // Create readable stream for SSE
   let cancelled = false;
   let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  let streamBookId: number | undefined; // Track bookId for cancel/error handlers
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -203,14 +204,18 @@ export async function POST(request: NextRequest) {
               modelUsed: chapterModel,
             } as any,
             status: 'generating',
+            generationStartedAt: new Date(),
           });
           currentBookId = book.id;
+          streamBookId = book.id;
 
           safeEnqueue(encoder.encode(createSSEMessage('book_created', {
             bookId: currentBookId,
             title: outline.title,
             message: 'Book record created',
           })));
+        } else {
+          streamBookId = bookId;
         }
 
         // Get existing chapters
@@ -464,9 +469,21 @@ export async function POST(request: NextRequest) {
         if (heartbeatInterval) clearInterval(heartbeatInterval);
         if (!cancelled) controller.close();
       } catch (error) {
-        console.error('Stream generation error:', error);
+        console.error(`[Stream] Generation error for book ${streamBookId}:`, error);
+
+        // Mark the book as failed so it doesn't stay stuck in 'generating'
+        if (streamBookId) {
+          try {
+            await updateBook(streamBookId, { status: 'failed' });
+            console.log(`[Stream] Marked book ${streamBookId} as failed`);
+          } catch (updateErr) {
+            console.error(`[Stream] Failed to mark book ${streamBookId} as failed:`, updateErr);
+          }
+        }
+
         safeEnqueue(encoder.encode(createSSEMessage('error', {
           error: error instanceof Error ? error.message : 'Unknown error',
+          bookId: streamBookId,
           message: 'Generation failed',
         })));
         if (heartbeatInterval) clearInterval(heartbeatInterval);
@@ -474,8 +491,11 @@ export async function POST(request: NextRequest) {
       }
     },
     cancel() {
-      // Called when the client disconnects or Railway kills the connection
-      console.log('[Stream] Client disconnected or connection killed');
+      // Called when the client disconnects or Railway kills the connection.
+      // Do NOT mark the book as 'failed' here — the client auto-recovers
+      // to incremental mode using the saved bookId, so the book should
+      // remain in 'generating' status for the incremental handler to pick up.
+      console.log(`[Stream] Client disconnected or connection killed (bookId: ${streamBookId || 'unknown'})`);
       cancelled = true;
       if (heartbeatInterval) clearInterval(heartbeatInterval);
     },

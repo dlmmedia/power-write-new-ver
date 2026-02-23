@@ -12,7 +12,7 @@ import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 
 // Model mapping for speed presets
 const SPEED_MODEL_MAP: Record<string, string> = {
-  quality: 'anthropic/claude-sonnet-4',
+  quality: 'anthropic/claude-sonnet-4.6',
   balanced: 'google/gemini-2.5-flash-preview',
   fast: 'anthropic/claude-3.5-haiku',
 };
@@ -45,7 +45,7 @@ export const generateBookBackground = inngest.createFunction(
     const userSelectedModel = config.chapterModel;
     const speedFallbackModel = config.generationSpeed && SPEED_MODEL_MAP[config.generationSpeed]
       ? SPEED_MODEL_MAP[config.generationSpeed]
-      : 'anthropic/claude-sonnet-4';
+      : 'anthropic/claude-sonnet-4.6';
     
     const chapterModel = userSelectedModel || speedFallbackModel;
 

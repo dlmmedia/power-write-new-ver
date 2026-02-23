@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, useEffect, useRef, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useUserTier, ProFeature } from '@/contexts/UserTierContext';
@@ -30,7 +30,8 @@ import {
   Globe,
   Upload,
   Search,
-  BookMarked
+  BookMarked,
+  AlertTriangle
 } from 'lucide-react';
 import { StatCard, AudioStatCard } from '@/components/ui/AnimatedNumber';
 import { BookUploadModal } from '@/components/library/BookUploadModal';
@@ -378,6 +379,47 @@ function LibraryPageContent() {
   const [generationProgress, setGenerationProgress] = useState<Record<number, { progress: number; message: string; chaptersCompleted?: number; totalChapters?: number; phase?: string }>>({});
   const [showUploadModal, setShowUploadModal] = useState(false);
 
+  // Auto-detect stuck books (in 'generating' status for >30 minutes)
+  const STUCK_THRESHOLD_MS = 30 * 60 * 1000;
+  const stuckBooks = books.filter(b => {
+    if (b.status !== 'generating') return false;
+    if (continuingBooks.has(b.id)) return false;
+    const startedAt = (b as any).generationStartedAt || b.createdAt;
+    return Date.now() - new Date(startedAt).getTime() > STUCK_THRESHOLD_MS;
+  });
+
+  // Poll for books in 'generating' status to detect background completion
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => {
+    const generatingBooks = books.filter(
+      b => b.status === 'generating' && !continuingBooks.has(b.id)
+    );
+    if (generatingBooks.length > 0 && !pollingRef.current) {
+      pollingRef.current = setInterval(() => {
+        refreshBooks();
+      }, 15000);
+    } else if (generatingBooks.length === 0 && pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [books, continuingBooks, refreshBooks]);
+
+  const handleMarkBookFailed = useCallback(async (bookId: number) => {
+    try {
+      await fetch(`/api/books/${bookId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'failed' }),
+      });
+      refreshBooks();
+    } catch (err) {
+      console.error('Failed to mark book as failed:', err);
+    }
+  }, [refreshBooks]);
+
   const handleUploadComplete = useCallback((bookId: number) => {
     refreshBooks();
     router.push(`/library/${bookId}`);
@@ -416,7 +458,7 @@ function LibraryPageContent() {
         : 'Resuming generation...';
     setGenerationProgress(prev => ({ ...prev, [book.id]: { progress: 0, message: resumeMsg, chaptersCompleted: alreadyDone, totalChapters: totalOutline } }));
 
-    const chapterModel = book.metadata?.modelUsed || 'anthropic/claude-sonnet-4';
+    const chapterModel = book.metadata?.modelUsed || 'anthropic/claude-sonnet-4.6';
     let consecutiveErrors = 0;
 
     try {
@@ -676,6 +718,46 @@ function LibraryPageContent() {
             )}
           </div>
         ) : (
+          <>
+          {stuckBooks.length > 0 && (
+            <div className="mb-4 p-4 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    {stuckBooks.length} book{stuckBooks.length > 1 ? 's appear' : ' appears'} stuck in generation
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    These books have been in &quot;generating&quot; status for over 30 minutes. You can resume them or mark them as failed.
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {stuckBooks.map(book => (
+                      <div key={book.id} className="flex items-center gap-2 text-sm">
+                        <span className="text-amber-700 dark:text-amber-300 font-medium truncate max-w-[200px]">{book.title}</span>
+                        {isProUser && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => { e.preventDefault(); handleContinueGeneration(book, e); }}
+                            disabled={continuingBooks.has(book.id)}
+                          >
+                            Resume
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleMarkBookFailed(book.id)}
+                        >
+                          Mark Failed
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredAndSortedBooks.map((book) => (
               <BookCardItem
@@ -693,6 +775,7 @@ function LibraryPageContent() {
               />
             ))}
           </div>
+          </>
         )}
       </div>
 

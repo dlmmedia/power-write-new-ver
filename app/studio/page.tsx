@@ -150,7 +150,7 @@ function StudioPageContent() {
       })),
     };
 
-    const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+    const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4.6';
     const totalChapters = workingOutline.chapters.length;
 
     // Skip confirmation if continuing from a streaming failure
@@ -395,7 +395,7 @@ function StudioPageContent() {
       })),
     };
 
-    const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4';
+    const chapterModel = (config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4.6';
     const totalChapters = workingOutline.chapters.length;
     const generationSpeed = config.aiSettings?.generationSpeed || 'quality';
     const useParallel = config.aiSettings?.useParallelGeneration !== false;
@@ -667,12 +667,13 @@ function StudioPageContent() {
       return;
     }
 
-    // Auto-switch to incremental mode for books with >12 chapters
-    // Streaming SSE connections can be killed by Railway's proxy or Node.js
-    // after ~300 seconds, which is roughly the time for 12 chapters.
-    // Incremental mode uses separate HTTP requests per batch and is immune to this.
+    // Auto-switch to incremental mode for books with >6 chapters
+    // Streaming SSE connections can be killed by Railway's proxy after ~300s.
+    // With parallel batches of 4 chapters, 6 chapters = 2 batches which fits safely
+    // within the timeout. Incremental mode uses separate HTTP requests per batch
+    // and is immune to proxy timeouts, making it far more reliable.
     const totalChapters = outline.chapters?.length || config.content?.numChapters || 10;
-    if (totalChapters > 12) {
+    if (totalChapters > 6) {
       console.log(`[Studio] ${totalChapters} chapters requested — using incremental mode for reliability`);
       handleGenerateBook();
       return;
@@ -821,7 +822,7 @@ function StudioPageContent() {
 
   // Get current model info for display
   const currentOutlineModel = config.aiSettings?.model || 'gpt-4o-mini';
-  const currentChapterModel = (config.aiSettings as any)?.chapterModel || 'anthropic/claude-sonnet-4';
+  const currentChapterModel = (config.aiSettings as any)?.chapterModel || 'anthropic/claude-sonnet-4.6';
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors">

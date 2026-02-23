@@ -14,6 +14,24 @@ interface UploadedReference {
   uploadedAt: Date;
 }
 
+export interface GenerationProgressState {
+  phase: 'idle' | 'creating' | 'generating' | 'cover' | 'completed' | 'error';
+  bookId?: number;
+  chaptersCompleted: number;
+  totalChapters: number;
+  progress: number;
+  message: string;
+  totalWords?: number;
+}
+
+const INITIAL_GENERATION_PROGRESS: GenerationProgressState = {
+  phase: 'idle',
+  chaptersCompleted: 0,
+  totalChapters: 0,
+  progress: 0,
+  message: '',
+};
+
 interface StudioStore {
   // Configuration state
   config: BookConfiguration;
@@ -44,6 +62,11 @@ interface StudioStore {
   // Generation status
   isGenerating: boolean;
   setIsGenerating: (status: boolean) => void;
+
+  // Persisted generation progress (survives page refresh)
+  generationProgress: GenerationProgressState;
+  setGenerationProgress: (progress: Partial<GenerationProgressState>) => void;
+  resetGenerationProgress: () => void;
 
   // Unsaved changes tracking
   hasUnsavedChanges: boolean;
@@ -167,6 +190,14 @@ export const useStudioStore = create<StudioStore>()(
       isGenerating: false,
       setIsGenerating: (status) => set({ isGenerating: status }),
 
+      generationProgress: INITIAL_GENERATION_PROGRESS,
+      setGenerationProgress: (progress) =>
+        set((state) => ({
+          generationProgress: { ...state.generationProgress, ...progress },
+        })),
+      resetGenerationProgress: () =>
+        set({ generationProgress: INITIAL_GENERATION_PROGRESS }),
+
       hasUnsavedChanges: false,
       setHasUnsavedChanges: (status) => set({ hasUnsavedChanges: status }),
 
@@ -181,6 +212,7 @@ export const useStudioStore = create<StudioStore>()(
         config: state.config,
         outline: state.outline,
         currentBookId: state.currentBookId,
+        generationProgress: state.generationProgress,
         smartPromptText: state.smartPromptText,
         smartPromptParsedResult: state.smartPromptParsedResult,
       }),

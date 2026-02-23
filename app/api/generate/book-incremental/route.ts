@@ -24,9 +24,9 @@ const CHAPTERS_PER_BATCH = 4;
 
 // Generation speed presets with model mappings
 const SPEED_MODEL_MAP = {
-  quality: 'anthropic/claude-sonnet-4',      // Best coherence and writing quality
+  quality: 'anthropic/claude-sonnet-4.6',      // Best coherence and writing quality
   balanced: 'google/gemini-2.5-flash-preview', // Fast with 1M context window
-  fast: 'anthropic/claude-3.5-haiku',         // Fastest for quick drafts
+  fast: 'anthropic/claude-3.5-haiku',          // Fastest for quick drafts
 } as const;
 
 type GenerationSpeed = keyof typeof SPEED_MODEL_MAP;
@@ -117,6 +117,10 @@ async function generateSequentially(
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse<GenerationResponse>> {
+  // Parse body early so we can access bookId in the catch block for error recovery
+  let parsedBookId: number | undefined;
+  let createdBookId: number | undefined;
+
   try {
     // Authenticate user
     const { userId: clerkUserId } = await auth();
@@ -139,6 +143,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
 
     const body = await request.json();
     const { outline, config, modelId, bookId, startChapter, generationSpeed, useParallel = true } = body as GenerationRequest;
+    parsedBookId = bookId;
 
     if (!outline || !config) {
       return NextResponse.json(
@@ -187,7 +192,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
     const userSelectedModel = modelId || (config.aiSettings as any)?.chapterModel || config.aiSettings?.model;
     const speedFallbackModel = generationSpeed && SPEED_MODEL_MAP[generationSpeed] 
       ? SPEED_MODEL_MAP[generationSpeed] 
-      : 'anthropic/claude-sonnet-4';
+      : 'anthropic/claude-sonnet-4.6';
     
     const chapterModel = userSelectedModel || speedFallbackModel;
     
@@ -207,7 +212,6 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
     if (!currentBookId) {
       console.log(`[Incremental] Creating new book: ${outline.title} (${totalChapters} chapters)`);
       
-      // Create book with "generating" status
       const book = await createBook({
         userId,
         title: outline.title,
@@ -226,9 +230,11 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
           modelUsed: chapterModel,
         } as any,
         status: 'generating',
+        generationStartedAt: new Date(),
       });
 
       currentBookId = book.id;
+      createdBookId = book.id;
       currentStartChapter = 1;
 
       console.log(`[Incremental] Book created with ID: ${currentBookId}`);
@@ -578,6 +584,19 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
   } catch (error) {
     console.error('[Incremental] Error:', error);
     
+    // Recover the bookId from either the request body or the created book
+    const recoveredBookId = parsedBookId || createdBookId || 0;
+
+    // Mark the book as failed in the database so the library shows the correct state
+    if (recoveredBookId) {
+      try {
+        await updateBook(recoveredBookId, { status: 'failed' });
+        console.log(`[Incremental] Marked book ${recoveredBookId} as failed`);
+      } catch (updateErr) {
+        console.error(`[Incremental] Failed to mark book ${recoveredBookId} as failed:`, updateErr);
+      }
+    }
+    
     let errorMessage = 'Failed to generate book';
     let errorDetails = 'Unknown error';
     
@@ -603,7 +622,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
       { 
         success: false,
         phase: 'generating',
-        bookId: 0,
+        bookId: recoveredBookId,
         chaptersCompleted: 0,
         totalChapters: 0,
         progress: 0,

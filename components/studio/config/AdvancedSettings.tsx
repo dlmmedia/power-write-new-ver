@@ -92,7 +92,7 @@ export function AdvancedSettings() {
               </div>
               <div className="text-right">
                 <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {(config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4'}
+                  {(config.aiSettings as any)?.chapterModel || config.aiSettings?.model || 'anthropic/claude-sonnet-4.6'}
                 </div>
               </div>
             </div>

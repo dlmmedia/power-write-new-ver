@@ -16,6 +16,44 @@ import {
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
+// Retry helper for transient AI API failures (5xx, network errors, timeouts)
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxRetries: number = 2,
+  baseDelayMs: number = 2000,
+): Promise<T> {
+  let lastError: Error | undefined;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+      const isTransient =
+        lastError.message.includes('500') ||
+        lastError.message.includes('502') ||
+        lastError.message.includes('503') ||
+        lastError.message.includes('504') ||
+        lastError.message.includes('ECONNRESET') ||
+        lastError.message.includes('ETIMEDOUT') ||
+        lastError.message.includes('fetch failed') ||
+        lastError.message.includes('network') ||
+        lastError.message.includes('timeout') ||
+        lastError.message.includes('ENOTFOUND') ||
+        lastError.message.includes('socket hang up');
+
+      if (!isTransient || attempt === maxRetries) {
+        throw lastError;
+      }
+
+      const delay = baseDelayMs * Math.pow(2, attempt);
+      console.warn(`[Retry] ${label} attempt ${attempt + 1} failed (${lastError.message}), retrying in ${delay}ms...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
+
 // Validate at least one API key exists
 if (!OPENAI_API_KEY && !OPENROUTER_API_KEY) {
   console.warn('⚠️ No AI API keys configured. Set OPENAI_API_KEY or OPENROUTER_API_KEY.');
@@ -1033,14 +1071,17 @@ INSTEAD, write with soul:
 
       console.log(`Generating chapter ${chapterNumber} with model: ${model}${bibliographyConfig?.enabled ? ' (with bibliography)' : ''}`);
 
-      const result = await generateText({
-        model: getModel(model),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: prompt },
-        ],
-        temperature: 0.85,
-      });
+      const result = await withRetry(
+        () => generateText({
+          model: getModel(model),
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt },
+          ],
+          temperature: 0.85,
+        }),
+        `chapter-${chapterNumber}`,
+      );
 
       const content = result.text.replace(/\n?\[END CHAPTER\]\s*$/, '').trim();
       const wordCount = content.split(/\s+/).length;
@@ -1053,8 +1094,8 @@ INSTEAD, write with soul:
         wordCount,
       };
     } catch (error) {
-      console.error('Error generating chapter:', error);
-      throw new Error(`Failed to generate chapter ${chapterNumber}`);
+      console.error(`Error generating chapter ${chapterNumber}:`, error);
+      throw new Error(`Failed to generate chapter ${chapterNumber}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
@@ -1669,39 +1710,59 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     console.log(`[Parallel] Generating chapters ${chapterNumbers.join(', ')} in parallel...`);
     const startTime = Date.now();
 
-    // Generate all chapters in the batch simultaneously
-    const promises = chapterNumbers.map(async (num) => {
-      try {
-        const chapter = await this.generateChapter(
-          outline,
-          num,
-          previousChaptersContext,
-          modelId,
-          bibliographyConfig
-        );
-        
-        console.log(`[Parallel] Chapter ${num} completed: ${chapter.wordCount} words`);
-        
-        if (onChapterComplete) {
-          onChapterComplete(num, chapter);
-        }
-
-        return {
-          ...chapter,
-          chapterNumber: num,
-        };
-      } catch (error) {
-        console.error(`[Parallel] Error generating chapter ${num}:`, error);
-        throw error;
+    const generateOne = async (num: number) => {
+      const chapter = await this.generateChapter(
+        outline,
+        num,
+        previousChaptersContext,
+        modelId,
+        bibliographyConfig
+      );
+      console.log(`[Parallel] Chapter ${num} completed: ${chapter.wordCount} words`);
+      if (onChapterComplete) {
+        onChapterComplete(num, chapter);
       }
-    });
+      return { ...chapter, chapterNumber: num };
+    };
 
-    const results = await Promise.all(promises);
+    // Use allSettled so one failure doesn't discard successfully generated chapters
+    const settled = await Promise.allSettled(chapterNumbers.map(generateOne));
+
+    const successfulChapters: Array<{ title: string; content: string; wordCount: number; chapterNumber: number }> = [];
+    const failedNumbers: number[] = [];
+
+    for (const [idx, result] of settled.entries()) {
+      if (result.status === 'fulfilled') {
+        successfulChapters.push(result.value);
+      } else {
+        const failedNum = chapterNumbers[idx];
+        console.error(`[Parallel] Chapter ${failedNum} failed:`, result.reason);
+        failedNumbers.push(failedNum);
+      }
+    }
+
+    // Retry failed chapters sequentially (they already had 2 retries each via withRetry)
+    if (failedNumbers.length > 0 && failedNumbers.length < chapterNumbers.length) {
+      console.log(`[Parallel] Retrying ${failedNumbers.length} failed chapters sequentially: ${failedNumbers.join(', ')}`);
+      for (const num of failedNumbers) {
+        try {
+          const chapter = await generateOne(num);
+          successfulChapters.push(chapter);
+        } catch (error) {
+          console.error(`[Parallel] Sequential retry for chapter ${num} also failed:`, error);
+        }
+      }
+    }
+
+    // If every single chapter in the batch failed, throw to trigger the sequential fallback
+    if (successfulChapters.length === 0) {
+      throw new Error(`All ${chapterNumbers.length} chapters in batch failed to generate`);
+    }
+
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`[Parallel] Batch of ${chapterNumbers.length} chapters completed in ${elapsed}s`);
+    console.log(`[Parallel] Batch complete in ${elapsed}s: ${successfulChapters.length}/${chapterNumbers.length} chapters succeeded`);
 
-    // Sort by chapter number to ensure correct order
-    return results.sort((a, b) => a.chapterNumber - b.chapterNumber);
+    return successfulChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
   }
 
   /**

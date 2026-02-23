@@ -65,6 +65,7 @@ export const generatedBooks = pgTable("generated_books", {
   generationType: varchar("generation_type"), // outline, full_book, summary
   customInstructions: text("custom_instructions"),
   isPublic: boolean("is_public").default(false),
+  generationStartedAt: timestamp("generation_started_at"), // tracks when generation began for stuck-book detection
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
