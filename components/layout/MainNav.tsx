@@ -16,9 +16,12 @@ import {
   Home,
   Crown,
   Sparkles,
-  Menu
+  Menu,
+  Volume2,
+  VolumeX
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useSound } from '@/contexts/SoundContext';
 
 interface NavLink {
   href: string;
@@ -32,6 +35,7 @@ export function MainNav() {
   const { isProUser, isLoading: isTierLoading, showUpgradeModal } = useUserTier();
   const { isSignedIn } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { muted, toggleMute, playClick } = useSound();
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -97,6 +101,14 @@ export function MainNav() {
           {/* Right: Actions */}
           <div className="flex items-center gap-2">
             <ThemeToggleCompact />
+            <button
+              onClick={toggleMute}
+              className="p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[var(--surface-hover)] transition-colors"
+              aria-label={muted ? 'Unmute sounds' : 'Mute sounds'}
+              title={muted ? 'Unmute sounds' : 'Mute sounds'}
+            >
+              {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
             
             {/* Pro Badge / Upgrade */}
             {isSignedIn && (

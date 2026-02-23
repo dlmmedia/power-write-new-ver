@@ -106,6 +106,7 @@ import {
 } from 'lucide-react';
 // AudiobookPlayer is dynamically imported above
 import type { AudiobookChapter } from '@/components/library/AudiobookPlayer';
+import { useSound } from '@/contexts/SoundContext';
 
 interface Chapter {
   id: number;
@@ -203,12 +204,16 @@ export default function BookDetailPage() {
   const [isSavingSynopsis, setIsSavingSynopsis] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
+  // Sound effects
+  const { playNotification, playSuccess, playError: playErrorSound } = useSound();
+
   // Toast notification state
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const showToast = useCallback((message: string) => {
+    playNotification();
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
-  }, []);
+  }, [playNotification]);
 
   // Delete confirmation modal state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);

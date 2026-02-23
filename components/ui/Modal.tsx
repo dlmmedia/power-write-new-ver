@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
+import { useSound } from '@/contexts/SoundContext';
 
 export interface ModalProps {
   isOpen: boolean;
@@ -28,22 +29,29 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const [isClosing, setIsClosing] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const prevOpenRef = useRef(false);
+
+  let soundCtx: ReturnType<typeof useSound> | null = null;
+  try { soundCtx = useSound(); } catch { /* outside provider */ }
 
   const handleClose = useCallback(() => {
+    if (soundCtx) soundCtx.playBack();
     setIsClosing(true);
     setTimeout(() => {
       setIsClosing(false);
       setIsVisible(false);
       onClose();
     }, 150);
-  }, [onClose]);
+  }, [onClose, soundCtx]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevOpenRef.current) {
       setIsVisible(true);
       setIsClosing(false);
+      if (soundCtx) soundCtx.playClick();
     }
-  }, [isOpen]);
+    prevOpenRef.current = isOpen;
+  }, [isOpen, soundCtx]);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

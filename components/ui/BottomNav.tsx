@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, BookOpen, PenTool, Menu } from 'lucide-react';
+import { useSound } from '@/contexts/SoundContext';
 
 interface BottomNavProps {
   onMenuClick: () => void;
@@ -10,6 +11,7 @@ interface BottomNavProps {
 
 export function BottomNav({ onMenuClick }: BottomNavProps) {
   const pathname = usePathname();
+  const { playClick } = useSound();
 
   const navItems = [
     {
@@ -46,6 +48,7 @@ export function BottomNav({ onMenuClick }: BottomNavProps) {
               key={item.id}
               href={item.path}
               prefetch={true}
+              onClick={playClick}
               className={`flex flex-col items-center justify-center flex-1 h-full space-y-1 transition-colors ${
                 item.active
                   ? 'text-yellow-400'
@@ -62,7 +65,7 @@ export function BottomNav({ onMenuClick }: BottomNavProps) {
         
         {/* Menu Button (not a link) */}
         <button
-          onClick={onMenuClick}
+          onClick={() => { playClick(); onMenuClick(); }}
           className="flex flex-col items-center justify-center flex-1 h-full space-y-1 transition-colors text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
         >
           <Menu size={24} strokeWidth={2} />

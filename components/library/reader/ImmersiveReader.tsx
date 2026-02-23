@@ -11,6 +11,7 @@ import { AmbientSoundManager, usePageTurnSound, useAmbientAudio } from './Ambien
 import { TableOfContents } from './TableOfContents';
 import { paginateBook, getSpreadPages } from './PageContent';
 import { AudioTextHighlighter } from './AudioTextHighlighter';
+import { useSound } from '@/contexts/SoundContext';
 import {
   ImmersiveReaderProps,
   ReadingTheme,
@@ -396,6 +397,19 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const [ambientVolume, setAmbientVolume] = useState(0.3);
   const [ambientEnabled, setAmbientEnabled] = useState(false);
   const [soundEffectsEnabled, setSoundEffectsEnabled] = useState(true);
+
+  const { playBookOpen, playBookClose } = useSound();
+  const hasPlayedOpenRef = useRef(false);
+  useEffect(() => {
+    if (!hasPlayedOpenRef.current) {
+      playBookOpen();
+      hasPlayedOpenRef.current = true;
+    }
+  }, [playBookOpen]);
+  const handleClose = useCallback(() => {
+    playBookClose();
+    onClose?.();
+  }, [playBookClose, onClose]);
 
   // UI state
   const [isFlipping, setIsFlipping] = useState(false);
@@ -930,7 +944,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
           if (isFullscreen) {
             document.exitFullscreen?.();
           } else {
-            onClose?.();
+            handleClose();
           }
           break;
         case 't':
@@ -958,7 +972,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToNextPage, goToPrevPage, showThemeSelector, showSoundPanel, showTOC, isFullscreen, onClose, hasAudio, handlePlayPause]);
+  }, [goToNextPage, goToPrevPage, showThemeSelector, showSoundPanel, showTOC, isFullscreen, handleClose, hasAudio, handlePlayPause]);
 
   // Fullscreen handling
   const toggleFullscreen = useCallback(() => {
@@ -1247,7 +1261,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
         onSoundEffectsToggle={() => setSoundEffectsEnabled((prev) => !prev)}
         onOpenTOC={() => setShowTOC(true)}
         onOpenSettings={() => setShowThemeSelector(true)}
-        onClose={() => onClose?.()}
+        onClose={handleClose}
         onPrevPage={goToPrevPage}
         onNextPage={goToNextPage}
         canGoPrev={canGoPrev}

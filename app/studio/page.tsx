@@ -33,6 +33,7 @@ import {
   type OutlineProgress 
 } from '@/components/studio/GenerationModal';
 import { Lock, Crown, Sparkles, FileText, BookOpen, PenTool, Globe, Image, Search, Library, Bot, Paperclip, Target, Check, X, AlertTriangle, Lightbulb } from 'lucide-react';
+import { useSound } from '@/contexts/SoundContext';
 
 type UserTier = 'free' | 'pro';
 
@@ -72,7 +73,12 @@ function StudioPageContent() {
   // Use books context for cache invalidation
   const { refreshBooks, addBookToList } = useBooks();
   
-  const [activeTab, setActiveTab] = useState<ConfigTab>('prompt');
+  const [activeTab, setActiveTabRaw] = useState<ConfigTab>('prompt');
+  const { playHoverTick, playSuccess, playError: playErrorSound } = useSound();
+  const setActiveTab = useCallback((tab: ConfigTab) => {
+    playHoverTick();
+    setActiveTabRaw(tab);
+  }, [playHoverTick]);
   const [viewMode, setViewMode] = useState<'config' | 'outline'>('config');
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [selectedReferenceId, setSelectedReferenceId] = useState<string>('');
@@ -98,6 +104,24 @@ function StudioPageContent() {
   const [showOutlineModal, setShowOutlineModal] = useState(false);
   
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Sound effects for generation phase changes
+  const prevGenPhaseRef = useRef(generationProgress.phase);
+  const prevOutlinePhaseRef = useRef(outlineProgress.phase);
+  useEffect(() => {
+    if (generationProgress.phase !== prevGenPhaseRef.current) {
+      if (generationProgress.phase === 'completed') playSuccess();
+      else if (generationProgress.phase === 'error') playErrorSound();
+      prevGenPhaseRef.current = generationProgress.phase;
+    }
+  }, [generationProgress.phase, playSuccess, playErrorSound]);
+  useEffect(() => {
+    if (outlineProgress.phase !== prevOutlinePhaseRef.current) {
+      if (outlineProgress.phase === 'completed') playSuccess();
+      else if (outlineProgress.phase === 'error') playErrorSound();
+      prevOutlinePhaseRef.current = outlineProgress.phase;
+    }
+  }, [outlineProgress.phase, playSuccess, playErrorSound]);
   
   // Use refs to track progress values for use in callbacks (prevents stale closures)
   const generationProgressRef = useRef(generationProgress);

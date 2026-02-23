@@ -1,5 +1,8 @@
-import React from 'react';
+'use client';
+
+import React, { useCallback } from 'react';
 import { cn } from '@/lib/utils';
+import { useSound } from '@/contexts/SoundContext';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent-ghost';
@@ -7,6 +10,7 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  silent?: boolean;
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -20,10 +24,19 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       rightIcon,
       className,
       disabled,
+      silent = false,
+      onClick,
       ...props
     },
     ref
   ) => {
+    let soundCtx: ReturnType<typeof useSound> | null = null;
+    try { soundCtx = useSound(); } catch { /* outside provider */ }
+
+    const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+      if (!silent && soundCtx) soundCtx.playClick();
+      onClick?.(e);
+    }, [silent, soundCtx, onClick]);
     const baseStyles =
       'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none select-none';
 
@@ -60,6 +73,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className
         )}
         disabled={disabled || isLoading}
+        onClick={handleClick}
         {...props}
       >
         {isLoading && (

@@ -3,7 +3,9 @@
 import React, { useEffect, useRef, useCallback, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2, VolumeX, X, Flame, CloudRain, BookOpen, FileText } from 'lucide-react';
-import { AmbientSoundType, AMBIENT_SOUNDS, PAGE_TURN_SOUND, READING_THEMES, ReadingTheme } from './types';
+import { AmbientSoundType, AMBIENT_SOUNDS, READING_THEMES, ReadingTheme } from './types';
+import { playSound } from '@/lib/sounds/sound-engine';
+import { bookFlip2Sound } from '@/lib/sounds/assets/book-flip-2';
 
 interface AmbientSoundManagerProps {
   currentSound: AmbientSoundType;
@@ -83,23 +85,11 @@ export function useAmbientAudio(
   return { isLoading };
 }
 
-// Hook to play page turn sound effect
+// Hook to play page turn sound effect (uses soundcn Web Audio API)
 export function usePageTurnSound(enabled: boolean, volume: number = 0.5) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
   const playPageTurn = useCallback(() => {
     if (!enabled) return;
-
-    try {
-      // Create a new audio instance each time for overlapping sounds
-      const audio = new Audio(PAGE_TURN_SOUND);
-      audio.volume = volume;
-      audio.play().catch(() => {
-        // Silently fail if audio can't play (e.g., no user interaction yet)
-      });
-    } catch (error) {
-      console.error('Failed to play page turn sound:', error);
-    }
+    playSound(bookFlip2Sound.dataUri, { volume }).catch(() => {});
   }, [enabled, volume]);
 
   return { playPageTurn };

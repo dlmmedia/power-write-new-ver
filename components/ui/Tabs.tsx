@@ -1,6 +1,7 @@
 'use client';
 
-import React, { type ReactNode } from 'react';
+import React, { type ReactNode, useCallback } from 'react';
+import { useSound } from '@/contexts/SoundContext';
 
 interface Tab {
   id: string;
@@ -21,13 +22,21 @@ export const Tabs: React.FC<TabsProps> = ({
   onChange,
   className = ''
 }) => {
+  let soundCtx: ReturnType<typeof useSound> | null = null;
+  try { soundCtx = useSound(); } catch { /* outside provider */ }
+
+  const handleChange = useCallback((tabId: string) => {
+    if (soundCtx) soundCtx.playHoverTick();
+    onChange(tabId);
+  }, [soundCtx, onChange]);
+
   return (
     <div className={`border-b border-gray-200/60 dark:border-gray-700/40 ${className}`}>
       <nav className="flex gap-0.5">
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => onChange(tab.id)}
+            onClick={() => handleChange(tab.id)}
             className={`relative flex items-center gap-1.5 py-2.5 px-3 text-sm font-medium transition-all border-b-2 -mb-px ${
               activeTab === tab.id
                 ? 'border-yellow-500 text-yellow-700 dark:text-yellow-300'

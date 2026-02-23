@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSound } from '@/contexts/SoundContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sun, Moon, Monitor } from 'lucide-react';
 
@@ -31,7 +32,14 @@ const themeConfig = {
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
+  const { playSwitchOn, playSwitchOff } = useSound();
   const config = themeConfig[theme];
+
+  const handleSetTheme = (mode: 'light' | 'dark' | 'system') => {
+    if (mode === 'dark') playSwitchOff();
+    else playSwitchOn();
+    setTheme(mode);
+  };
 
   return (
     <div
@@ -51,7 +59,7 @@ export function ThemeToggle() {
             role="radio"
             aria-checked={isActive}
             aria-label={modeConfig.label}
-            onClick={() => setTheme(mode)}
+            onClick={() => handleSetTheme(mode)}
             className={`relative flex items-center justify-center w-7 h-7 rounded-full transition-all duration-200 ${
               isActive
                 ? 'bg-[var(--accent)] text-white shadow-sm'
@@ -69,12 +77,19 @@ export function ThemeToggle() {
 // Compact version for header - icon only, cycles through modes
 export function ThemeToggleCompact() {
   const { theme, toggleTheme } = useTheme();
+  const { playSwitchOn, playSwitchOff } = useSound();
   const config = themeConfig[theme];
   const Icon = config.icon;
 
+  const handleToggle = () => {
+    if (theme === 'light') playSwitchOff();
+    else playSwitchOn();
+    toggleTheme();
+  };
+
   return (
     <motion.button
-      onClick={toggleTheme}
+      onClick={handleToggle}
       className="relative p-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
       style={{
         backgroundColor: theme === 'system' ? 'var(--surface)' : undefined,

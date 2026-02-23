@@ -19,6 +19,7 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
+import { useSound } from '@/contexts/SoundContext';
 
 // Types for parsed content
 interface ParsedChapter {
@@ -54,6 +55,7 @@ const SUPPORTED_FORMATS = ['PDF', 'DOCX', 'TXT'];
 const MAX_FILE_SIZE_MB = 50;
 
 export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploadModalProps) {
+  const { playBookPlace, playSuccess, playError: playErrorSound } = useSound();
   const [step, setStep] = useState<UploadStep>('upload');
   const [isDragging, setIsDragging] = useState(false);
   const [showChapterEditor, setShowChapterEditor] = useState(false);
@@ -190,6 +192,7 @@ export function BookUploadModal({ isOpen, onClose, onImportComplete }: BookUploa
 
     setError(null);
     setSelectedFile(file);
+    playBookPlace();
     uploadAndParseFile(file);
   };
 

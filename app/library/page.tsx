@@ -36,6 +36,7 @@ import {
 import { StatCard, AudioStatCard } from '@/components/ui/AnimatedNumber';
 import { BookUploadModal } from '@/components/library/BookUploadModal';
 import { ProductionStatus } from '@/lib/types/generation';
+import { useSound } from '@/contexts/SoundContext';
 
 // ===== SUB-COMPONENTS =====
 
@@ -162,6 +163,7 @@ const BookCardItem = memo(function BookCardItem({
   onContinueGeneration,
   onUpgradeModal,
   formatDuration,
+  onBookClick,
 }: {
   book: any;
   isProUser: boolean;
@@ -173,6 +175,7 @@ const BookCardItem = memo(function BookCardItem({
   onContinueGeneration: (book: any, e?: React.MouseEvent) => void;
   onUpgradeModal: (feature?: ProFeature) => void;
   formatDuration: (seconds: number) => string;
+  onBookClick?: () => void;
 }) {
   const status = book.productionStatus || 'draft';
   
@@ -191,6 +194,7 @@ const BookCardItem = memo(function BookCardItem({
       href={`/library/${book.id}`}
       prefetch={true}
       onMouseEnter={() => onHover(book.id)}
+      onClick={() => onBookClick?.()}
       className="group block animate-content-appear"
       style={{ animationDelay: '0ms' }}
     >
@@ -369,6 +373,7 @@ function LibraryPageContent() {
   }, [fetchBookDetail]);
   
   const { isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
+  const { playBookOpen, playSuccess, playError: playErrorSound } = useSound();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterGenre, setFilterGenre] = useState('all');
@@ -772,6 +777,7 @@ function LibraryPageContent() {
                 onContinueGeneration={handleContinueGeneration}
                 onUpgradeModal={triggerUpgradeModal}
                 formatDuration={formatDuration}
+                onBookClick={playBookOpen}
               />
             ))}
           </div>

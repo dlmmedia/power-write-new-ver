@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { SoundProvider } from '@/contexts/SoundContext';
 import { UserTierProvider } from '@/contexts/UserTierContext';
 import { BooksProvider } from '@/contexts/BooksContext';
 import { PWAProvider } from './PWAProvider';
@@ -38,12 +39,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ErrorBoundary>
       <PWAProvider>
         <ThemeProvider>
-          <BooksProvider>
-            <UserTierProvider>
-              <PWALayout>{children}</PWALayout>
-              <GlobalUpgradeModal />
-            </UserTierProvider>
-          </BooksProvider>
+          <SoundProvider>
+            <BooksProvider>
+              <UserTierProvider>
+                <PWALayout>{children}</PWALayout>
+                <GlobalUpgradeModal />
+              </UserTierProvider>
+            </BooksProvider>
+          </SoundProvider>
         </ThemeProvider>
       </PWAProvider>
     </ErrorBoundary>
