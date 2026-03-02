@@ -537,22 +537,14 @@ export default function CoverGenerator({
     }
   };
 
-  const handleStyleChange = (style: CoverDesignOptions['style']) => {
-    setDesignOptions(prev => ({ ...prev, style }));
-    // Sync visualOptions.style so the enhanced AI prompt uses the selected style
-    if (style) {
-      setVisualOptions(prev => ({ ...prev, style }));
-    }
+  const handleStyleChange = (style: CoverVisualOptions['style'] | CoverDesignOptions['style']) => {
+    setDesignOptions(prev => ({ ...prev, style: style as CoverDesignOptions['style'] }));
+    setVisualOptions(prev => ({ ...prev, style: style as CoverVisualOptions['style'] }));
   };
 
-  const handleColorSchemeChange = (colorScheme: CoverDesignOptions['colorScheme']) => {
-    setDesignOptions(prev => ({ ...prev, colorScheme }));
-    // Sync visualOptions.colorScheme so the enhanced AI prompt uses the selected color scheme
-    // This was the main cause of B&W covers — only designOptions was updated,
-    // but the prompt generation reads from visualOptions.colorScheme
-    if (colorScheme) {
-      setVisualOptions(prev => ({ ...prev, colorScheme }));
-    }
+  const handleColorSchemeChange = (colorScheme: CoverVisualOptions['colorScheme'] | CoverDesignOptions['colorScheme']) => {
+    setDesignOptions(prev => ({ ...prev, colorScheme: colorScheme as CoverDesignOptions['colorScheme'] }));
+    setVisualOptions(prev => ({ ...prev, colorScheme: colorScheme as CoverVisualOptions['colorScheme'] }));
   };
 
   const handleMethodChange = (method: 'ai' | 'template' | 'hybrid') => {
@@ -709,7 +701,8 @@ export default function CoverGenerator({
     displayAuthorForPreview,
     '#1a1a1a',
     '#ffffff',
-    showPowerWriteBranding
+    showPowerWriteBranding,
+    hideAuthorName
   );
 
   const backCoverPreviewDataUrl = CoverService.generateBackCoverPreviewDataURL(
@@ -719,6 +712,7 @@ export default function CoverGenerator({
     '#ffffff',
     {
       showPowerWriteBranding,
+      hideAuthorName,
       barcodeType: backCoverOptions.barcodeType,
       showWebsite: backCoverOptions.showWebsite,
       showTagline: backCoverOptions.showTagline,
@@ -1150,19 +1144,19 @@ export default function CoverGenerator({
                 defaultOpen={true}
                 variant="card"
               >
-                {/* Cover Style */}
+                {/* Cover Style - All 9 styles */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Cover Style
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-                    {(['minimalist', 'illustrative', 'photographic', 'abstract', 'typographic'] as const).map((style) => (
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['minimalist', 'illustrative', 'photographic', 'abstract', 'typographic', 'cinematic', 'vintage', 'retro', 'futuristic'] as const).map((style) => (
                       <button
                         key={style}
-                        onClick={() => handleStyleChange(style)}
+                        onClick={() => handleStyleChange(style as CoverDesignOptions['style'])}
                         className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                           designOptions.style === style
-                            ? 'bg-yellow-400 text-black'
+                            ? 'bg-yellow-400 text-black font-semibold'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
                       >
@@ -1173,22 +1167,407 @@ export default function CoverGenerator({
                 </div>
 
                 {/* Color Scheme */}
-                <div>
+                <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Color Scheme
                   </label>
-                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                    {(['warm', 'cool', 'monochrome', 'vibrant', 'pastel', 'dark'] as const).map((scheme) => (
+                  <div className="grid grid-cols-4 gap-2">
+                    {(['warm', 'cool', 'monochrome', 'vibrant', 'pastel', 'dark', 'complementary', 'analogous'] as const).map((scheme) => (
                       <button
                         key={scheme}
                         onClick={() => handleColorSchemeChange(scheme)}
                         className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
                           designOptions.colorScheme === scheme
-                            ? 'bg-yellow-400 text-black'
+                            ? 'bg-yellow-400 text-black font-semibold'
                             : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                         }`}
                       >
                         {scheme}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color Palette Presets */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Color Palette Presets
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(Object.keys(COLOR_PALETTES) as ColorPalette[]).map((paletteKey) => {
+                      const palette = COLOR_PALETTES[paletteKey];
+                      return (
+                        <button
+                          key={paletteKey}
+                          onClick={() => applyColorPalette(paletteKey)}
+                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-left transition-all border ${
+                            selectedColorPalette === paletteKey
+                              ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-400 ring-1 ring-yellow-400'
+                              : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-yellow-300'
+                          }`}
+                        >
+                          <div className="flex gap-0.5 flex-shrink-0">
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: palette.primary }} />
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: palette.secondary }} />
+                            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: palette.accent }} />
+                            <div className="w-3 h-3 rounded-full border border-gray-300 dark:border-gray-600" style={{ backgroundColor: palette.text }} />
+                          </div>
+                          <span className="text-xs capitalize text-gray-700 dark:text-gray-300 truncate">
+                            {paletteKey.replace(/-/g, ' ')}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Atmosphere / Mood */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Atmosphere
+                  </label>
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    {(['light', 'dark', 'moody', 'bright', 'mysterious', 'dramatic', 'peaceful', 'energetic'] as const).map((atm) => (
+                      <button
+                        key={atm}
+                        onClick={() => setVisualOptions(prev => ({ ...prev, atmosphere: atm }))}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          visualOptions.atmosphere === atm
+                            ? 'bg-yellow-400 text-black font-semibold'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {atm}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="text"
+                    value={visualOptions.mood || ''}
+                    onChange={(e) => setVisualOptions(prev => ({ ...prev, mood: e.target.value }))}
+                    placeholder="Custom mood (e.g., 'haunting twilight serenity')"
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Visual Presets - All 8 */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Visual Preset
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(Object.keys(VISUAL_STYLE_PRESETS) as VisualStylePreset[]).map((presetKey) => (
+                      <button
+                        key={presetKey}
+                        onClick={() => applyVisualPreset(presetKey)}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          selectedVisualPreset === presetKey
+                            ? 'bg-yellow-400 text-black font-semibold'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {presetKey.replace(/-/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Typography */}
+              <CollapsibleSection
+                title="Typography"
+                subtitle={selectedFontPreset ? selectedFontPreset.replace(/-/g, ' ') : `${typographyOptions.titleFont} / ${typographyOptions.authorFont}`}
+                icon={<div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-600 rounded-lg flex items-center justify-center"><PenTool className="w-4 h-4 text-white" /></div>}
+                defaultOpen={false}
+                variant="card"
+              >
+                {/* Font Presets - All 8 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Quick Presets
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(Object.keys(FONT_STYLE_PRESETS) as FontStylePreset[]).map((presetKey) => (
+                      <button
+                        key={presetKey}
+                        onClick={() => applyFontPreset(presetKey)}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          selectedFontPreset === presetKey
+                            ? 'bg-yellow-400 text-black font-semibold'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                        title={FONT_STYLE_PRESETS[presetKey].description}
+                      >
+                        {presetKey.replace(/-/g, ' ')}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Individual Typography Controls */}
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title Font</label>
+                    <select
+                      value={typographyOptions.titleFont}
+                      onChange={(e) => { setTypographyOptions(prev => ({ ...prev, titleFont: e.target.value as any })); setSelectedFontPreset(''); }}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="serif">Serif</option>
+                      <option value="sans-serif">Sans-Serif</option>
+                      <option value="display">Display</option>
+                      <option value="script">Script</option>
+                      <option value="gothic">Gothic</option>
+                      <option value="modern">Modern</option>
+                      <option value="handwritten">Handwritten</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title Weight</label>
+                    <select
+                      value={typographyOptions.titleWeight}
+                      onChange={(e) => setTypographyOptions(prev => ({ ...prev, titleWeight: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="light">Light</option>
+                      <option value="normal">Normal</option>
+                      <option value="bold">Bold</option>
+                      <option value="black">Black</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title Style</label>
+                    <select
+                      value={typographyOptions.titleStyle}
+                      onChange={(e) => setTypographyOptions(prev => ({ ...prev, titleStyle: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="italic">Italic</option>
+                      <option value="uppercase">Uppercase</option>
+                      <option value="small-caps">Small Caps</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title Effect</label>
+                    <select
+                      value={typographyOptions.titleEffect || 'none'}
+                      onChange={(e) => setTypographyOptions(prev => ({ ...prev, titleEffect: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="none">None</option>
+                      <option value="shadow">Drop Shadow</option>
+                      <option value="outline">Outline</option>
+                      <option value="glow">Glow</option>
+                      <option value="embossed">Embossed</option>
+                      <option value="3d">3D</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Title Size</label>
+                    <select
+                      value={typographyOptions.titleSize}
+                      onChange={(e) => setTypographyOptions(prev => ({ ...prev, titleSize: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="small">Small</option>
+                      <option value="medium">Medium</option>
+                      <option value="large">Large</option>
+                      <option value="extra-large">Extra Large</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Author Font</label>
+                    <select
+                      value={typographyOptions.authorFont}
+                      onChange={(e) => { setTypographyOptions(prev => ({ ...prev, authorFont: e.target.value as any })); setSelectedFontPreset(''); }}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="serif">Serif</option>
+                      <option value="sans-serif">Sans-Serif</option>
+                      <option value="script">Script</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Text Alignment</label>
+                    <select
+                      value={typographyOptions.alignment}
+                      onChange={(e) => setTypographyOptions(prev => ({ ...prev, alignment: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="left">Left</option>
+                      <option value="center">Center</option>
+                      <option value="right">Right</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Vertical Position</label>
+                    <select
+                      value={typographyOptions.verticalPosition}
+                      onChange={(e) => setTypographyOptions(prev => ({ ...prev, verticalPosition: e.target.value as any }))}
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400"
+                    >
+                      <option value="top">Top</option>
+                      <option value="upper-third">Upper Third</option>
+                      <option value="center">Center</option>
+                      <option value="lower-third">Lower Third</option>
+                      <option value="bottom">Bottom</option>
+                    </select>
+                  </div>
+                </div>
+              </CollapsibleSection>
+
+              {/* Layout & Composition */}
+              <CollapsibleSection
+                title="Layout & Composition"
+                subtitle={`${layoutOptions.layout} • ${layoutOptions.imagePosition}`}
+                icon={<div className="w-8 h-8 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-lg flex items-center justify-center"><Layout className="w-4 h-4 text-white" /></div>}
+                defaultOpen={false}
+                variant="card"
+              >
+                {/* Layout Style - All 9 */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Layout Style
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { id: 'classic', label: 'Classic' },
+                      { id: 'modern', label: 'Modern' },
+                      { id: 'bold', label: 'Bold' },
+                      { id: 'elegant', label: 'Elegant' },
+                      { id: 'dramatic', label: 'Dramatic' },
+                      { id: 'minimalist', label: 'Minimalist' },
+                      { id: 'split', label: 'Split' },
+                      { id: 'border', label: 'Border' },
+                      { id: 'full-bleed', label: 'Full Bleed' },
+                    ] as const).map((layout) => (
+                      <button
+                        key={layout.id}
+                        onClick={() => setLayoutOptions(prev => ({ ...prev, layout: layout.id }))}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          layoutOptions.layout === layout.id
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {layout.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Image Position */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Image Position
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { id: 'background', label: 'Background' },
+                      { id: 'top-half', label: 'Top Half' },
+                      { id: 'bottom-half', label: 'Bottom Half' },
+                      { id: 'center', label: 'Center' },
+                      { id: 'left-side', label: 'Left Side' },
+                      { id: 'right-side', label: 'Right Side' },
+                    ] as const).map((pos) => (
+                      <button
+                        key={pos.id}
+                        onClick={() => setLayoutOptions(prev => ({ ...prev, imagePosition: pos.id }))}
+                        className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                          layoutOptions.imagePosition === pos.id
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {pos.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Border Style */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Border Style
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {(['none', 'thin', 'thick', 'double', 'ornate', 'geometric'] as const).map((border) => (
+                      <button
+                        key={border}
+                        onClick={() => setLayoutOptions(prev => ({ ...prev, borderStyle: border }))}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          (layoutOptions.borderStyle || 'none') === border
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {border}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Overlay */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Overlay Type
+                  </label>
+                  <div className="grid grid-cols-5 gap-2 mb-2">
+                    {(['none', 'gradient', 'solid', 'vignette', 'pattern'] as const).map((overlay) => (
+                      <button
+                        key={overlay}
+                        onClick={() => setLayoutOptions(prev => ({ ...prev, overlayType: overlay }))}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          (layoutOptions.overlayType || 'none') === overlay
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {overlay}
+                      </button>
+                    ))}
+                  </div>
+                  {layoutOptions.overlayType && layoutOptions.overlayType !== 'none' && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Overlay Opacity: {layoutOptions.overlayOpacity || 50}%
+                      </label>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={layoutOptions.overlayOpacity || 50}
+                        onChange={(e) => setLayoutOptions(prev => ({ ...prev, overlayOpacity: Number(e.target.value) }))}
+                        className="w-full accent-yellow-400"
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {/* Text Zone */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Text Zone
+                  </label>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                    {(['full', 'top', 'bottom', 'left', 'right', 'center-band'] as const).map((zone) => (
+                      <button
+                        key={zone}
+                        onClick={() => setLayoutOptions(prev => ({ ...prev, textZone: zone }))}
+                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
+                          (layoutOptions.textZone || 'full') === zone
+                            ? 'bg-yellow-400 text-black'
+                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {zone.replace('-', ' ')}
                       </button>
                     ))}
                   </div>
@@ -1279,7 +1658,7 @@ export default function CoverGenerator({
                 </div>
 
                 {/* Subtitle & Tagline */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                       Subtitle (optional)
@@ -1305,6 +1684,34 @@ export default function CoverGenerator({
                     />
                   </div>
                 </div>
+
+                {/* Series & Award */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Series Name
+                    </label>
+                    <input
+                      type="text"
+                      value={textCustomization.seriesName || ''}
+                      onChange={(e) => setTextCustomization(prev => ({ ...prev, seriesName: e.target.value }))}
+                      placeholder="e.g., The Dark Tower"
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      Award Badge
+                    </label>
+                    <input
+                      type="text"
+                      value={textCustomization.awardBadge || ''}
+                      onChange={(e) => setTextCustomization(prev => ({ ...prev, awardBadge: e.target.value }))}
+                      placeholder="e.g., Bestseller"
+                      className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                  </div>
+                </div>
               </CollapsibleSection>
 
               {/* Back Cover Options - Only show when back cover is selected */}
@@ -1316,7 +1723,6 @@ export default function CoverGenerator({
                   defaultOpen={true}
                   variant="card"
                 >
-                  {/* Custom Description */}
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Back Cover Synopsis
@@ -1329,22 +1735,18 @@ export default function CoverGenerator({
                       className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
                     />
                   </div>
-
-                  {/* Layout Style */}
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Layout
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Layout</label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
+                      {([
                         { id: 'classic', label: 'Classic' },
                         { id: 'modern', label: 'Modern' },
                         { id: 'minimal', label: 'Minimal' },
                         { id: 'editorial', label: 'Editorial' },
-                      ].map((layout) => (
+                      ] as const).map((layout) => (
                         <button
                           key={layout.id}
-                          onClick={() => setBackCoverOptions(prev => ({ ...prev, layout: layout.id as any }))}
+                          onClick={() => setBackCoverOptions(prev => ({ ...prev, layout: layout.id }))}
                           className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                             backCoverOptions.layout === layout.id
                               ? 'bg-yellow-400 text-black'
@@ -1356,12 +1758,8 @@ export default function CoverGenerator({
                       ))}
                     </div>
                   </div>
-
-                  {/* Barcode Type */}
                   <div className="mb-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Barcode
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Barcode</label>
                     <div className="grid grid-cols-3 gap-2">
                       {[
                         { id: 'isbn', label: <><BarChart className="w-4 h-4 inline" /> ISBN</> },
@@ -1370,11 +1768,7 @@ export default function CoverGenerator({
                       ].map((option) => (
                         <button
                           key={option.id}
-                          onClick={() => setBackCoverOptions(prev => ({ 
-                            ...prev, 
-                            barcodeType: option.id as any,
-                            showBarcode: option.id !== 'none'
-                          }))}
+                          onClick={() => setBackCoverOptions(prev => ({ ...prev, barcodeType: option.id as any, showBarcode: option.id !== 'none' }))}
                           className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                             backCoverOptions.barcodeType === option.id
                               ? 'bg-yellow-400 text-black'
@@ -1386,119 +1780,125 @@ export default function CoverGenerator({
                       ))}
                     </div>
                   </div>
-
-                  {/* Toggles */}
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Match Front Cover Style</span>
-                      <button
-                        type="button"
-                        onClick={() => setBackCoverOptions(prev => ({ ...prev, matchFrontCover: !prev.matchFrontCover }))}
-                        className={`relative w-10 h-5 rounded-full transition-colors ${
-                          backCoverOptions.matchFrontCover ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                          backCoverOptions.matchFrontCover ? 'translate-x-5' : 'translate-x-0.5'
-                        }`} />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">Show Website URL</span>
-                      <button
-                        type="button"
-                        onClick={() => setBackCoverOptions(prev => ({ ...prev, showWebsite: !prev.showWebsite }))}
-                        className={`relative w-10 h-5 rounded-full transition-colors ${
-                          backCoverOptions.showWebsite ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                          backCoverOptions.showWebsite ? 'translate-x-5' : 'translate-x-0.5'
-                        }`} />
-                      </button>
-                    </div>
-                    <div className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
-                      <span className="text-sm text-gray-700 dark:text-gray-300">"Created with PowerWrite" Tagline</span>
-                      <button
-                        type="button"
-                        onClick={() => setBackCoverOptions(prev => ({ ...prev, showTagline: !prev.showTagline }))}
-                        className={`relative w-10 h-5 rounded-full transition-colors ${
-                          backCoverOptions.showTagline ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
-                        }`}
-                      >
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
-                          backCoverOptions.showTagline ? 'translate-x-5' : 'translate-x-0.5'
-                        }`} />
-                      </button>
-                    </div>
+                    {[
+                      { key: 'matchFrontCover', label: 'Match Front Cover Style' },
+                      { key: 'showWebsite', label: 'Show Website URL' },
+                      { key: 'showTagline', label: '"Created with PowerWrite" Tagline' },
+                    ].map(({ key, label }) => (
+                      <div key={key} className="flex items-center justify-between p-2 rounded-lg border border-gray-200 dark:border-gray-700">
+                        <span className="text-sm text-gray-700 dark:text-gray-300">{label}</span>
+                        <button
+                          type="button"
+                          onClick={() => setBackCoverOptions(prev => ({ ...prev, [key]: !(prev as any)[key] }))}
+                          className={`relative w-10 h-5 rounded-full transition-colors ${
+                            (backCoverOptions as any)[key] ? 'bg-yellow-400' : 'bg-gray-300 dark:bg-gray-600'
+                          }`}
+                        >
+                          <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${
+                            (backCoverOptions as any)[key] ? 'translate-x-5' : 'translate-x-0.5'
+                          }`} />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 </CollapsibleSection>
               )}
 
-              {/* Advanced Options */}
+              {/* Imagery & AI Instructions */}
               <CollapsibleSection
-                title="Advanced Options"
-                subtitle="Typography, layout, visuals & custom prompts"
+                title="Imagery & AI Instructions"
+                subtitle="Subject, visual elements & custom prompts"
                 icon={<div className="w-8 h-8 bg-gradient-to-br from-orange-500 to-red-600 rounded-lg flex items-center justify-center"><Settings className="w-4 h-4 text-white" /></div>}
                 defaultOpen={false}
                 variant="card"
               >
-                {/* Typography Presets */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Typography Preset
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(Object.keys(FONT_STYLE_PRESETS) as FontStylePreset[]).slice(0, 6).map((presetKey) => (
-                      <button
-                        key={presetKey}
-                        onClick={() => applyFontPreset(presetKey)}
-                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
-                          selectedFontPreset === presetKey
-                            ? 'bg-yellow-400 text-black'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        }`}
-                      >
-                        {presetKey.replace(/-/g, ' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Visual Presets */}
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Visual Preset
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                    {(Object.keys(VISUAL_STYLE_PRESETS) as VisualStylePreset[]).slice(0, 6).map((presetKey) => (
-                      <button
-                        key={presetKey}
-                        onClick={() => applyVisualPreset(presetKey)}
-                        className={`px-3 py-2 rounded-lg text-xs capitalize transition-all ${
-                          selectedVisualPreset === presetKey
-                            ? 'bg-yellow-400 text-black'
-                            : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                        }`}
-                      >
-                        {presetKey.replace(/-/g, ' ')}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Main Subject */}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Main Subject/Imagery
+                    Main Subject / Imagery
                   </label>
                   <input
                     type="text"
                     value={visualOptions.mainSubject || ''}
                     onChange={(e) => setVisualOptions(prev => ({ ...prev, mainSubject: e.target.value }))}
-                    placeholder="e.g., A mysterious hooded figure..."
+                    placeholder="e.g., A mysterious hooded figure standing before a glowing portal..."
                     className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                   />
+                </div>
+
+                {/* Background Description */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Background Scene
+                  </label>
+                  <input
+                    type="text"
+                    value={visualOptions.backgroundDescription || ''}
+                    onChange={(e) => setVisualOptions(prev => ({ ...prev, backgroundDescription: e.target.value }))}
+                    placeholder="e.g., A stormy ocean at twilight with lightning..."
+                    className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Visual Elements to Include */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Include Elements
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newVisualElement}
+                      onChange={(e) => setNewVisualElement(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addVisualElement()}
+                      placeholder="e.g., sword, moonlight..."
+                      className="flex-1 px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                    <button onClick={addVisualElement} className="px-3 py-2 bg-yellow-400 text-black rounded-lg text-sm font-medium hover:bg-yellow-500 transition-colors">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {visualOptions.visualElements && visualOptions.visualElements.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {visualOptions.visualElements.map((el, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-md text-xs">
+                          {el}
+                          <button onClick={() => removeVisualElement(i)} className="hover:text-red-500"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Elements to Avoid */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Avoid Elements
+                  </label>
+                  <div className="flex gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={newAvoidElement}
+                      onChange={(e) => setNewAvoidElement(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && addAvoidElement()}
+                      placeholder="e.g., faces, text overlays..."
+                      className="flex-1 px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
+                    />
+                    <button onClick={addAvoidElement} className="px-3 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {visualOptions.avoidElements && visualOptions.avoidElements.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {visualOptions.avoidElements.map((el, i) => (
+                        <span key={i} className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-md text-xs">
+                          {el}
+                          <button onClick={() => removeAvoidElement(i)} className="hover:text-red-600"><X className="w-3 h-3" /></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Custom Prompt */}
@@ -1509,14 +1909,14 @@ export default function CoverGenerator({
                   <textarea
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
-                    placeholder="Add specific instructions for the AI..."
+                    placeholder="Add specific instructions for the AI (describe the scene narratively for best results)..."
                     rows={3}
                     className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent resize-none"
                   />
                 </div>
 
                 {/* Reference Style */}
-                <div>
+                <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Style Reference
                   </label>
@@ -1524,14 +1924,14 @@ export default function CoverGenerator({
                     type="text"
                     value={referenceStyle}
                     onChange={(e) => setReferenceStyle(e.target.value)}
-                    placeholder="e.g., 'Like Stephen King covers'"
+                    placeholder="e.g., 'Like Stephen King covers', 'Penguin Classics style'"
                     className="w-full px-3 py-2 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-transparent"
                   />
                 </div>
 
                 {/* Reference Image (Front cover only) */}
                 {coverType === 'front' && (
-                  <div className="mt-4">
+                  <div>
                     <div className="flex items-center justify-between mb-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                         Reference Image (optional)
@@ -1547,7 +1947,6 @@ export default function CoverGenerator({
                         </button>
                       )}
                     </div>
-
                     <input
                       ref={referenceImageInputRef}
                       type="file"
@@ -1555,7 +1954,6 @@ export default function CoverGenerator({
                       onChange={handleReferenceImageSelect}
                       className="hidden"
                     />
-
                     {referenceImagePreviewUrl ? (
                       <button
                         type="button"
@@ -1566,12 +1964,8 @@ export default function CoverGenerator({
                           <img src={referenceImagePreviewUrl} alt="Reference preview" className="w-full h-full object-cover" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">
-                            {referenceImageFile?.name}
-                          </div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            Click to preview full size • Used to guide the AI
-                          </div>
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{referenceImageFile?.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Click to preview full size</div>
                         </div>
                         <Maximize2 className="w-4 h-4 text-gray-400" />
                       </button>
@@ -1585,9 +1979,8 @@ export default function CoverGenerator({
                         Upload reference image
                       </button>
                     )}
-
                     <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      Helps the model match style/composition. JPEG/PNG/WebP/GIF • Max 5MB.
+                      Helps the model match style/composition. JPEG/PNG/WebP/GIF, max 5MB.
                     </p>
                   </div>
                 )}

@@ -1,7 +1,7 @@
 // AI Model Configuration Types
 
 export type AIProvider = 'openai' | 'openrouter';
-export type ImageProvider = 'dalle' | 'nanobanana' | 'nanobanana-pro';
+export type ImageProvider = 'dalle' | 'nanobanana' | 'nanobanana-pro' | 'imagen3';
 
 export interface AIModel {
   id: string;
@@ -490,13 +490,23 @@ export interface ImageModel {
 
 export const IMAGE_MODELS: ImageModel[] = [
   {
-    id: 'dall-e-3',
-    name: 'DALL-E 3',
-    provider: 'dalle',
-    description: 'OpenAI\'s image generation model - proven quality',
-    maxResolution: '1792x1024',
-    pricing: { perImage: 0.08 },
-    capabilities: { textRendering: false, highResolution: true, styleControl: true },
+    id: 'google/imagen-3-pro',
+    name: 'Imagen 3 Pro',
+    provider: 'imagen3',
+    description: 'Google\'s latest Imagen 3 Pro - superior text rendering, best-in-class quality, 2K/4K output',
+    maxResolution: '4096x4096',
+    pricing: { perImage: 0.06 },
+    capabilities: { textRendering: true, highResolution: true, styleControl: true },
+    tier: 'premium',
+  },
+  {
+    id: 'google/gemini-3-pro-image-preview',
+    name: 'Nano Banana Pro (Gemini 3 Pro)',
+    provider: 'nanobanana-pro',
+    description: 'Premium image generation - 4K, better text, advanced controls',
+    maxResolution: '4096x4096',
+    pricing: { perImage: 0.05 },
+    capabilities: { textRendering: true, highResolution: true, styleControl: true },
     tier: 'premium',
   },
   {
@@ -510,18 +520,18 @@ export const IMAGE_MODELS: ImageModel[] = [
     tier: 'standard',
   },
   {
-    id: 'google/gemini-3-pro-image-preview',
-    name: 'Nano Banana Pro (Gemini 3 Pro)',
-    provider: 'nanobanana-pro',
-    description: 'Premium image generation - 4K, better text, advanced controls',
-    maxResolution: '4096x4096',
-    pricing: { perImage: 0.05 },
-    capabilities: { textRendering: true, highResolution: true, styleControl: true },
+    id: 'dall-e-3',
+    name: 'DALL-E 3',
+    provider: 'dalle',
+    description: 'OpenAI\'s image generation model - proven quality',
+    maxResolution: '1792x1024',
+    pricing: { perImage: 0.08 },
+    capabilities: { textRendering: false, highResolution: true, styleControl: true },
     tier: 'premium',
   },
 ];
 
-export const DEFAULT_IMAGE_MODEL = 'google/gemini-3-pro-image-preview'; // Nano Banana Pro
+export const DEFAULT_IMAGE_MODEL = 'google/imagen-3-pro';
 
 export function getImageModelById(id: string): ImageModel | undefined {
   return IMAGE_MODELS.find((m) => m.id === id);

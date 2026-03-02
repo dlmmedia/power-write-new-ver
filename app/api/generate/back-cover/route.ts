@@ -96,6 +96,7 @@ export async function POST(request: NextRequest) {
       {
         ...backCoverOptions,
         showPowerWriteBranding,
+        hideAuthorName,
         frontCoverStyle: backCoverOptions?.matchFrontCover !== false ? frontCoverStyle : undefined
       }
     );

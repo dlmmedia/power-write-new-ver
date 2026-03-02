@@ -292,63 +292,13 @@ export class AIService {
 
     const genreStyle = genreStyles[genre] || genreStyles['Literary Fiction'];
     
-    // Truncate and clean the description
     const cleanDescription = description.substring(0, 200).replace(/["\n\r]/g, ' ').trim();
     
-    // Build a comprehensive, structured prompt for professional book cover
-    const prompt = `Create a COMPLETE professional book cover design for publication.
+    const prompt = `Design a publication-ready front cover for a ${genre} book titled "${title}". The cover uses a ${style} visual approach with ${genreStyle.mood} atmosphere. The background artwork draws from: ${cleanDescription}. The color palette features ${genreStyle.colors}, incorporating ${genreStyle.elements}.
 
-=== BOOK INFORMATION ===
-Title: "${title}"
-Publisher: DLM Media
-Genre: ${genre}
+The title "${title}" is rendered in large, commanding ${style === 'photographic' ? 'clean sans-serif or elegant serif' : 'genre-appropriate display'} typography, positioned as the dominant focal point with impeccable legibility. The publisher name "DLM Media" appears in small professional text at the bottom edge. The cover displays only these two text elements—the title prominently and the publisher name subtly—with no author credit.
 
-=== FRONT COVER LAYOUT (TOP TO BOTTOM) ===
-This must be a COMPLETE, ready-to-print book cover with EXACTLY these text elements in this order:
-
-1. BOOK TITLE (TOP/CENTER - LARGEST):
-   - Display "${title}" as the main focal point
-   - Use elegant, professional typography appropriate for ${genre}
-   - Position prominently in the upper or center area
-   - Make it the dominant visual element - large, bold, perfectly legible
-   - Font style: ${style === 'photographic' ? 'clean sans-serif or elegant serif' : 'decorative font matching the genre'}
-
-2. "DLM Media" PUBLISHER (BOTTOM):
-   - Display "DLM Media" at the BOTTOM of the cover
-   - Small, professional publisher text
-   - Standard publisher position (bottom center, near the edge)
-   - This should be the smallest text element
-
-=== IMPORTANT: TEXT PLACEMENT ===
-- Do NOT include any author name on the cover
-- Do NOT duplicate any text
-- Only show "DLM Media" ONCE at the bottom
-- The hierarchy must be: TITLE (biggest) → "DLM Media" (smallest at bottom)
-
-=== DESIGN SPECIFICATIONS ===
-- Aspect Ratio: Portrait orientation (2:3 ratio for book covers)
-- Style: ${style}, premium publishing quality
-- Genre Mood: ${genreStyle.mood}
-- Color Palette: ${genreStyle.colors}
-- Visual Elements: ${genreStyle.elements}
-- Background: Create compelling artwork that complements the text
-  Based on: ${cleanDescription}
-
-=== TYPOGRAPHY GUIDELINES ===
-- All text must be PERFECTLY SPELLED and CLEARLY READABLE
-- Professional kerning and spacing
-- High contrast between text and background
-- Text should look professionally designed
-- Clear visual hierarchy between text elements
-
-=== QUALITY STANDARDS ===
-- Professional bookstore-quality cover design
-- Commercial publishing standard
-- Clean, crisp text rendering
-- Balanced composition with proper visual hierarchy
-- The cover should look like a bestselling book at Barnes & Noble
-
-Generate a complete, professional book cover with the title and publisher perfectly integrated.`;
+Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready resolution, all text crystal-clear with strong contrast. The finished design should be indistinguishable from a bestselling book at a major retailer.`;
 
     return prompt;
   }
@@ -370,13 +320,13 @@ Generate a complete, professional book cover with the title and publisher perfec
       showWebsite?: boolean;
       showTagline?: boolean;
       showPowerWriteBranding?: boolean;
+      hideAuthorName?: boolean;
       frontCoverStyle?: {
         colorScheme?: string;
         style?: string;
       };
     }
   ): string {
-    // Genre-specific design guidelines (same as front cover for consistency)
     const genreStyles: Record<string, { mood: string; colors: string }> = {
       'Fantasy': { mood: 'magical, epic, mysterious', colors: 'rich golds, deep purples, mystical blues' },
       'Science Fiction': { mood: 'futuristic, sleek, technological', colors: 'neon blues, silver metallics, deep space black' },
@@ -393,20 +343,18 @@ Generate a complete, professional book cover with the title and publisher perfec
 
     const genreStyle = genreStyles[genre] || genreStyles['Literary Fiction'];
     
-    // Clean the description for back cover blurb
     const cleanDescription = description.substring(0, 500).replace(/["\n\r]/g, ' ').trim();
     
-    // Extract options with defaults
     const showBarcode = options?.showBarcode !== false;
     const barcodeType = options?.barcodeType || 'isbn';
     const layout = options?.layout || 'classic';
     const showWebsite = options?.showWebsite !== false;
     const showTagline = options?.showTagline !== false;
     const showPowerWriteBranding = options?.showPowerWriteBranding !== false;
+    const hideAuthorName = options?.hideAuthorName === true;
     const frontStyle = options?.frontCoverStyle?.style || style;
     const frontColorScheme = options?.frontCoverStyle?.colorScheme;
     
-    // Layout-specific instructions
     const layoutInstructions: Record<string, string> = {
       'classic': 'Traditional centered layout with balanced composition',
       'modern': 'Contemporary asymmetrical design with creative text placement',
@@ -414,18 +362,20 @@ Generate a complete, professional book cover with the title and publisher perfec
       'editorial': 'Magazine-style layout with distinct sections',
     };
 
-    // Build author credit section based on branding
-    const authorSection = showPowerWriteBranding 
-      ? `2. AUTHOR CREDIT (MIDDLE):
+    let authorSection = '';
+    if (!hideAuthorName) {
+      if (showPowerWriteBranding) {
+        authorSection = `2. AUTHOR CREDIT (MIDDLE):
    - Display "Written by ${author || 'PowerWrite'}" 
    - Elegant, professional styling
-   - Can include a decorative separator line above`
-      : author 
-        ? `2. AUTHOR CREDIT (MIDDLE):
+   - Can include a decorative separator line above`;
+      } else if (author) {
+        authorSection = `2. AUTHOR CREDIT (MIDDLE):
    - Display "Written by ${author}" 
    - Elegant, professional styling
-   - Can include a decorative separator line above`
-        : ''; // No author section if no branding and no author
+   - Can include a decorative separator line above`;
+      }
+    }
 
     // Build publisher section
     let publisherSection = `3. PUBLISHER INFO (BOTTOM SECTION):
@@ -459,53 +409,29 @@ Generate a complete, professional book cover with the title and publisher perfec
       }
     }
     
-    const prompt = `Create a professional BACK COVER design for a published book.
+    let prompt = `Design a professional back cover for a ${genre} book titled "${title}", using a ${layoutInstructions[layout].toLowerCase()}. The design should feel like the reverse of the same book, matching the front cover's ${frontStyle} aesthetic with ${frontColorScheme || genreStyle.colors} tones and a ${genreStyle.mood} atmosphere.
 
-=== BOOK INFORMATION ===
-Title: "${title}"
-${author ? `Author: ${author}` : ''}
-Publisher: DLM Media
-Genre: ${genre}
+The upper portion of the cover features the book's synopsis rendered in elegant, readable typography with comfortable line spacing: "${cleanDescription}"`;
 
-=== BACK COVER LAYOUT (${layout.toUpperCase()}) ===
-${layoutInstructions[layout]}
-Design a complete back cover with these elements in professional publishing layout:
+    if (authorSection) {
+      prompt += `\n\n${authorSection.replace(/^\d+\.\s*/, '').replace(/\n\s+-\s+/g, ', ').trim()}`;
+    }
 
-1. BOOK SYNOPSIS/BLURB (TOP SECTION - 60% of space):
-   - Display this synopsis text in an elegant, readable font:
-   "${cleanDescription}"
-   - Use professional book description typography
-   - Left-aligned or justified text
-   - Comfortable line spacing for readability
-   - This is the main content area of the back cover
+    let publisherText = `\n\nThe publisher name "DLM Media" appears prominently near the bottom`;
+    if (showWebsite) {
+      publisherText += ` with "www.dlmworld.com" below it`;
+    }
+    if (showTagline && showPowerWriteBranding) {
+      publisherText += ` and a small "Created with PowerWrite" tagline`;
+    }
+    publisherText += '.';
+    prompt += publisherText;
 
-${authorSection}
+    if (showBarcode && barcodeType !== 'none') {
+      prompt += ` A white rectangular ${barcodeType === 'qr' ? 'QR code area' : 'ISBN barcode area'} is positioned in the bottom-right corner.`;
+    }
 
-${publisherSection}
-
-${barcodeSection}
-
-=== DESIGN SPECIFICATIONS ===
-- Aspect Ratio: Portrait orientation (2:3 ratio, same as front cover)
-- Style: ${frontStyle} - MUST match the front cover aesthetic
-- Color Palette: ${frontColorScheme || genreStyle.colors} - consistent with front cover
-- Background: Subtle, complementary design that doesn't compete with text
-- Overall mood: ${genreStyle.mood}
-
-=== TYPOGRAPHY GUIDELINES ===
-- Synopsis text: Readable serif or sans-serif, 10-12pt equivalent
-- All text PERFECTLY SPELLED and CLEARLY READABLE
-- High contrast for readability
-- Professional book back cover typography standards
-
-=== QUALITY STANDARDS ===
-- Must look like the back of the same book as the front cover
-- Professional publishing quality
-- Clean, organized layout
-- The design should complement but not copy the front cover
-- Standard back cover conventions followed
-
-Generate a complete, professional back cover design.`;
+    prompt += `\n\nTechnical specifications: portrait orientation at 2:3 aspect ratio, print-ready resolution, all synopsis text clearly legible with strong contrast against a subtle background that complements the front cover without competing for attention. The finished back cover should meet professional publishing standards.`;
 
     return prompt;
   }
@@ -527,6 +453,7 @@ Generate a complete, professional back cover design.`;
       showWebsite?: boolean;
       showTagline?: boolean;
       showPowerWriteBranding?: boolean;
+      hideAuthorName?: boolean;
       frontCoverStyle?: {
         colorScheme?: string;
         style?: string;
@@ -541,8 +468,7 @@ Generate a complete, professional back cover design.`;
       const modelId = imageModelId || DEFAULT_IMAGE_MODEL;
       const imageModel = getImageModelById(modelId);
       
-      // Determine which provider to use
-      const provider: ImageProvider = imageModel?.provider || 'nanobanana-pro';
+      const provider: ImageProvider = imageModel?.provider || 'imagen3';
       
       console.log(`Generating BACK cover with ${imageModel?.name || modelId}...`);
       console.log('Back cover options:', options);
@@ -550,10 +476,11 @@ Generate a complete, professional back cover design.`;
       let imageUrl: string;
 
       if (provider === 'dalle') {
-        // Use DALL-E 3 via OpenAI with back cover prompt
         imageUrl = await this.generateBackCoverWithDallE(title, author, genre, description, style, options);
+      } else if (provider === 'imagen3') {
+        const backPrompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
+        imageUrl = await this.generateWithImagen3(title, author, genre, description, style, modelId, backPrompt);
       } else {
-        // Use Nano Banana / Nano Banana Pro via OpenRouter
         imageUrl = await this.generateBackCoverWithNanoBanana(title, author, genre, description, style, modelId, options);
       }
 
@@ -1394,7 +1321,7 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
       const imageModel = getImageModelById(modelId);
       
       // Determine which provider to use
-      const provider: ImageProvider = imageModel?.provider || 'nanobanana-pro';
+      const provider: ImageProvider = imageModel?.provider || 'imagen3';
       
       console.log(`Generating cover with ${imageModel?.name || modelId}...`);
       if (customEnhancedPrompt) {
@@ -1404,13 +1331,22 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
       let imageUrl: string;
 
       if (provider === 'dalle') {
-        // Use DALL-E 3 via OpenAI
         if (referenceImageUrl) {
           console.warn('Reference image provided, but DALL-E generation currently ignores it (using prompt-only).');
         }
         imageUrl = await this.generateWithDallE(title, author, genre, description, style, customEnhancedPrompt);
+      } else if (provider === 'imagen3') {
+        imageUrl = await this.generateWithImagen3(
+          title,
+          author,
+          genre,
+          description,
+          style,
+          modelId,
+          customEnhancedPrompt,
+          referenceImageUrl
+        );
       } else {
-        // Use Nano Banana / Nano Banana Pro via OpenRouter (Gemini image models)
         imageUrl = await this.generateWithNanoBanana(
           title,
           author,
@@ -1452,6 +1388,114 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
       console.error('Error generating cover:', error);
       throw new Error(`Failed to generate cover image: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  private async generateWithImagen3(
+    title: string,
+    author: string,
+    genre: string,
+    description: string,
+    style: string,
+    modelId: string,
+    customPrompt?: string,
+    referenceImageUrl?: string
+  ): Promise<string> {
+    if (!OPENROUTER_API_KEY) {
+      throw new Error('OPENROUTER_API_KEY is required for Imagen 3 Pro image generation.');
+    }
+
+    const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+
+    console.log(`Using Imagen 3 Pro (${modelId}) via OpenRouter for image generation...`);
+
+    const userContent: any = referenceImageUrl
+      ? [
+          { type: 'text', text: prompt },
+          { type: 'image_url', image_url: { url: referenceImageUrl } },
+        ]
+      : prompt;
+
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+          'X-Title': 'PowerWrite Book Studio',
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [
+            {
+              role: 'user',
+              content: userContent,
+            },
+          ],
+          modalities: ['image', 'text'],
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Imagen 3 Pro image generation error:', errorText);
+
+      if (response.status === 400 || response.status === 402 || response.status === 404 || response.status === 422 || response.status === 429) {
+        console.log(`Imagen 3 Pro error ${response.status}, falling back to Nano Banana Pro...`);
+        return await this.generateWithNanoBanana(
+          title, author, genre, description, style,
+          'google/gemini-3-pro-image-preview', customPrompt, referenceImageUrl
+        );
+      }
+
+      throw new Error(`Imagen 3 Pro image generation failed: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    return this.extractImageFromOpenRouterResponse(data);
+  }
+
+  private extractImageFromOpenRouterResponse(data: any): string {
+    if (data.choices && data.choices[0]) {
+      const message = data.choices[0].message;
+
+      if (message?.images && Array.isArray(message.images)) {
+        for (const image of message.images) {
+          if (image.image_url?.url) return image.image_url.url;
+          if (image.url) return image.url;
+          if (image.b64_json) return `data:image/png;base64,${image.b64_json}`;
+        }
+      }
+
+      if (message?.content) {
+        const content = message.content;
+        if (Array.isArray(content)) {
+          for (const part of content) {
+            if (part.type === 'image_url' && part.image_url?.url) return part.image_url.url;
+            if (part.type === 'image' && part.image_url?.url) return part.image_url.url;
+            if (part.type === 'image' && part.source?.data) {
+              const mediaType = part.source.media_type || 'image/png';
+              return `data:${mediaType};base64,${part.source.data}`;
+            }
+            if (part.type === 'text' && typeof part.text === 'string') {
+              const dataUrlMatch = part.text.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
+              if (dataUrlMatch) return dataUrlMatch[0];
+              const httpUrlMatch = part.text.match(/https?:\/\/[^\s"'<>]+\.(png|jpg|jpeg|webp|gif)/i);
+              if (httpUrlMatch) return httpUrlMatch[0];
+            }
+          }
+        } else if (typeof content === 'string') {
+          const dataUrlMatch = content.match(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/);
+          if (dataUrlMatch) return dataUrlMatch[0];
+          const httpUrlMatch = content.match(/https?:\/\/[^\s"'<>]+\.(png|jpg|jpeg|webp|gif)/i);
+          if (httpUrlMatch) return httpUrlMatch[0];
+        }
+      }
+    }
+
+    throw new Error('No image found in API response. The model may not support image generation.');
   }
 
   private async generateWithDallE(
