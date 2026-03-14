@@ -140,13 +140,7 @@ export function getBookTypeInfo(book: BookResult | SelectedBook | BookWithCatego
  * @returns true if the book is a novel/fiction and should show "A Novel By"
  */
 export function isNovel(genre?: string, bookType?: string): boolean {
-  // Check explicit book types that are novels
-  const novelBookTypes = ['novel', 'novella', 'short-story-collection', 'young-adult', 'middle-grade'];
-  if (bookType && novelBookTypes.includes(bookType)) {
-    return true;
-  }
-  
-  // Check explicit book types that are NOT novels
+  // Check explicit book types that are NOT novels -- always wins
   const nonNovelBookTypes = [
     'textbook', 'workbook', 'cookbook', 'coffee-table-book', 'art-book',
     'memoir', 'biography', 'self-help', 'business', 'technical', 'poetry',
@@ -155,14 +149,33 @@ export function isNovel(genre?: string, bookType?: string): boolean {
   if (bookType && nonNovelBookTypes.includes(bookType)) {
     return false;
   }
-  
-  // Check genre keywords for fiction/novel indicators
+
+  // Genre-based non-fiction detection overrides a default 'novel' bookType
   const searchText = (genre || '').toLowerCase();
+  const nonFictionKeywords = [
+    'non-fiction', 'nonfiction', 'biography', 'autobiography', 'memoir',
+    'history', 'self-help', 'self help', 'business', 'science', 'technology',
+    'philosophy', 'psychology', 'reference', 'textbook', 'education',
+    'academic', 'true crime', 'cooking', 'health', 'fitness', 'travel',
+    'guide', 'manual', 'how-to', 'politics', 'economics', 'religion',
+    'spirituality', 'art', 'music', 'photography', 'sports', 'nature',
+    'environment',
+  ];
+  if (nonFictionKeywords.some(keyword => searchText.includes(keyword))) {
+    return false;
+  }
+
+  // Only now trust an explicit novel bookType
+  const novelBookTypes = ['novel', 'novella', 'short-story-collection', 'young-adult', 'middle-grade'];
+  if (bookType && novelBookTypes.includes(bookType)) {
+    return true;
+  }
+
+  // Fall back to genre-based fiction detection
   const novelKeywords = [
     'novel', 'fiction', 'thriller', 'mystery', 'romance', 'fantasy', 
     'sci-fi', 'science fiction', 'horror', 'adventure', 'dystopian',
     'literary fiction', 'crime fiction', 'detective', 'suspense'
   ];
-  
   return novelKeywords.some(keyword => searchText.includes(keyword));
 }
