@@ -770,7 +770,7 @@ const PDFDocument: React.FC<PDFDocumentProps> = ({ book }) => {
   const chapterPageNumbers = calculateChapterPageNumbers(book.chapters, charsPerPage);
 
   // Determine if this book should show "A Novel By" label
-  const bookType = settings?.bookType;
+  const bookType = book.publishingSettings?.bookType;
   const showNovelLabel = isNovel(book.genre, bookType);
 
   return (

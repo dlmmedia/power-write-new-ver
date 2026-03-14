@@ -234,7 +234,7 @@ export class ExportServiceAdvanced {
     const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
     
     // Determine if this book should show "A Novel By" label
-    const bookType = settings?.bookType;
+    const bookType = book.publishingSettings?.bookType;
     const showNovelLabel = isNovel(book.genre, bookType);
     
     // Get trim size for page dimensions
@@ -1437,7 +1437,7 @@ export class ExportServiceAdvanced {
     const settings = book.publishingSettings || DEFAULT_PUBLISHING_SETTINGS;
     
     // Determine if this book should show "A Novel By" label
-    const bookType = settings?.bookType;
+    const bookType = book.publishingSettings?.bookType;
     const showNovelLabel = isNovel(book.genre, bookType);
 
     try {
@@ -1696,41 +1696,7 @@ export class ExportServiceAdvanced {
         beforeToc: true,
       });
 
-      // 3. In-Book Table of Contents (required by KDP)
-      let tocContent = `
-        <div class="toc">
-          <h1>Contents</h1>
-      `;
-      
-      book.chapters.forEach((chapter) => {
-        tocContent += `
-          <p class="toc-entry">
-            <a href="#chapter-${chapter.number}">
-              <span class="toc-chapter-num">Chapter ${chapter.number}</span>
-              ${this.escapeHtml(chapter.title)}
-            </a>
-          </p>
-        `;
-      });
-      
-      if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
-        tocContent += `
-          <p class="toc-entry">
-            <a href="#bibliography">Bibliography</a>
-          </p>
-        `;
-      }
-      
-      tocContent += '</div>';
-      
-      epubChapters.push({
-        title: 'Table of Contents',
-        content: tocContent,
-        excludeFromToc: true,
-        beforeToc: true,
-      });
-
-      // 4. Book Chapters - using publishing settings
+      // 3. Book Chapters - using publishing settings
       const sceneBreakSymbol = getSceneBreakSymbol(settings);
       
       for (const chapter of book.chapters) {

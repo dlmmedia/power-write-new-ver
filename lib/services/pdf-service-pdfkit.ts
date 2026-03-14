@@ -327,7 +327,7 @@ export class PDFServicePDFKit {
         const headerFooterSettings = settings.headerFooter || DEFAULT_PUBLISHING_SETTINGS.headerFooter;
         
         // Determine if this book should show "A Novel By" label
-        const bookType = settings?.bookType;
+        const bookType = book.publishingSettings?.bookType;
         const showNovelLabel = isNovel(book.genre, bookType);
         
         // Create the PDF document

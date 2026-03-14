@@ -955,7 +955,7 @@ ${settings.customCSS || ''}
   private static generateFrontMatter(book: BookExport, settings: PublishingSettings): string {
     const fm = settings.frontMatter;
     const year = new Date().getFullYear();
-    const novelLabel = isNovel(book.genre, settings?.bookType);
+    const novelLabel = isNovel(book.genre, book.publishingSettings?.bookType);
     let html = '';
 
     // Half-title: skip when a cover image is present (the cover already introduces the book,
