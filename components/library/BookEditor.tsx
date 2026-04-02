@@ -25,6 +25,7 @@ interface Chapter {
   wordCount: number;
   status: 'draft' | 'completed';
   isEdited?: boolean;
+  modelUsed?: string;
 }
 
 interface BookEditorProps {

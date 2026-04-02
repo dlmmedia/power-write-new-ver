@@ -154,6 +154,7 @@ export async function POST(request: NextRequest) {
       content: ch.content,
       wordCount: ch.wordCount,
       isEdited: false,
+      modelUsed: chapterModel,
     }));
 
     const savedChapters = await createMultipleChapters(chapterData);

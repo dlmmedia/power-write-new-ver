@@ -22,6 +22,7 @@ interface AIChapterModalProps {
     wordCount: number;
     status: 'draft' | 'completed';
     isEdited: boolean;
+    modelUsed?: string;
   }) => void;
   modelId?: string; // User-selected model for generation
 }
@@ -53,6 +54,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
   const [targetWordCount, setTargetWordCount] = useState(3000);
   const [generatedOutline, setGeneratedOutline] = useState<ChapterOutline | null>(null);
   const [generatedContent, setGeneratedContent] = useState('');
+  const [generatedModelUsed, setGeneratedModelUsed] = useState<string | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
@@ -151,6 +153,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
       }
 
       setGeneratedContent(data.content);
+      setGeneratedModelUsed(data.modelUsed);
       setProgress(100);
       setStep('preview');
     } catch (err) {
@@ -173,6 +176,7 @@ export const AIChapterModal: React.FC<AIChapterModalProps> = ({
       wordCount,
       status: 'draft',
       isEdited: true,
+      modelUsed: generatedModelUsed,
     });
 
     onClose();

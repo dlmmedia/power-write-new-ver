@@ -248,7 +248,19 @@ export async function getBooksByStatus(
 
 export async function createChapter(data: InsertBookChapter): Promise<BookChapter> {
   return withRetry(async () => {
-    const [chapter] = await db.insert(bookChapters).values(data).returning();
+    const [chapter] = await db.insert(bookChapters)
+      .values(data)
+      .onConflictDoNothing({ target: [bookChapters.bookId, bookChapters.chapterNumber] })
+      .returning();
+    if (!chapter) {
+      const [existing] = await db.select().from(bookChapters)
+        .where(and(
+          eq(bookChapters.bookId, data.bookId),
+          eq(bookChapters.chapterNumber, data.chapterNumber),
+        ))
+        .limit(1);
+      return existing;
+    }
     return chapter;
   }, EXTENDED_RETRY_CONFIG, 'createChapter');
 }
@@ -258,7 +270,11 @@ export async function createMultipleChapters(
 ): Promise<BookChapter[]> {
   if (chapters.length === 0) return [];
   return withRetry(async () => {
-    return await db.insert(bookChapters).values(chapters).returning();
+    const results = await db.insert(bookChapters)
+      .values(chapters)
+      .onConflictDoNothing({ target: [bookChapters.bookId, bookChapters.chapterNumber] })
+      .returning();
+    return results;
   }, EXTENDED_RETRY_CONFIG, 'createMultipleChapters');
 }
 

@@ -158,6 +158,7 @@ export const generateBookBackground = inngest.createFunction(
           content: ch.content,
           wordCount: ch.wordCount,
           isEdited: false,
+          modelUsed: chapterModel,
         }));
 
         await createMultipleChapters(chapterData);

@@ -5,6 +5,7 @@ import {
   timestamp,
   jsonb,
   index,
+  uniqueIndex,
   serial,
   integer,
   boolean,
@@ -79,6 +80,7 @@ export const bookChapters = pgTable("book_chapters", {
   content: text("content").notNull(),
   wordCount: integer("word_count").default(0),
   isEdited: boolean("is_edited").default(false),
+  modelUsed: varchar("model_used"),
   // Audio fields
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"), // Duration in seconds
@@ -86,7 +88,9 @@ export const bookChapters = pgTable("book_chapters", {
   audioTimestamps: jsonb("audio_timestamps"), // Array of { word: string, start: number, end: number }
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  uniqueIndex("book_chapters_book_id_chapter_number_unique").on(table.bookId, table.chapterNumber),
+]);
 
 // Book searches table
 export const bookSearches = pgTable("book_searches", {

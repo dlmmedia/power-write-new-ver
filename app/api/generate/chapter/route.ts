@@ -161,6 +161,7 @@ Begin writing the chapter now. Write at least ${targetWordCount} words of engagi
       wordCount,
       title: chapterTitle,
       chapterNumber,
+      modelUsed: selectedModelId,
     });
   } catch (error) {
     console.error('Error generating chapter:', error);

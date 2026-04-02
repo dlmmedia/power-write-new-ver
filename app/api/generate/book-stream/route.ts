@@ -256,6 +256,11 @@ export async function POST(request: NextRequest) {
         const sortedExisting = existingChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
         
         for (let batchStart = 0; batchStart < chaptersToGenerate.length; batchStart += CHAPTERS_PER_BATCH) {
+          if (cancelled) {
+            console.log(`[Stream] Cancelled before batch start, stopping generation for book ${currentBookId}`);
+            break;
+          }
+
           const batchChapterNumbers = chaptersToGenerate.slice(batchStart, batchStart + CHAPTERS_PER_BATCH);
 
           safeEnqueue(encoder.encode(createSSEMessage('batch_start', {
@@ -335,8 +340,8 @@ export async function POST(request: NextRequest) {
 
           const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(1);
 
-          // Save chapters to database
-          if (generatedChapters.length > 0) {
+          // Save chapters to database (skip if client disconnected to avoid duplicates on retry)
+          if (generatedChapters.length > 0 && !cancelled) {
             const chapterData = generatedChapters.map(ch => ({
               bookId: currentBookId,
               chapterNumber: ch.chapterNumber,
@@ -344,6 +349,7 @@ export async function POST(request: NextRequest) {
               content: ch.content,
               wordCount: ch.wordCount,
               isEdited: false,
+              modelUsed: chapterModel,
             }));
 
             await createMultipleChapters(chapterData);

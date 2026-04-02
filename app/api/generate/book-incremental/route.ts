@@ -540,6 +540,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
         content: ch.content,
         wordCount: ch.wordCount,
         isEdited: false,
+        modelUsed: chapterModel,
       }));
 
       await createMultipleChapters(chapterData);

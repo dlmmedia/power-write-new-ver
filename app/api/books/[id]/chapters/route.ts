@@ -26,6 +26,7 @@ export async function PUT(
         content: string;
         wordCount: number;
         status: 'draft' | 'completed';
+        modelUsed?: string;
       }>;
     };
 
@@ -72,6 +73,7 @@ export async function PUT(
             wordCount: chapter.wordCount,
             chapterNumber: chapter.number,
             isEdited: true,
+            ...(chapter.modelUsed ? { modelUsed: chapter.modelUsed } : {}),
             updatedAt: new Date(),
           })
           .where(eq(bookChapters.id, existingChapter.id))
@@ -87,6 +89,7 @@ export async function PUT(
           content: chapter.content,
           wordCount: chapter.wordCount,
           isEdited: true,
+          ...(chapter.modelUsed ? { modelUsed: chapter.modelUsed } : {}),
         }).returning();
         updatedChapters.push(inserted);
       }
