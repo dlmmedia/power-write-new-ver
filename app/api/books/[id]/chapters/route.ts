@@ -39,6 +39,28 @@ export async function PUT(
 
     console.log(`[Chapters API] Updating ${chapters.length} chapters for book ${bookId}`);
 
+    // Delete chapters removed by the user BEFORE upserting,
+    // to avoid unique constraint violations when chapter numbers shift.
+    const incomingRealIds = chapters
+      .filter(ch => !isTemporaryId(ch.id))
+      .map(ch => ch.id);
+
+    if (incomingRealIds.length > 0) {
+      const deleted = await db
+        .delete(bookChapters)
+        .where(
+          and(
+            eq(bookChapters.bookId, bookId),
+            notInArray(bookChapters.id, incomingRealIds)
+          )
+        )
+        .returning({ id: bookChapters.id });
+
+      if (deleted.length > 0) {
+        console.log(`[Chapters API] Deleted ${deleted.length} removed chapter(s) for book ${bookId}`);
+      }
+    }
+
     const updatedChapters = [];
 
     // Update or insert chapters
@@ -92,24 +114,6 @@ export async function PUT(
           ...(chapter.modelUsed ? { modelUsed: chapter.modelUsed } : {}),
         }).returning();
         updatedChapters.push(inserted);
-      }
-    }
-
-    // Delete chapters that were removed by the user
-    const savedChapterIds = updatedChapters.map(ch => ch.id);
-    if (savedChapterIds.length > 0) {
-      const deleted = await db
-        .delete(bookChapters)
-        .where(
-          and(
-            eq(bookChapters.bookId, bookId),
-            notInArray(bookChapters.id, savedChapterIds)
-          )
-        )
-        .returning({ id: bookChapters.id });
-
-      if (deleted.length > 0) {
-        console.log(`[Chapters API] Deleted ${deleted.length} removed chapter(s) for book ${bookId}`);
       }
     }
 
