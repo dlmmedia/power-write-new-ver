@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { bookChapters, generatedBooks } from '@/lib/db/schema';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, notInArray } from 'drizzle-orm';
 
 // Helper to check if an ID is a temporary client-side ID (from Date.now())
 // Real database IDs are serial integers (typically < 1 million)
@@ -92,6 +92,24 @@ export async function PUT(
           ...(chapter.modelUsed ? { modelUsed: chapter.modelUsed } : {}),
         }).returning();
         updatedChapters.push(inserted);
+      }
+    }
+
+    // Delete chapters that were removed by the user
+    const savedChapterIds = updatedChapters.map(ch => ch.id);
+    if (savedChapterIds.length > 0) {
+      const deleted = await db
+        .delete(bookChapters)
+        .where(
+          and(
+            eq(bookChapters.bookId, bookId),
+            notInArray(bookChapters.id, savedChapterIds)
+          )
+        )
+        .returning({ id: bookChapters.id });
+
+      if (deleted.length > 0) {
+        console.log(`[Chapters API] Deleted ${deleted.length} removed chapter(s) for book ${bookId}`);
       }
     }
 
