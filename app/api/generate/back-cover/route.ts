@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { aiService } from '@/lib/services/ai-service';
 import { ensureDemoUser, updateBook, getBook } from '@/lib/db/operations';
 
-export const maxDuration = 60; // 1 minute for image generation
-
 // Back cover options interface
 interface BackCoverOptions {
   showBarcode?: boolean;
@@ -85,6 +83,22 @@ export async function POST(request: NextRequest) {
       ? '' 
       : (showPowerWriteBranding ? 'PowerWrite' : (author || ''));
 
+    // Build a negative prompt for branding/author hiding so the model gets an
+    // explicit "do not render" list. Cropped-text protection is added inside
+    // generateBackCoverImage; we only handle author/branding negatives here.
+    const backNegativeParts: string[] = [];
+    if (hideAuthorName) {
+      backNegativeParts.push(
+        "any author name, byline, 'Written by ...' text, or person credits"
+      );
+    }
+    if (!showPowerWriteBranding) {
+      backNegativeParts.push(
+        "PowerWrite logo, PowerWrite watermark, or any 'PowerWrite' text"
+      );
+    }
+    const negativePrompt = backNegativeParts.length > 0 ? backNegativeParts.join('; ') : undefined;
+
     // Generate back cover using selected image model (default: Nano Banana Pro)
     const coverUrl = await aiService.generateBackCoverImage(
       title,
@@ -97,6 +111,7 @@ export async function POST(request: NextRequest) {
         ...backCoverOptions,
         showPowerWriteBranding,
         hideAuthorName,
+        negativePrompt,
         frontCoverStyle: backCoverOptions?.matchFrontCover !== false ? frontCoverStyle : undefined
       }
     );

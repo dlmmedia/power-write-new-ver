@@ -1,41 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
+import { generateText } from 'ai';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
-import { getModelById, DEFAULT_CHAPTER_MODEL } from '@/lib/types/models';
+import { DEFAULT_CHAPTER_MODEL } from '@/lib/types/models';
+import { getLanguageModel, isOpenRouterAvailable, resolveOpenRouterModelId } from '@/lib/ai/openrouter';
+import { ApiErrors, apiError } from '@/lib/api/error';
 
-export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
 
-interface ChapterGenerationRequest {
-  bookId: number;
-  bookTitle: string;
-  bookGenre: string;
-  bookAuthor: string;
-  chapterNumber: number;
-  chapterTitle: string;
-  chapterSummary: string;
-  customInstructions?: string;
-  targetWordCount: number;
-  previousChaptersContext?: string;
-  outline?: {
-    title: string;
-    summary: string;
-    keyPoints?: string[];
-    estimatedWordCount: number;
-  };
-  modelId?: string; // User-selected model
-}
+const ChapterRequestSchema = z.object({
+  bookId: z.number().int().positive(),
+  bookTitle: z.string().min(1),
+  bookGenre: z.string().min(1),
+  bookAuthor: z.string().min(1),
+  chapterNumber: z.number().int().positive(),
+  chapterTitle: z.string().min(1),
+  chapterSummary: z.string().min(1),
+  customInstructions: z.string().optional(),
+  targetWordCount: z.number().int().min(100).max(50_000),
+  previousChaptersContext: z.string().optional(),
+  outline: z
+    .object({
+      title: z.string(),
+      summary: z.string(),
+      keyPoints: z.array(z.string()).optional(),
+      estimatedWordCount: z.number(),
+    })
+    .optional(),
+  modelId: z.string().optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for API keys
-    if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
-      return NextResponse.json(
-        { error: 'AI API key is not configured. Please set OPENAI_API_KEY or OPENROUTER_API_KEY.' },
-        { status: 500 }
-      );
+    if (!isOpenRouterAvailable()) {
+      throw ApiErrors.serverError('OPENROUTER_API_KEY is not configured.');
     }
 
-    const body = await request.json() as ChapterGenerationRequest;
+    const body = ChapterRequestSchema.parse(await request.json());
     const {
       bookTitle,
       bookGenre,
@@ -53,8 +54,7 @@ export async function POST(request: NextRequest) {
     console.log(`Generating chapter ${chapterNumber}: "${chapterTitle}" for "${bookTitle}"`);
     console.log(`Target word count: ${targetWordCount}`);
 
-    // Build the chapter generation prompt
-    const keyPointsText = outline?.keyPoints?.length 
+    const keyPointsText = outline?.keyPoints?.length
       ? `\n\nKey events/points to include:\n${outline.keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n')}`
       : '';
 
@@ -85,44 +85,9 @@ ${previousChaptersContext ? 'IMPORTANT: This chapter MUST flow naturally from wh
 
 Begin writing the chapter now. Write at least ${targetWordCount} words of engaging, well-crafted prose.`;
 
-    // Use the AI service directly for text generation
-    const { generateText } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
-
-    const openrouter = process.env.OPENROUTER_API_KEY
-      ? createOpenAI({
-          apiKey: process.env.OPENROUTER_API_KEY,
-          baseURL: 'https://openrouter.ai/api/v1',
-        })
-      : null;
-
-    const openai = process.env.OPENAI_API_KEY
-      ? createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : null;
-
-    // Use user-selected model or fall back to default
     const selectedModelId = modelId || DEFAULT_CHAPTER_MODEL;
-    const modelInfo = getModelById(selectedModelId);
-    
-    console.log(`[Chapter Generation] Using model: ${selectedModelId} (provider: ${modelInfo?.provider || 'unknown'})`);
-    
-    // Get the appropriate model based on provider
-    let model;
-    if (modelInfo?.provider === 'openrouter' && openrouter) {
-      model = openrouter(selectedModelId);
-    } else if (modelInfo?.provider === 'openai' && openai) {
-      model = openai(selectedModelId);
-    } else if (openrouter) {
-      // Fallback: use OpenRouter with the selected model ID
-      model = openrouter(selectedModelId);
-    } else if (openai) {
-      // Fallback: use OpenAI with gpt-4o
-      model = openai('gpt-4o');
-    } else {
-      throw new Error('No AI provider available');
-    }
-
-    console.log('Calling AI model for chapter generation...');
+    console.log(`[Chapter Generation] Using model: ${resolveOpenRouterModelId(selectedModelId)}`);
+    const model = getLanguageModel(selectedModelId);
 
     const result = await generateText({
       model,
@@ -136,21 +101,14 @@ Begin writing the chapter now. Write at least ${targetWordCount} words of engagi
       temperature: 0.85,
     });
 
-    // Sanitize and process the content
     let content = result.text;
-    
-    // Remove any end markers
     content = content.replace(/\n?\[END CHAPTER\]\s*$/i, '').trim();
     content = content.replace(/\n?---\s*END\s*---\s*$/i, '').trim();
-    
-    // Sanitize the chapter
     content = sanitizeChapter(content);
-    
-    const wordCount = countWords(content);
 
+    const wordCount = countWords(content);
     console.log(`Chapter ${chapterNumber} generated: ${wordCount} words`);
 
-    // Warn if significantly under target
     if (wordCount < targetWordCount * 0.7) {
       console.warn(`Warning: Generated chapter is shorter than expected (${wordCount}/${targetWordCount} words)`);
     }
@@ -164,37 +122,6 @@ Begin writing the chapter now. Write at least ${targetWordCount} words of engagi
       modelUsed: selectedModelId,
     });
   } catch (error) {
-    console.error('Error generating chapter:', error);
-    
-    let errorMessage = 'Failed to generate chapter';
-    let errorDetails = 'Unknown error';
-    
-    if (error instanceof Error) {
-      errorDetails = error.message;
-      
-      if (error.message.includes('quota')) {
-        errorMessage = 'API quota exceeded';
-        errorDetails = 'Please check your API billing and usage limits.';
-      } else if (error.message.includes('rate limit') || error.message.includes('429')) {
-        errorMessage = 'Rate limit exceeded';
-        errorDetails = 'Too many requests. Please wait a few minutes and try again.';
-      } else if (error.message.includes('API key')) {
-        errorMessage = 'API key error';
-        errorDetails = 'Invalid or missing API key.';
-      } else if (error.message.includes('timeout')) {
-        errorMessage = 'Generation timeout';
-        errorDetails = 'Chapter generation took too long. Try reducing the target word count.';
-      }
-    }
-    
-    return NextResponse.json(
-      {
-        success: false,
-        error: errorMessage,
-        details: errorDetails,
-      },
-      { status: 500 }
-    );
+    return apiError(error);
   }
 }
-

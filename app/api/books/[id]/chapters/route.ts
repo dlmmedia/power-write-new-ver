@@ -27,6 +27,8 @@ export async function PUT(
         wordCount: number;
         status: 'draft' | 'completed';
         modelUsed?: string;
+        chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+        slug?: string | null;
       }>;
     };
 
@@ -96,6 +98,8 @@ export async function PUT(
             chapterNumber: chapter.number,
             isEdited: true,
             ...(chapter.modelUsed ? { modelUsed: chapter.modelUsed } : {}),
+            ...(chapter.chapterType ? { chapterType: chapter.chapterType } : {}),
+            ...(chapter.slug !== undefined ? { slug: chapter.slug } : {}),
             updatedAt: new Date(),
           })
           .where(eq(bookChapters.id, existingChapter.id))
@@ -112,17 +116,22 @@ export async function PUT(
           wordCount: chapter.wordCount,
           isEdited: true,
           ...(chapter.modelUsed ? { modelUsed: chapter.modelUsed } : {}),
+          ...(chapter.chapterType ? { chapterType: chapter.chapterType } : {}),
+          ...(chapter.slug !== undefined ? { slug: chapter.slug } : {}),
         }).returning();
         updatedChapters.push(inserted);
       }
     }
 
-    // Update book metadata
-    const totalWordCount = chapters.reduce((sum, ch) => sum + ch.wordCount, 0);
+    // Update book metadata - only count true chapters (excluding front/back matter pages)
+    const mainChapters = chapters.filter(
+      (ch) => !ch.chapterType || ch.chapterType === 'chapter'
+    );
+    const totalWordCount = mainChapters.reduce((sum, ch) => sum + ch.wordCount, 0);
     await db
       .update(generatedBooks)
       .set({
-        metadata: { wordCount: totalWordCount, chapters: chapters.length },
+        metadata: { wordCount: totalWordCount, chapters: mainChapters.length },
         updatedAt: new Date(),
       })
       .where(eq(generatedBooks.id, bookId));
@@ -137,6 +146,8 @@ export async function PUT(
         number: ch.chapterNumber,
         title: ch.title,
         wordCount: ch.wordCount,
+        chapterType: ch.chapterType,
+        slug: ch.slug,
       })),
     });
   } catch (error) {

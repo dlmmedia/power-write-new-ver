@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { aiService } from '@/lib/services/ai-service';
 import { ensureDemoUser, updateBook } from '@/lib/db/operations';
 
-export const maxDuration = 60; // 1 minute for image generation
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

@@ -5,8 +5,6 @@ import { generatedBooks } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { put } from '@vercel/blob';
 
-export const maxDuration = 60;
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }

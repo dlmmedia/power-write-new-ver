@@ -1,9 +1,7 @@
-import { createOpenAI } from '@ai-sdk/openai';
 import { generateText, streamText } from 'ai';
 import { 
   AIProvider, 
   AIModel, 
-  getModelById, 
   ALL_MODELS,
   DEFAULT_OUTLINE_MODEL,
   DEFAULT_CHAPTER_MODEL,
@@ -11,10 +9,14 @@ import {
   getImageModelById,
   ImageProvider 
 } from '@/lib/types/models';
+import { openrouter, isOpenRouterAvailable, getLanguageModel } from '@/lib/ai/openrouter';
 
-// API Keys
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
+
+// OpenAI key is intentionally retained: it is used as a fallback for DALL-E
+// image generation when OpenRouter image gen fails (see generateBookCover and
+// generateChapterImage). It is NOT used for any LLM/chat calls.
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 // Retry helper for transient AI API failures (5xx, network errors, timeouts)
 async function withRetry<T>(
@@ -54,80 +56,42 @@ async function withRetry<T>(
   throw lastError;
 }
 
-// Validate at least one API key exists
-if (!OPENAI_API_KEY && !OPENROUTER_API_KEY) {
-  console.warn('⚠️ No AI API keys configured. Set OPENAI_API_KEY or OPENROUTER_API_KEY.');
+if (!OPENROUTER_API_KEY) {
+  console.warn('⚠️ OPENROUTER_API_KEY is not configured. LLM-backed features will fail until it is set.');
 }
 
-// Initialize OpenAI provider
-const openai = OPENAI_API_KEY 
-  ? createOpenAI({ apiKey: OPENAI_API_KEY })
-  : null;
-
-// Initialize OpenRouter provider (OpenAI-compatible)
-const openrouter = OPENROUTER_API_KEY
-  ? createOpenAI({
-      apiKey: OPENROUTER_API_KEY,
-      baseURL: 'https://openrouter.ai/api/v1',
-      headers: {
-        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
-        'X-Title': 'PowerWrite Book Studio',
-      },
-    })
-  : null;
-
-// Log available providers
-if (OPENAI_API_KEY) {
-  console.log('✓ AI Service: OpenAI provider initialized');
+/**
+ * Append a clearly delimited negative-prompt section to a base prompt.
+ * Diffusion models (Imagen 3, Nano Banana, DALL-E 3) give noticeably better
+ * compliance when "do-not-render" instructions appear as a dedicated block at
+ * the very end of the prompt instead of being buried in the body.
+ */
+function applyNegativePrompt(basePrompt: string, negativePrompt?: string): string {
+  if (!negativePrompt || !negativePrompt.trim()) return basePrompt;
+  return `${basePrompt}\n\nDO NOT INCLUDE (strict negative prompt — these elements MUST NOT appear anywhere on the cover): ${negativePrompt.trim()}.`;
 }
+
 if (OPENROUTER_API_KEY) {
   console.log('✓ AI Service: OpenRouter provider initialized');
-  console.log('  Available models:', ALL_MODELS.filter(m => m.provider === 'openrouter').length);
+  console.log('  Available models:', ALL_MODELS.length);
 }
 
-// Get the language model for a given model ID
+/**
+ * Resolve a model ID to a callable language model. All LLMs go through
+ * OpenRouter; legacy `provider: 'openai'` model IDs (e.g. `gpt-4o-mini`)
+ * are auto-prefixed to `openai/<id>` by `getLanguageModel`.
+ */
 function getModel(modelId: string) {
-  const modelInfo = getModelById(modelId);
-  
-  if (!modelInfo) {
-    console.warn(`Model ${modelId} not found, falling back to default`);
-    // Fall back to available provider
-    if (openrouter) {
-      return openrouter(DEFAULT_CHAPTER_MODEL);
-    }
-    if (openai) {
-      return openai('gpt-4o');
-    }
-    throw new Error('No AI provider available');
-  }
-  
-  if (modelInfo.provider === 'openrouter') {
-    if (!openrouter) {
-      throw new Error('OpenRouter is not configured. Please set OPENROUTER_API_KEY.');
-    }
-    return openrouter(modelId);
-  }
-  
-  if (modelInfo.provider === 'openai') {
-    if (!openai) {
-      throw new Error('OpenAI is not configured. Please set OPENAI_API_KEY.');
-    }
-    return openai(modelId);
-  }
-  
-  throw new Error(`Unknown provider for model ${modelId}`);
+  return getLanguageModel(modelId);
 }
 
-// Check provider availability
 export function isProviderAvailable(provider: AIProvider): boolean {
-  if (provider === 'openai') return !!openai;
-  if (provider === 'openrouter') return !!openrouter;
+  if (provider === 'openrouter' || provider === 'openai') return isOpenRouterAvailable();
   return false;
 }
 
-// Get available models
 export function getAvailableModels(): AIModel[] {
-  return ALL_MODELS.filter(m => isProviderAvailable(m.provider));
+  return isOpenRouterAvailable() ? ALL_MODELS : [];
 }
 
 export interface BookOutline {
@@ -200,6 +164,9 @@ export interface BookGenerationConfig {
   // Model selection
   outlineModel?: string;
   chapterModel?: string;
+  // Optional series context block injected into the prompt to keep
+  // a series of books stylistically consistent.
+  seriesContext?: string;
 }
 
 export class AIService {
@@ -221,15 +188,23 @@ export class AIService {
   }
 
   /**
-   * Build a professional book cover prompt with proper text layout
-   * Creates detailed instructions for generating covers with title, PowerWrite branding, and DLM Media publisher
+   * Build a professional book cover prompt with proper text layout.
+   *
+   * Branding/author behavior is driven by the `author` and `publisherName`
+   * arguments rather than hardcoded strings:
+   * - If `author` is empty/falsy the prompt explicitly tells the model NOT to
+   *   render an author credit (this matches the upstream `displayAuthor`
+   *   computation in /api/generate/cover and /api/generate/back-cover).
+   * - The publisher line uses the provided `publisherName` (defaults to
+   *   "DLM Media") instead of being hardcoded.
    */
   private buildProfessionalCoverPrompt(
     title: string,
     author: string,
     genre: string,
     description: string,
-    style: string
+    style: string,
+    publisherName: string = 'DLM Media'
   ): string {
     // Genre-specific design guidelines
     const genreStyles: Record<string, { mood: string; colors: string; elements: string }> = {
@@ -291,12 +266,25 @@ export class AIService {
     };
 
     const genreStyle = genreStyles[genre] || genreStyles['Literary Fiction'];
-    
+
     const cleanDescription = description.substring(0, 200).replace(/["\n\r]/g, ' ').trim();
-    
+
+    const trimmedAuthor = (author || '').trim();
+    const hasAuthor = trimmedAuthor.length > 0;
+    const trimmedPublisher = (publisherName || '').trim();
+    const hasPublisher = trimmedPublisher.length > 0;
+
+    const textElementsSentence = hasAuthor && hasPublisher
+      ? `The cover displays exactly three text elements: the title prominently, the author credit "${trimmedAuthor}" in mid-size styling beneath the title, and the publisher name "${trimmedPublisher}" in small professional text at the bottom edge — and nothing else.`
+      : hasAuthor
+        ? `The cover displays exactly two text elements: the title prominently and the author credit "${trimmedAuthor}" in smaller styling beneath the title — and nothing else. Do NOT render any publisher mark.`
+        : hasPublisher
+          ? `The cover displays exactly two text elements: the title prominently and the publisher name "${trimmedPublisher}" in small professional text at the bottom edge — and nothing else. Do NOT render any author name, byline, or "by ..." text anywhere on the cover.`
+          : `The cover displays exactly one text element: the title prominently — and nothing else. Do NOT render any author name, byline, "by ..." text, publisher mark, or watermark anywhere on the cover.`;
+
     const prompt = `Design a publication-ready front cover for a ${genre} book titled "${title}". The cover uses a ${style} visual approach with ${genreStyle.mood} atmosphere. The background artwork draws from: ${cleanDescription}. The color palette features ${genreStyle.colors}, incorporating ${genreStyle.elements}.
 
-The title "${title}" is rendered in large, commanding ${style === 'photographic' ? 'clean sans-serif or elegant serif' : 'genre-appropriate display'} typography, positioned as the dominant focal point with impeccable legibility. The publisher name "DLM Media" appears in small professional text at the bottom edge. The cover displays only these two text elements—the title prominently and the publisher name subtly—with no author credit.
+The title "${title}" is rendered in large, commanding ${style === 'photographic' ? 'clean sans-serif or elegant serif' : 'genre-appropriate display'} typography, positioned as the dominant focal point with impeccable legibility. ${textElementsSentence}
 
 Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready resolution, all text crystal-clear with strong contrast. The finished design should be indistinguishable from a bestselling book at a major retailer.`;
 
@@ -306,6 +294,18 @@ Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready 
   /**
    * Build a professional BACK cover prompt
    * Creates detailed instructions for generating the back cover with synopsis, author bio, and publisher info
+   *
+   * IMPORTANT design choices:
+   * - Synopsis is hard-capped at 150 chars (was 500). Diffusion image models
+   *   routinely paraphrase, shrink, or crop long text blocks; a short, tight
+   *   blurb is the single most effective lever for keeping the back-cover
+   *   text on-canvas and legible.
+   * - A "safe area" block is inserted around the synopsis with explicit
+   *   margin/line-count constraints. Combined with the negative prompt added
+   *   in `generateBackCoverImage`, this is what prevents letter cropping.
+   * - The full `frontCoverStyle.visualOptions` (atmosphere, mainSubject,
+   *   mood, customColors) is now used so the back cover visually matches the
+   *   front instead of just inheriting the colorScheme name.
    */
   buildBackCoverPrompt(
     title: string,
@@ -324,6 +324,18 @@ Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready 
       frontCoverStyle?: {
         colorScheme?: string;
         style?: string;
+        visualOptions?: {
+          atmosphere?: string;
+          mainSubject?: string;
+          mood?: string;
+          customColors?: {
+            primary: string;
+            secondary: string;
+            accent: string;
+            text: string;
+            background?: string;
+          };
+        };
       };
     }
   ): string {
@@ -342,9 +354,19 @@ Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready 
     };
 
     const genreStyle = genreStyles[genre] || genreStyles['Literary Fiction'];
-    
-    const cleanDescription = description.substring(0, 500).replace(/["\n\r]/g, ' ').trim();
-    
+
+    // Hard-cap the synopsis to 150 chars and collapse all whitespace to a
+    // single space. Long blurbs are the #1 cause of cropping/paraphrasing on
+    // text-on-image diffusion output.
+    const SYNOPSIS_MAX = 150;
+    let cleanDescription = description.replace(/["\n\r]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (cleanDescription.length > SYNOPSIS_MAX) {
+      // Try to cut at the nearest word boundary just before the limit.
+      const cut = cleanDescription.slice(0, SYNOPSIS_MAX);
+      const lastSpace = cut.lastIndexOf(' ');
+      cleanDescription = (lastSpace > 100 ? cut.slice(0, lastSpace) : cut).trim() + '…';
+    }
+
     const showBarcode = options?.showBarcode !== false;
     const barcodeType = options?.barcodeType || 'isbn';
     const layout = options?.layout || 'classic';
@@ -354,6 +376,11 @@ Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready 
     const hideAuthorName = options?.hideAuthorName === true;
     const frontStyle = options?.frontCoverStyle?.style || style;
     const frontColorScheme = options?.frontCoverStyle?.colorScheme;
+    const frontVisuals = options?.frontCoverStyle?.visualOptions;
+    const frontCustomColors = frontVisuals?.customColors;
+    const frontAtmosphere = frontVisuals?.atmosphere;
+    const frontMainSubject = frontVisuals?.mainSubject;
+    const frontMood = frontVisuals?.mood;
     
     const layoutInstructions: Record<string, string> = {
       'classic': 'Traditional centered layout with balanced composition',
@@ -409,9 +436,44 @@ Technical specifications: portrait orientation at 2:3 aspect ratio, print-ready 
       }
     }
     
-    let prompt = `Design a professional back cover for a ${genre} book titled "${title}", using a ${layoutInstructions[layout].toLowerCase()}. The design should feel like the reverse of the same book, matching the front cover's ${frontStyle} aesthetic with ${frontColorScheme || genreStyle.colors} tones and a ${genreStyle.mood} atmosphere.
+    // Build the visual continuity description from the FULL front-cover
+    // visual options (atmosphere, mainSubject, mood, customColors) — not just
+    // colorScheme/style. This is what makes the back cover actually look like
+    // the back of the same book instead of a generic genre back cover.
+    const continuityParts: string[] = [];
+    continuityParts.push(`matching the front cover's ${frontStyle} aesthetic`);
+    if (frontCustomColors) {
+      continuityParts.push(
+        `using the EXACT same palette: primary ${frontCustomColors.primary}, secondary ${frontCustomColors.secondary}, accent ${frontCustomColors.accent}, text ${frontCustomColors.text}${frontCustomColors.background ? `, background ${frontCustomColors.background}` : ''}`
+      );
+    } else if (frontColorScheme) {
+      continuityParts.push(`using a ${frontColorScheme} palette consistent with the front`);
+    } else {
+      continuityParts.push(`using ${genreStyle.colors}`);
+    }
+    if (frontAtmosphere) {
+      continuityParts.push(`carrying the same ${frontAtmosphere} atmosphere`);
+    } else {
+      continuityParts.push(`with a ${genreStyle.mood} atmosphere`);
+    }
+    if (frontMood) continuityParts.push(`echoing the ${frontMood} mood of the front`);
+    if (frontMainSubject) {
+      continuityParts.push(
+        `with subtle background imagery referencing the same subject (${frontMainSubject}) at low contrast so it does not compete with the synopsis text`
+      );
+    }
+    const continuityClause = continuityParts.join(', ');
 
-The upper portion of the cover features the book's synopsis rendered in elegant, readable typography with comfortable line spacing: "${cleanDescription}"`;
+    let prompt = `Design a professional back cover for a ${genre} book titled "${title}", using a ${layoutInstructions[layout].toLowerCase()}. The design should feel like the reverse of the same book, ${continuityClause}.
+
+=== TEXT SAFE-AREA RULES (STRICT) ===
+- Treat the outer 8% of every edge of the cover as a no-text safe area.
+- All synopsis text MUST appear in full inside the central area, never touching or crossing the safe-area margins.
+- Do NOT crop, truncate, paraphrase, or overlap any letters of the synopsis.
+- Use one single legible serif or sans-serif font at a comfortable readable size (the synopsis should fit in at most 6 lines with comfortable line spacing).
+- The synopsis appears exactly once on the cover.
+
+The upper-to-middle portion of the cover features the book's synopsis rendered in elegant, readable typography with comfortable line spacing. The synopsis text is exactly: "${cleanDescription}"`;
 
     if (authorSection) {
       prompt += `\n\n${authorSection.replace(/^\d+\.\s*/, '').replace(/\n\s+-\s+/g, ', ').trim()}`;
@@ -428,10 +490,17 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
     prompt += publisherText;
 
     if (showBarcode && barcodeType !== 'none') {
-      prompt += ` A white rectangular ${barcodeType === 'qr' ? 'QR code area' : 'ISBN barcode area'} is positioned in the bottom-right corner.`;
+      prompt += ` A white rectangular ${barcodeType === 'qr' ? 'QR code area' : 'ISBN barcode area'} is positioned in the bottom-right corner, fully inside the safe-area.`;
     }
 
     prompt += `\n\nTechnical specifications: portrait orientation at 2:3 aspect ratio, print-ready resolution, all synopsis text clearly legible with strong contrast against a subtle background that complements the front cover without competing for attention. The finished back cover should meet professional publishing standards.`;
+
+    if (hideAuthorName) {
+      prompt += `\n\nFinal reminder: NO author name, NO byline, NO "Written by ..." text anywhere on this back cover.`;
+    }
+    if (!showPowerWriteBranding) {
+      prompt += `\n\nFinal reminder: NO "PowerWrite" text, NO PowerWrite logo, NO PowerWrite watermark anywhere on this back cover.`;
+    }
 
     return prompt;
   }
@@ -454,9 +523,22 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
       showTagline?: boolean;
       showPowerWriteBranding?: boolean;
       hideAuthorName?: boolean;
+      negativePrompt?: string;
       frontCoverStyle?: {
         colorScheme?: string;
         style?: string;
+        visualOptions?: {
+          atmosphere?: string;
+          mainSubject?: string;
+          mood?: string;
+          customColors?: {
+            primary: string;
+            secondary: string;
+            accent: string;
+            text: string;
+            background?: string;
+          };
+        };
       };
     }
   ): Promise<string> {
@@ -475,13 +557,23 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
 
       let imageUrl: string;
 
+      // Build the back-cover negative prompt: combine the caller-provided one
+      // (branding/author rules) with hard rules that prevent text cropping —
+      // the most common failure mode for text-on-image diffusion output.
+      const backNegativeParts: string[] = [];
+      if (options?.negativePrompt) backNegativeParts.push(options.negativePrompt);
+      backNegativeParts.push(
+        'cropped text, clipped letters, cut-off words, text touching the edges of the cover, illegible text, garbled typography, duplicated text blocks, watermarks, stock-photo logos'
+      );
+      const backNegativePrompt = backNegativeParts.join('; ');
+
       if (provider === 'dalle') {
-        imageUrl = await this.generateBackCoverWithDallE(title, author, genre, description, style, options);
+        imageUrl = await this.generateBackCoverWithDallE(title, author, genre, description, style, options, backNegativePrompt);
       } else if (provider === 'imagen3') {
         const backPrompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
-        imageUrl = await this.generateWithImagen3(title, author, genre, description, style, modelId, backPrompt);
+        imageUrl = await this.generateWithImagen3(title, author, genre, description, style, modelId, backPrompt, undefined, backNegativePrompt);
       } else {
-        imageUrl = await this.generateBackCoverWithNanoBanana(title, author, genre, description, style, modelId, options);
+        imageUrl = await this.generateBackCoverWithNanoBanana(title, author, genre, description, style, modelId, options, backNegativePrompt);
       }
 
       // Upload to blob storage
@@ -528,18 +620,22 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
       showWebsite?: boolean;
       showTagline?: boolean;
       showPowerWriteBranding?: boolean;
+      hideAuthorName?: boolean;
       frontCoverStyle?: {
         colorScheme?: string;
         style?: string;
+        visualOptions?: any;
       };
-    }
+    },
+    negativePrompt?: string
   ): Promise<string> {
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is required for DALL-E image generation');
     }
 
-    const prompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
-    
+    const basePrompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
+    const prompt = applyNegativePrompt(basePrompt, negativePrompt);
+
     console.log('Using DALL-E 3 for back cover...');
     
     const response = await fetch(
@@ -590,17 +686,21 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
       showWebsite?: boolean;
       showTagline?: boolean;
       showPowerWriteBranding?: boolean;
+      hideAuthorName?: boolean;
       frontCoverStyle?: {
         colorScheme?: string;
         style?: string;
+        visualOptions?: any;
       };
-    }
+    },
+    negativePrompt?: string
   ): Promise<string> {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY is required for Nano Banana Pro image generation.');
     }
 
-    const prompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
+    const basePrompt = this.buildBackCoverPrompt(title, author, genre, description, style, options);
+    const prompt = applyNegativePrompt(basePrompt, negativePrompt);
 
     console.log(`Using ${modelId} via OpenRouter for back cover generation...`);
 
@@ -634,7 +734,7 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
       if (response.status === 400 || response.status === 402 || response.status === 404 || response.status === 422 || response.status === 429) {
         console.log(`OpenRouter back cover error ${response.status}, falling back to DALL-E...`);
         if (OPENAI_API_KEY) {
-          return await this.generateBackCoverWithDallE(title, author, genre, description, style);
+          return await this.generateBackCoverWithDallE(title, author, genre, description, style, options, negativePrompt);
         }
         if (response.status === 402) {
           throw new Error('OpenRouter credits exhausted. Please add credits to your OpenRouter account or set OPENAI_API_KEY for DALL-E fallback.');
@@ -685,7 +785,7 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
     // Fall back to DALL-E if available
     if (OPENAI_API_KEY) {
       console.log('Falling back to DALL-E for back cover...');
-      return await this.generateBackCoverWithDallE(title, author, genre, description, style);
+      return await this.generateBackCoverWithDallE(title, author, genre, description, style, options, negativePrompt);
     }
     
     throw new Error('Could not extract back cover image URL from OpenRouter response.');
@@ -734,9 +834,11 @@ The upper portion of the cover features the book's synopsis rendered in elegant,
         ? `\n\nIMPORTANT - Use this EXACT title: "${config.title}"\nDo NOT create a different title.`
         : '';
 
+      const seriesContextBlock = config.seriesContext ? `\n\n${config.seriesContext}\n` : '';
+
       const prompt = isNonFiction
         ? `Create a ${config.genre} NON-FICTION book outline with ${numChapters} chapters.
-
+${seriesContextBlock}
 Author: ${config.author}
 Genre: ${config.genre}
 Tone: ${config.tone}
@@ -770,7 +872,7 @@ Return ONLY valid JSON in this format:
   "themes": ["theme1", "theme2", "theme3"]
 }`
         : `Create a ${config.genre} FICTION book outline with ${numChapters} chapters.
-
+${seriesContextBlock}
 Author: ${config.author}
 Genre: ${config.genre}
 Tone: ${config.tone}
@@ -878,7 +980,8 @@ Return ONLY valid JSON in this format:
     chapterNumber: number,
     previousChapters?: string,
     modelId?: string,
-    bibliographyConfig?: BibliographyGenerationConfig
+    bibliographyConfig?: BibliographyGenerationConfig,
+    seriesContext?: string
   ): Promise<{ title: string; content: string; wordCount: number }> {
     try {
       const model = modelId || this.chapterModel;
@@ -886,6 +989,8 @@ Return ONLY valid JSON in this format:
       if (!chapter) {
         throw new Error(`Chapter ${chapterNumber} not found in outline`);
       }
+
+      const seriesContextPrompt = seriesContext ? `\n\n${seriesContext}\n` : '';
 
       const contextPrompt = previousChapters
         ? `\n\nPrevious chapters summary:\n${previousChapters}\n\nMaintain continuity from previous chapters.`
@@ -912,7 +1017,7 @@ Return ONLY valid JSON in this format:
 
       const prompt = isNonFiction
         ? `Write Chapter ${chapter.number} of the NON-FICTION book "${outline.title}" by ${outline.author}.
-
+${seriesContextPrompt}
 Chapter Details:
 - Title: ${chapter.title}
 - Summary: ${chapter.summary}
@@ -932,7 +1037,7 @@ Write a complete, informative chapter targeting ${chapter.wordCount} words (mini
 - Focus on educational and informative content${citationPromptLine}
 - End with [END CHAPTER] on a new line`
         : `Write Chapter ${chapter.number} of "${outline.title}" by ${outline.author}.
-
+${seriesContextPrompt}
 Chapter Details:
 - Title: ${chapter.title}
 - Summary: ${chapter.summary}
@@ -1257,13 +1362,16 @@ Return ONLY valid JSON array in this exact format:
     outline: BookOutline,
     chapterNumber: number,
     previousChapters?: string,
-    modelId?: string
+    modelId?: string,
+    seriesContext?: string
   ) {
     const model = modelId || this.chapterModel;
     const chapter = outline.chapters.find(ch => ch.number === chapterNumber);
     if (!chapter) {
       throw new Error(`Chapter ${chapterNumber} not found in outline`);
     }
+
+    const seriesContextPrompt = seriesContext ? `\n\n${seriesContext}\n` : '';
 
     const contextPrompt = previousChapters
       ? `\n\nPrevious chapters summary:\n${previousChapters}\n\nMaintain continuity.`
@@ -1274,7 +1382,7 @@ Return ONLY valid JSON array in this exact format:
       : '';
 
     const prompt = `Write Chapter ${chapter.number} of "${outline.title}".
-
+${seriesContextPrompt}
 Chapter: ${chapter.title}
 Summary: ${chapter.summary}
 Target: ${chapter.wordCount} words
@@ -1310,7 +1418,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     style: string = 'vivid',
     imageModelId?: string,
     customEnhancedPrompt?: string, // New parameter for custom prompts from CoverService
-    referenceImageUrl?: string // Optional reference image for style/composition guidance
+    referenceImageUrl?: string, // Optional reference image for style/composition guidance
+    negativePrompt?: string // Things the model MUST NOT render (author, branding, watermarks, etc.)
   ): Promise<string> {
     try {
       if (!process.env.BLOB_READ_WRITE_TOKEN) {
@@ -1334,7 +1443,7 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
         if (referenceImageUrl) {
           console.warn('Reference image provided, but DALL-E generation currently ignores it (using prompt-only).');
         }
-        imageUrl = await this.generateWithDallE(title, author, genre, description, style, customEnhancedPrompt);
+        imageUrl = await this.generateWithDallE(title, author, genre, description, style, customEnhancedPrompt, negativePrompt);
       } else if (provider === 'imagen3') {
         imageUrl = await this.generateWithImagen3(
           title,
@@ -1344,7 +1453,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
           style,
           modelId,
           customEnhancedPrompt,
-          referenceImageUrl
+          referenceImageUrl,
+          negativePrompt
         );
       } else {
         imageUrl = await this.generateWithNanoBanana(
@@ -1355,7 +1465,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
           style,
           modelId,
           customEnhancedPrompt,
-          referenceImageUrl
+          referenceImageUrl,
+          negativePrompt
         );
       }
 
@@ -1398,13 +1509,15 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     style: string,
     modelId: string,
     customPrompt?: string,
-    referenceImageUrl?: string
+    referenceImageUrl?: string,
+    negativePrompt?: string
   ): Promise<string> {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY is required for Imagen 3 Pro image generation.');
     }
 
-    const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    const basePrompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    const prompt = applyNegativePrompt(basePrompt, negativePrompt);
 
     console.log(`Using Imagen 3 Pro (${modelId}) via OpenRouter for image generation...`);
 
@@ -1446,7 +1559,7 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
         console.log(`Imagen 3 Pro error ${response.status}, falling back to Nano Banana Pro...`);
         return await this.generateWithNanoBanana(
           title, author, genre, description, style,
-          'google/gemini-3-pro-image-preview', customPrompt, referenceImageUrl
+          'google/gemini-3-pro-image-preview', customPrompt, referenceImageUrl, negativePrompt
         );
       }
 
@@ -1504,14 +1617,16 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     genre: string,
     description: string,
     style: string,
-    customPrompt?: string
+    customPrompt?: string,
+    negativePrompt?: string
   ): Promise<string> {
     if (!OPENAI_API_KEY) {
       throw new Error('OPENAI_API_KEY is required for DALL-E image generation');
     }
 
     // Use custom prompt if provided, otherwise build the standard one
-    const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    const basePrompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    const prompt = applyNegativePrompt(basePrompt, negativePrompt);
     
     // DALL-E 3 only accepts 'vivid' or 'natural' for the style parameter.
     // Map our internal style values to valid DALL-E values.
@@ -1564,14 +1679,16 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     style: string,
     modelId: string,
     customPrompt?: string,
-    referenceImageUrl?: string
+    referenceImageUrl?: string,
+    negativePrompt?: string
   ): Promise<string> {
     if (!OPENROUTER_API_KEY) {
       throw new Error('OPENROUTER_API_KEY is required for Nano Banana Pro image generation. Set it in your environment variables.');
     }
 
     // Use custom prompt if provided, otherwise build the standard one
-    const prompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    const basePrompt = customPrompt || this.buildProfessionalCoverPrompt(title, author, genre, description, style);
+    const prompt = applyNegativePrompt(basePrompt, negativePrompt);
 
     // Use the model ID directly - it should be one of:
     // - google/gemini-3-pro-image-preview (Nano Banana Pro)
@@ -1621,7 +1738,7 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
         console.log(`OpenRouter error ${response.status}, falling back to DALL-E...`);
         if (OPENAI_API_KEY) {
           // Pass customPrompt so user's settings are preserved in the fallback
-          return await this.generateWithDallE(title, author, genre, description, style, customPrompt);
+          return await this.generateWithDallE(title, author, genre, description, style, customPrompt, negativePrompt);
         }
         // Provide helpful error messages for specific issues
         if (response.status === 402) {
@@ -1749,7 +1866,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     previousChaptersContext: string,
     modelId?: string,
     bibliographyConfig?: BibliographyGenerationConfig,
-    onChapterComplete?: (chapterNum: number, chapter: { title: string; content: string; wordCount: number }) => void
+    onChapterComplete?: (chapterNum: number, chapter: { title: string; content: string; wordCount: number }) => void,
+    seriesContext?: string
   ): Promise<Array<{ title: string; content: string; wordCount: number; chapterNumber: number }>> {
     console.log(`[Parallel] Generating chapters ${chapterNumbers.join(', ')} in parallel...`);
     const startTime = Date.now();
@@ -1760,7 +1878,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
         num,
         previousChaptersContext,
         modelId,
-        bibliographyConfig
+        bibliographyConfig,
+        seriesContext
       );
       console.log(`[Parallel] Chapter ${num} completed: ${chapter.wordCount} words`);
       if (onChapterComplete) {
@@ -1869,7 +1988,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     onProgress?: (completed: number, total: number, currentBatch?: number[]) => void,
     modelId?: string,
     bibliographyConfig?: BibliographyGenerationConfig,
-    batchSize: number = 4
+    batchSize: number = 4,
+    seriesContext?: string
   ): Promise<{ chapters: Array<{ title: string; content: string; wordCount: number }>; references: GeneratedReference[] }> {
     const totalChapters = outline.chapters.length;
     const allChapters: Array<{ title: string; content: string; wordCount: number; chapterNumber: number }> = [];
@@ -1903,7 +2023,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
           if (onProgress) {
             onProgress(allChapters.length + 1, totalChapters, batchChapterNumbers);
           }
-        }
+        },
+        seriesContext
       );
 
       // Add completed chapters
@@ -1943,7 +2064,8 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     outline: BookOutline,
     onProgress?: (chapter: number, total: number) => void,
     modelId?: string,
-    bibliographyConfig?: BibliographyGenerationConfig
+    bibliographyConfig?: BibliographyGenerationConfig,
+    seriesContext?: string
   ): Promise<{ chapters: Array<{ title: string; content: string; wordCount: number }>; references: GeneratedReference[] }> {
     const chapters = [];
     let previousChapters = '';
@@ -1956,7 +2078,7 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
         onProgress(chapterNum, outline.chapters.length);
       }
 
-      const chapter = await this.generateChapter(outline, chapterNum, previousChapters, modelId, bibliographyConfig);
+      const chapter = await this.generateChapter(outline, chapterNum, previousChapters, modelId, bibliographyConfig, seriesContext);
       chapters.push(chapter);
 
       // Include more context for better story coherence
@@ -1987,6 +2109,36 @@ CRITICAL: Avoid AI writing patterns - no "serves as/stands as/testament to", no 
     }
 
     return { chapters, references };
+  }
+
+  /**
+   * Generate text content for a front-matter / back-matter page
+   * (acknowledgments, introduction, synopsis, etc.) given a system + user
+   * prompt pair built by `getAIPromptForPage`.
+   */
+  async generatePage(
+    args: {
+      system: string;
+      user: string;
+      modelId?: string;
+    }
+  ): Promise<{ content: string; wordCount: number }> {
+    const model = args.modelId || this.chapterModel;
+    const result = await withRetry(
+      () => generateText({
+        model: getModel(model),
+        messages: [
+          { role: 'system', content: args.system },
+          { role: 'user', content: args.user },
+        ],
+        temperature: 0.8,
+      }),
+      `generatePage(${model})`,
+    );
+
+    const content = (result.text || '').trim();
+    const wordCount = content.split(/\s+/).filter(Boolean).length;
+    return { content, wordCount };
   }
 }
 

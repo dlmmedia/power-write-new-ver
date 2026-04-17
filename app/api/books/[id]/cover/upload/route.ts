@@ -4,8 +4,6 @@ import { generatedBooks } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import { put } from '@vercel/blob';
 
-export const maxDuration = 30;
-
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -24,6 +22,8 @@ export async function POST(
     // Get the form data with the uploaded file
     const formData = await request.formData();
     const file = formData.get('cover') as File | null;
+    const coverTypeRaw = (formData.get('coverType') as string | null) || 'front';
+    const coverType: 'front' | 'back' = coverTypeRaw === 'back' ? 'back' : 'front';
 
     if (!file) {
       return NextResponse.json(
@@ -78,7 +78,7 @@ export async function POST(
       .replace(/^-+|-+$/g, '')
       .substring(0, 100);
 
-    const filename = `book-covers/${sanitizedTitle}-${bookId}-custom.${ext}`;
+    const filename = `book-covers/${sanitizedTitle}-${bookId}-${coverType}-custom.${ext}`;
 
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
       return NextResponse.json(
@@ -96,16 +96,30 @@ export async function POST(
       token: process.env.BLOB_READ_WRITE_TOKEN,
     });
 
-    // Update book with the new cover URL
-    await db
-      .update(generatedBooks)
-      .set({
-        coverUrl: blob.url,
-        updatedAt: new Date()
-      })
-      .where(eq(generatedBooks.id, bookId));
+    // Persist the URL on the correct field. Front-cover uploads still write
+    // to `generatedBooks.coverUrl`; back-cover uploads write into the
+    // `metadata.backCoverUrl` JSON slot (mirroring the back-cover generation
+    // route) so the front cover is NEVER overwritten by a back-cover upload.
+    if (coverType === 'back') {
+      const currentMetadata = (book.metadata as Record<string, unknown> | null) || {};
+      await db
+        .update(generatedBooks)
+        .set({
+          metadata: { ...currentMetadata, backCoverUrl: blob.url },
+          updatedAt: new Date(),
+        })
+        .where(eq(generatedBooks.id, bookId));
+    } else {
+      await db
+        .update(generatedBooks)
+        .set({
+          coverUrl: blob.url,
+          updatedAt: new Date(),
+        })
+        .where(eq(generatedBooks.id, bookId));
+    }
 
-    console.log(`Custom cover uploaded successfully for book ${bookId}: ${blob.url}`);
+    console.log(`Custom ${coverType} cover uploaded successfully for book ${bookId}: ${blob.url}`);
 
     return NextResponse.json({
       success: true,

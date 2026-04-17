@@ -5,8 +5,6 @@ import { chapterImages, generatedBooks } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
 // Set max duration for uploads
-export const maxDuration = 30;
-
 /**
  * POST /api/books/[id]/images/upload
  * Upload an image file to blob storage and save to chapter_images

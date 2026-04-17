@@ -5,9 +5,9 @@ import { BookConfiguration } from '@/lib/types/studio';
 import { sanitizeTitle } from '@/lib/utils/text-sanitizer';
 import { isNonFiction } from '@/lib/utils/book-type';
 import { syncUserToDatabase, canGenerateBook } from '@/lib/services/user-service';
-import { saveOutline } from '@/lib/db/operations';
+import { saveOutline, getSeriesById, getSiblingBooksInSeries } from '@/lib/db/operations';
+import { buildSeriesContextBlock } from '@/lib/utils/series-context';
 
-export const maxDuration = 600; // 10 minutes - Railway supports up to 15 min HTTP timeout
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
@@ -22,11 +22,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check for at least one API key
-    if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
-      console.error('No AI API keys configured');
+    if (!process.env.OPENROUTER_API_KEY) {
+      console.error('OPENROUTER_API_KEY is not configured');
       return NextResponse.json(
-        { error: 'AI API key is not configured. Please set OPENAI_API_KEY or OPENROUTER_API_KEY in your environment variables.' },
+        { error: 'OPENROUTER_API_KEY is not configured.' },
         { status: 500 }
       );
     }
@@ -41,10 +40,12 @@ export async function POST(request: NextRequest) {
       genre?: string;
     }
     
-    const { config, referenceBooks, modelId } = body as {
+    const { config, referenceBooks, modelId, seriesId, seriesNumber } = body as {
       config: BookConfiguration;
       referenceBooks?: ReferenceBook[];
       modelId?: string;
+      seriesId?: number | null;
+      seriesNumber?: number | null;
     };
 
     // Validate required fields
@@ -97,6 +98,24 @@ export async function POST(request: NextRequest) {
       (config.aiSettings as any)?.chapterModel // chapter model
     );
 
+    // If a series is set, build a series-context block to keep style/world/themes consistent.
+    let seriesContext: string | undefined;
+    if (seriesId) {
+      try {
+        const series = await getSeriesById(seriesId);
+        if (series && series.userId === clerkUserId) {
+          const priorBooks = await getSiblingBooksInSeries(seriesId);
+          seriesContext = buildSeriesContextBlock({
+            series,
+            thisBookNumber: seriesNumber ?? null,
+            priorBooks,
+          });
+        }
+      } catch (e) {
+        console.error('Failed to build series context:', e);
+      }
+    }
+
     // Prepare generation config with full studio settings
     const outline = await aiService.generateBookOutline({
       title: sanitizeTitle(config.basicInfo.title),
@@ -110,6 +129,7 @@ export async function POST(request: NextRequest) {
       isNonFiction: bookIsNonFiction,
       customCharacters: customCharacters,
       outlineModel: modelId || config.aiSettings?.model,
+      seriesContext,
       customInstructions: [
         `Writing Style: ${config.writingStyle.style}`,
         `Point of View: ${config.writingStyle.pov}`,
@@ -163,7 +183,7 @@ export async function POST(request: NextRequest) {
         success: false,
         error: 'Failed to generate outline', 
         details: errorMessage,
-        hint: errorMessage.includes('API key') ? 'Check your API key configuration in Vercel environment variables' : undefined
+        hint: errorMessage.includes('API key') ? 'Check OPENROUTER_API_KEY in your Railway environment variables.' : undefined
       },
       { status: 500 }
     );

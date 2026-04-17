@@ -176,6 +176,33 @@ export interface CoverGenerationRequest {
   // Branding options
   showPowerWriteBranding?: boolean;
   hideAuthorName?: boolean;
+
+  // Negative prompt — things the model MUST NOT render (author, branding, watermarks, etc.)
+  negativePrompt?: string;
+}
+
+export interface CoverGenerationOptions {
+  // Branding options
+  showPowerWriteBranding?: boolean;
+  hideAuthorName?: boolean;
+  // Negative prompt — things the model MUST NOT render
+  negativePrompt?: string;
+}
+
+export interface BackCoverGenerationOptions {
+  showBarcode?: boolean;
+  barcodeType?: 'isbn' | 'qr' | 'none';
+  layout?: 'classic' | 'modern' | 'minimal' | 'editorial';
+  showWebsite?: boolean;
+  showTagline?: boolean;
+  showPowerWriteBranding?: boolean;
+  hideAuthorName?: boolean;
+  negativePrompt?: string;
+  frontCoverStyle?: {
+    colorScheme?: string;
+    style?: string;
+    visualOptions?: CoverVisualOptions;
+  };
 }
 
 export interface CoverGenerationResponse {

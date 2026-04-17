@@ -12,10 +12,12 @@ import { ImageManager } from './ImageManager';
 import { ContentWithImages } from './ContentWithImages';
 import { CitationInserter } from './CitationInserter';
 import { BibliographyManager } from './BibliographyManager';
+import { PageManager } from './PageManager';
 import { BlockEditor } from './editor';
 import { BookImageType, ImagePlacement } from '@/lib/types/book-images';
 import { getDemoUserId } from '@/lib/services/demo-account';
-import { Sparkles, Trash2, Image, Library, Search, Camera, Pencil, Eye, BookOpen, X, Save, Loader2 } from 'lucide-react';
+import { isPage as isFrontOrBackMatter } from '@/lib/types/book-pages';
+import { Sparkles, Trash2, Image, Library, Search, Camera, Pencil, Eye, BookOpen, X, Save, Loader2, FileText } from 'lucide-react';
 
 interface Chapter {
   id: number;
@@ -26,6 +28,8 @@ interface Chapter {
   status: 'draft' | 'completed';
   isEdited?: boolean;
   modelUsed?: string;
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 interface BookEditorProps {
@@ -77,6 +81,7 @@ export const BookEditor: React.FC<BookEditorProps> = ({
   const [showChapterList, setShowChapterList] = useState(false);
   const [fontSize, setFontSize] = useState<'sm' | 'base' | 'lg' | 'xl'>('base');
   const [showAIChapterModal, setShowAIChapterModal] = useState(false);
+  const [showPageManager, setShowPageManager] = useState(false);
   const [showImageInsertModal, setShowImageInsertModal] = useState(false);
   const [showImageManager, setShowImageManager] = useState(false);
   const [showCitationInserter, setShowCitationInserter] = useState(false);
@@ -327,7 +332,9 @@ export const BookEditor: React.FC<BookEditorProps> = ({
 
   const addChapter = () => {
     saveToHistory();
-    const newChapterNumber = chapters.length + 1;
+    const mainChapters = chapters.filter(ch => (ch.chapterType ?? 'chapter') === 'chapter');
+    const maxMainNumber = mainChapters.reduce((m, ch) => Math.max(m, ch.number), 0);
+    const newChapterNumber = maxMainNumber + 1;
     const newChapter: Chapter = {
       id: Date.now(),
       number: newChapterNumber,
@@ -336,39 +343,92 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       wordCount: 0,
       status: 'draft',
       isEdited: true,
+      chapterType: 'chapter',
     };
 
-    setChapters([...chapters, newChapter]);
-    setCurrentChapterIndex(chapters.length);
+    const next = [...chapters, newChapter].sort((a, b) => a.number - b.number);
+    setChapters(next);
+    setCurrentChapterIndex(next.findIndex(ch => ch.id === newChapter.id));
     setHasUnsavedChanges(true);
   };
 
   const addAIChapter = (chapter: Chapter) => {
     saveToHistory();
-    setChapters([...chapters, chapter]);
-    setCurrentChapterIndex(chapters.length);
+    const withType: Chapter = { ...chapter, chapterType: chapter.chapterType ?? 'chapter' };
+    const next = [...chapters, withType].sort((a, b) => a.number - b.number);
+    setChapters(next);
+    setCurrentChapterIndex(next.findIndex(ch => ch.id === withType.id));
     setHasUnsavedChanges(true);
   };
 
+  const addPage = (page: Chapter) => {
+    saveToHistory();
+    const next = [...chapters, page].sort((a, b) => a.number - b.number);
+    setChapters(next);
+    setCurrentChapterIndex(next.findIndex(ch => ch.id === page.id));
+    setHasUnsavedChanges(true);
+  };
+
+  // Used by PageManager after AI persists a new page on the server.
+  // We merge the new/updated page into the local chapters array (matching by
+  // slug+chapterType), preserving any unsaved edits the user has on other rows.
+  const mergePersistedPage = (page: Chapter) => {
+    saveToHistory();
+    const without = chapters.filter(
+      ch => !(ch.slug === page.slug && ch.chapterType === page.chapterType)
+    );
+    const next = [...without, page].sort((a, b) => a.number - b.number);
+    setChapters(next);
+  };
+
+  const openChapterById = (id: number) => {
+    const idx = chapters.findIndex(ch => ch.id === id);
+    if (idx >= 0) {
+      setCurrentChapterIndex(idx);
+      setShowPageManager(false);
+      setShowChapterList(false);
+      window.scrollTo(0, 0);
+    }
+  };
+
   const deleteChapter = (index: number) => {
-    if (chapters.length === 1) {
+    const target = chapters[index];
+    const isMain = (target.chapterType ?? 'chapter') === 'chapter';
+    const mainCount = chapters.filter(ch => (ch.chapterType ?? 'chapter') === 'chapter').length;
+    if (isMain && mainCount === 1) {
       alert('Cannot delete the last chapter');
       return;
     }
 
-    if (!confirm(`Delete Chapter ${chapters[index].number}: ${chapters[index].title}?`)) {
+    const label = isMain
+      ? `Chapter ${target.number}: ${target.title}`
+      : target.title;
+    if (!confirm(`Delete ${label}?`)) {
       return;
     }
 
     saveToHistory();
-    const updatedChapters = chapters.filter((_, i) => i !== index);
-    updatedChapters.forEach((ch, i) => {
-      ch.number = i + 1;
+    const remaining = chapters.filter((_, i) => i !== index);
+    // Only renumber main chapters; pages keep their fixed (negative / high) numbers.
+    let mainIdx = 0;
+    const updatedChapters = remaining.map(ch => {
+      if ((ch.chapterType ?? 'chapter') === 'chapter') {
+        mainIdx += 1;
+        return { ...ch, number: mainIdx };
+      }
+      return ch;
     });
 
     setChapters(updatedChapters);
     setCurrentChapterIndex(Math.min(currentChapterIndex, updatedChapters.length - 1));
     setHasUnsavedChanges(true);
+  };
+
+  const deletePageById = (id: number) => {
+    const idx = chapters.findIndex(ch => ch.id === id);
+    if (idx >= 0) {
+      deleteChapter(idx);
+    }
   };
 
   const insertTextAtCursor = (textarea: HTMLTextAreaElement, text: string) => {
@@ -1031,7 +1091,9 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               className="flex items-center gap-2 bg-gray-100 dark:bg-gray-900 hover:bg-gray-200 dark:hover:bg-gray-800 px-3 py-2 rounded transition-colors text-gray-900 dark:text-white"
             >
               <span className="text-sm">
-                Chapter {currentChapter.number} of {chapters.length}
+                {(currentChapter.chapterType ?? 'chapter') === 'chapter'
+                  ? `Chapter ${currentChapter.number} of ${chapters.filter(ch => (ch.chapterType ?? 'chapter') === 'chapter').length}`
+                  : currentChapter.title}
               </span>
               <span className="text-xs">{showChapterList ? '▲' : '▼'}</span>
             </button>
@@ -1046,11 +1108,21 @@ export const BookEditor: React.FC<BookEditorProps> = ({
         {showChapterList && (
           <div className="absolute right-4 top-16 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg max-h-96 overflow-y-auto w-96 z-50">
             <div className="p-2">
-              <div className="flex items-center justify-between px-2 py-1 mb-2">
-                <h3 className="font-semibold text-sm text-gray-600 dark:text-gray-400">Chapters</h3>
-                <div className="flex gap-2">
+              <div className="flex items-center justify-between px-2 py-1 mb-2 gap-2 flex-wrap">
+                <h3 className="font-semibold text-sm text-gray-600 dark:text-gray-400">Chapters &amp; Pages</h3>
+                <div className="flex gap-2 flex-wrap">
                   <Button variant="outline" size="sm" onClick={addChapter}>
                     + Add Chapter
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowChapterList(false);
+                      setShowPageManager(true);
+                    }}
+                  >
+                    <FileText className="w-3.5 h-3.5 inline mr-1" /> Pages
                   </Button>
                   <Button 
                     variant="primary" 
@@ -1077,7 +1149,14 @@ export const BookEditor: React.FC<BookEditorProps> = ({
                   >
                     <div className="flex-1">
                       <div className="font-medium text-sm flex items-center gap-2">
-                        Chapter {chapter.number}: {chapter.title}
+                        {(chapter.chapterType ?? 'chapter') === 'chapter'
+                          ? `Chapter ${chapter.number}: ${chapter.title}`
+                          : chapter.title}
+                        {isFrontOrBackMatter(chapter.chapterType) && (
+                          <Badge variant="info" size="sm">
+                            {chapter.chapterType === 'front_matter' ? 'Front' : 'Back'}
+                          </Badge>
+                        )}
                         {chapter.isEdited && <Badge variant="warning" size="sm">Edited</Badge>}
                       </div>
                       <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
@@ -1317,17 +1396,21 @@ export const BookEditor: React.FC<BookEditorProps> = ({
       {/* Main Editor */}
       <div className="flex-1 overflow-y-auto">
         <div className="container mx-auto max-w-5xl px-4 py-6">
-          {/* Chapter Title */}
+          {/* Chapter / Page Title */}
           <div className="mb-6">
             <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-400">
-              Chapter {currentChapter.number} Title
+              {(currentChapter.chapterType ?? 'chapter') === 'chapter'
+                ? `Chapter ${currentChapter.number} Title`
+                : `${currentChapter.chapterType === 'front_matter' ? 'Front Matter' : 'Back Matter'} Page Title`}
             </label>
             <Input
               type="text"
               value={currentChapter.title}
               onChange={(e) => updateChapterTitle(e.target.value)}
               className="text-2xl font-bold"
-              placeholder="Enter chapter title"
+              placeholder={(currentChapter.chapterType ?? 'chapter') === 'chapter'
+                ? 'Enter chapter title'
+                : 'Enter page title'}
             />
           </div>
 
@@ -1631,6 +1714,27 @@ export const BookEditor: React.FC<BookEditorProps> = ({
               onClose={() => setShowBibliographyManager(false)}
             />
           </div>
+        </div>
+      )}
+
+      {/* Page Manager Modal (front + back matter) */}
+      {showPageManager && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <PageManager
+            bookId={bookId}
+            chapters={chapters}
+            modelId={modelId}
+            onAddStubPage={(page) => {
+              addPage(page as Chapter);
+              setShowPageManager(false);
+            }}
+            onPagePersisted={(page) => {
+              mergePersistedPage(page as Chapter);
+            }}
+            onOpenPage={openChapterById}
+            onDeletePage={deletePageById}
+            onClose={() => setShowPageManager(false)}
+          />
         </div>
       )}
     </div>

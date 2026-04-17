@@ -1,23 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
-const openai = OPENAI_API_KEY
-  ? createOpenAI({ apiKey: OPENAI_API_KEY })
-  : null;
-
-const openrouter = OPENROUTER_API_KEY
-  ? createOpenAI({
-      apiKey: OPENROUTER_API_KEY,
-      baseURL: 'https://openrouter.ai/api/v1',
-    })
-  : null;
+import { openrouter } from '@/lib/ai/openrouter';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
 
 interface MagicFillRequest {
   prompt: string;
@@ -42,18 +27,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const model = openrouter
-      ? openrouter('openai/gpt-4o-mini')
-      : openai
-      ? openai('gpt-4o-mini')
-      : null;
-
-    if (!model) {
+    if (!openrouter) {
       return NextResponse.json(
-        { error: 'No AI provider configured' },
+        { error: 'OPENROUTER_API_KEY is not configured.' },
         { status: 500 }
       );
     }
+    const model = openrouter('openai/gpt-4o-mini');
 
     const referenceContext = referenceBooks?.length
       ? `\n\nReference Books for style inspiration:\n${referenceBooks.map(b =>

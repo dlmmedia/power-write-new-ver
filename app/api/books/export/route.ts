@@ -10,8 +10,6 @@ import { getUserInfo } from '@/lib/services/user-service';
 
 // Configure route for longer execution time and Node.js runtime
 export const runtime = 'nodejs';
-export const maxDuration = 60; // 60 seconds for export generation
-
 export async function POST(request: NextRequest) {
   try {
     // Use Clerk server-side authentication
@@ -154,6 +152,36 @@ export async function POST(request: NextRequest) {
       console.warn(`Unknown layout type: ${effectiveLayoutType}, falling back to novel-classic`);
     }
     
+    // Split chapters into front-matter pages, main chapters, and back-matter pages.
+    // Front-matter (negative chapter_number) and back-matter (>= 1000) are stored in
+    // the same book_chapters table but with chapterType !== 'chapter'.
+    const sortedChapters = [...book.chapters].sort(
+      (a, b) => a.chapterNumber - b.chapterNumber,
+    );
+    const frontMatterPages = sortedChapters
+      .filter(ch => ch.chapterType === 'front_matter')
+      .map(ch => ({
+        number: ch.chapterNumber,
+        title: ch.title,
+        content: ch.content,
+        slug: ch.slug || null,
+      }));
+    const backMatterPages = sortedChapters
+      .filter(ch => ch.chapterType === 'back_matter')
+      .map(ch => ({
+        number: ch.chapterNumber,
+        title: ch.title,
+        content: ch.content,
+        slug: ch.slug || null,
+      }));
+    const mainChapters = sortedChapters
+      .filter(ch => (ch.chapterType ?? 'chapter') === 'chapter')
+      .map(ch => ({
+        number: ch.chapterNumber,
+        title: ch.title,
+        content: ch.content,
+      }));
+
     // Prepare export data
     const exportData = {
       title: book.title,
@@ -162,13 +190,9 @@ export async function POST(request: NextRequest) {
       genre: book.genre || 'Unknown Genre',
       coverUrl: book.coverUrl || undefined, // Include front cover image URL if available
       backCoverUrl: (bookMetadata.backCoverUrl as string) || undefined, // Include back cover image URL from metadata
-      chapters: book.chapters
-        .sort((a, b) => a.chapterNumber - b.chapterNumber)
-        .map(ch => ({
-          number: ch.chapterNumber,
-          title: ch.title,
-          content: ch.content,
-        })),
+      chapters: mainChapters,
+      frontMatter: frontMatterPages,
+      backMatter: backMatterPages,
       bibliography: bibliographyData,
       publishingSettings, // Include publishing settings for formatted exports
       layoutType: effectiveLayoutType, // Include layout type for PDF export

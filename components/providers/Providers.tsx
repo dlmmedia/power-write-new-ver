@@ -4,7 +4,12 @@ import { useEffect } from 'react';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import { SoundProvider } from '@/contexts/SoundContext';
 import { UserTierProvider } from '@/contexts/UserTierContext';
-import { BooksProvider } from '@/contexts/BooksContext';
+// BooksProvider was previously here. It is now mounted per-segment in
+// app/library/layout.tsx and app/studio/layout.tsx so that:
+//   1) marketing / auth / showcase pages don't pay for a provider they
+//      never read, and
+//   2) the library segment can hydrate the provider with server-rendered
+//      books, eliminating the first-paint fetch waterfall.
 import { PWAProvider } from './PWAProvider';
 import { PWALayout } from '@/components/layout/PWALayout';
 import { GlobalUpgradeModal } from '@/components/modals/GlobalUpgradeModal';
@@ -40,12 +45,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <PWAProvider>
         <ThemeProvider>
           <SoundProvider>
-            <BooksProvider>
-              <UserTierProvider>
-                <PWALayout>{children}</PWALayout>
-                <GlobalUpgradeModal />
-              </UserTierProvider>
-            </BooksProvider>
+            <UserTierProvider>
+              <PWALayout>{children}</PWALayout>
+              <GlobalUpgradeModal />
+            </UserTierProvider>
           </SoundProvider>
         </ThemeProvider>
       </PWAProvider>

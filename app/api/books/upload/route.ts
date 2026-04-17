@@ -8,8 +8,6 @@ import {
 } from '@/lib/services/book-parser-service';
 
 // Set max duration for parsing large files
-export const maxDuration = 60;
-
 // Max file size: 50MB
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 

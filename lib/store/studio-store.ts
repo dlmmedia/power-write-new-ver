@@ -3,6 +3,8 @@ import { persist } from 'zustand/middleware';
 import { BookConfiguration, defaultBookConfiguration } from '../types/studio';
 import { ReferenceAnalysis } from '../types/book';
 import { BookOutline } from '../types/generation';
+import type { LockableSeriesField, SeriesSharedConfig } from '../types/series';
+import { applySeriesDefaults } from '../utils/apply-series-defaults';
 
 interface UploadedReference {
   id: string;
@@ -77,6 +79,22 @@ interface StudioStore {
   setSmartPromptText: (text: string) => void;
   smartPromptParsedResult: any | null;
   setSmartPromptParsedResult: (result: any | null) => void;
+
+  // Series linkage — when set, the book being created belongs to a series
+  // and inherits its shared config / locked fields.
+  seriesId?: number | null;
+  seriesNumber?: number | null;
+  seriesName?: string | null;
+  seriesSharedConfig?: SeriesSharedConfig | null;
+  seriesLockedFields?: LockableSeriesField[] | null;
+  setSeries: (input: {
+    seriesId: number | null;
+    seriesNumber?: number | null;
+    seriesName?: string | null;
+    sharedConfig?: SeriesSharedConfig | null;
+    lockedFields?: LockableSeriesField[] | null;
+  }) => void;
+  clearSeries: () => void;
 }
 
 export const useStudioStore = create<StudioStore>()(
@@ -122,6 +140,11 @@ export const useStudioStore = create<StudioStore>()(
           hasUnsavedChanges: false,
           smartPromptText: '',
           smartPromptParsedResult: null,
+          seriesId: null,
+          seriesNumber: null,
+          seriesName: null,
+          seriesSharedConfig: null,
+          seriesLockedFields: null,
         });
       },
 
@@ -205,6 +228,54 @@ export const useStudioStore = create<StudioStore>()(
       setSmartPromptText: (text) => set({ smartPromptText: text }),
       smartPromptParsedResult: null,
       setSmartPromptParsedResult: (result) => set({ smartPromptParsedResult: result }),
+
+      seriesId: null,
+      seriesNumber: null,
+      seriesName: null,
+      seriesSharedConfig: null,
+      seriesLockedFields: null,
+      setSeries: ({ seriesId, seriesNumber, seriesName, sharedConfig, lockedFields }) => {
+        const current = get().config;
+        const merged =
+          seriesId == null
+            ? current
+            : applySeriesDefaults(current, sharedConfig ?? null, lockedFields ?? []);
+        set({
+          seriesId: seriesId ?? null,
+          seriesNumber: seriesNumber ?? null,
+          seriesName: seriesName ?? null,
+          seriesSharedConfig: sharedConfig ?? null,
+          seriesLockedFields: lockedFields ?? null,
+          config: {
+            ...merged,
+            basicInfo: {
+              ...merged.basicInfo,
+              series:
+                seriesId && seriesName
+                  ? { name: seriesName, number: seriesNumber || 1 }
+                  : merged.basicInfo.series,
+            },
+          },
+          hasUnsavedChanges: true,
+        });
+      },
+      clearSeries: () => {
+        set((state) => ({
+          seriesId: null,
+          seriesNumber: null,
+          seriesName: null,
+          seriesSharedConfig: null,
+          seriesLockedFields: null,
+          config: {
+            ...state.config,
+            basicInfo: {
+              ...state.config.basicInfo,
+              series: undefined,
+            },
+          },
+          hasUnsavedChanges: true,
+        }));
+      },
     }),
     {
       name: 'studio-store',
@@ -215,6 +286,11 @@ export const useStudioStore = create<StudioStore>()(
         generationProgress: state.generationProgress,
         smartPromptText: state.smartPromptText,
         smartPromptParsedResult: state.smartPromptParsedResult,
+        seriesId: state.seriesId,
+        seriesNumber: state.seriesNumber,
+        seriesName: state.seriesName,
+        seriesSharedConfig: state.seriesSharedConfig,
+        seriesLockedFields: state.seriesLockedFields,
       }),
     }
   )

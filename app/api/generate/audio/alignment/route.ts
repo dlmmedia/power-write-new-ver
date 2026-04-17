@@ -4,8 +4,6 @@ import { db } from '@/lib/db';
 import { bookChapters } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 
-export const maxDuration = 300; // 5 minutes max for alignment
-
 export async function POST(request: NextRequest) {
   try {
     const { chapterId } = await request.json();

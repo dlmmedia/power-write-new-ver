@@ -11,8 +11,6 @@ import {
   CoverVisualOptions 
 } from '@/lib/types/cover';
 
-export const maxDuration = 60; // 1 minute for image generation
-
 export async function POST(request: NextRequest) {
   try {
     const contentType = request.headers.get('content-type') || '';
@@ -160,6 +158,23 @@ export async function POST(request: NextRequest) {
     // Determine style from either legacy field or designOptions
     const style = designOptions?.style || 'photographic';
 
+    // Build negative prompt from branding/author preferences so the diffusion
+    // model has an explicit list of things it must NOT render. The enhanced
+    // prompt also encodes these rules, but a dedicated negative section gives
+    // models like Imagen 3 / Nano Banana / DALL-E 3 much higher compliance.
+    const negativeParts: string[] = [];
+    if (hideAuthorName) {
+      negativeParts.push(
+        "any author name, byline, 'by ...' text, person credits, or signature"
+      );
+    }
+    if (!showPowerWriteBranding) {
+      negativeParts.push(
+        "PowerWrite logo, PowerWrite watermark, or any 'PowerWrite' text"
+      );
+    }
+    const negativePrompt = negativeParts.length > 0 ? negativeParts.join('; ') : undefined;
+
     // If provided, upload reference image for vision-capable models
     let referenceImageUrl: string | undefined;
     if (referenceImageFile && referenceImageFile.size > 0) {
@@ -189,15 +204,19 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate cover using selected image model (default: Nano Banana Pro)
+    // IMPORTANT: pass `displayAuthor` (not the raw `author`) so the underlying
+    // provider call agrees with the enhanced prompt about whether an author
+    // name should appear on the cover.
     const generatedCoverUrl = await aiService.generateCoverImage(
       title,
-      author,
+      displayAuthor,
       genre,
       description,
       style,
       imageModel,
       customEnhancedPrompt, // Pass the enhanced prompt if available
-      referenceImageUrl
+      referenceImageUrl,
+      negativePrompt
     );
 
     // If bookId provided, update the book in the database

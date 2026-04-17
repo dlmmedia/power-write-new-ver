@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
 import { useBookStore } from '@/lib/store/book-store';
 import { useStudioStore } from '@/lib/store/studio-store';
@@ -53,6 +53,7 @@ type ConfigTab =
 
 function StudioPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoaded: isUserLoaded } = useUser();
   const { selectedBooks } = useBookStore();
   const { 
@@ -64,8 +65,54 @@ function StudioPageContent() {
     addUploadedReferences,
     removeUploadedReference,
     resetConfig,
-    clearOutline
+    clearOutline,
+    setSeries,
+    seriesId: storeSeriesId,
   } = useStudioStore();
+
+  // Auto-select series when ?seriesId= is present in the URL.
+  const seriesIdParam = searchParams?.get('seriesId') || null;
+  useEffect(() => {
+    if (!seriesIdParam) return;
+    const sid = parseInt(seriesIdParam, 10);
+    if (!Number.isFinite(sid) || sid <= 0) return;
+    if (storeSeriesId === sid) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const [seriesRes, booksRes] = await Promise.all([
+          fetch(`/api/series/${sid}`),
+          fetch(`/api/series/${sid}/books`),
+        ]);
+        const seriesData = await seriesRes.json();
+        const booksData = await booksRes.json();
+        if (cancelled || !seriesData.success) return;
+
+        const nextNumber =
+          booksData.success && Array.isArray(booksData.books)
+            ? booksData.books.reduce(
+                (max: number, b: { seriesNumber?: number }) =>
+                  Math.max(max, b.seriesNumber || 0),
+                0,
+              ) + 1
+            : 1;
+
+        setSeries({
+          seriesId: seriesData.series.id,
+          seriesNumber: nextNumber,
+          seriesName: seriesData.series.name,
+          sharedConfig: seriesData.series.sharedConfig || null,
+          lockedFields: seriesData.series.lockedFields || [],
+        });
+      } catch (err) {
+        console.error('Failed to apply series from URL:', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [seriesIdParam, storeSeriesId, setSeries]);
   
   // Use global tier context
   const { userTier, isProUser, isLoading: isTierLoading, showUpgradeModal: triggerUpgradeModal } = useUserTier();
@@ -234,6 +281,9 @@ function StudioPageContent() {
             // Pass generation speed and parallel settings
             generationSpeed: config.aiSettings?.generationSpeed || 'quality',
             useParallel: config.aiSettings?.useParallelGeneration !== false,
+            // Series link (only honored on initial creation, ignored for continuation)
+            seriesId: useStudioStore.getState().seriesId,
+            seriesNumber: useStudioStore.getState().seriesNumber,
           }),
           signal: abortControllerRef.current?.signal,
         });
@@ -459,6 +509,8 @@ function StudioPageContent() {
           modelId: chapterModel,
           generationSpeed,
           useParallel,
+          seriesId: useStudioStore.getState().seriesId,
+          seriesNumber: useStudioStore.getState().seriesNumber,
         }),
         signal: abortControllerRef.current?.signal,
       });
@@ -786,6 +838,8 @@ function StudioPageContent() {
           config: config,
           referenceBooks: selectedBooks,
           modelId: outlineModel,
+          seriesId: useStudioStore.getState().seriesId,
+          seriesNumber: useStudioStore.getState().seriesNumber,
         }),
       });
 

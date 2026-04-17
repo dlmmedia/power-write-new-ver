@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AIService } from '@/lib/services/ai-service';
-import { getModelById, DEFAULT_OUTLINE_MODEL } from '@/lib/types/models';
+import { generateText } from 'ai';
+import { DEFAULT_OUTLINE_MODEL } from '@/lib/types/models';
+import { getLanguageModel, isOpenRouterAvailable, resolveOpenRouterModelId } from '@/lib/ai/openrouter';
 
-export const maxDuration = 60; // 1 minute for outline generation
 export const runtime = 'nodejs';
 
 interface ChapterOutlineRequest {
@@ -21,10 +21,9 @@ interface ChapterOutlineRequest {
 
 export async function POST(request: NextRequest) {
   try {
-    // Check for API keys
-    if (!process.env.OPENAI_API_KEY && !process.env.OPENROUTER_API_KEY) {
+    if (!isOpenRouterAvailable()) {
       return NextResponse.json(
-        { error: 'AI API key is not configured. Please set OPENAI_API_KEY or OPENROUTER_API_KEY.' },
+        { error: 'OPENROUTER_API_KEY is not configured.' },
         { status: 500 }
       );
     }
@@ -44,8 +43,6 @@ export async function POST(request: NextRequest) {
     } = body;
 
     console.log(`Generating chapter outline for: ${bookTitle}, Chapter ${chapterNumber}`);
-
-    const aiService = new AIService();
 
     // Build the outline generation prompt
     const prompt = `Generate an outline for Chapter ${chapterNumber} of the book "${bookTitle}" by ${bookAuthor}.
@@ -78,42 +75,9 @@ Return ONLY valid JSON in this exact format:
   "estimatedWordCount": ${targetWordCount}
 }`;
 
-    // Use the AI service directly for text generation
-    const { generateText } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
-
-    const openrouter = process.env.OPENROUTER_API_KEY
-      ? createOpenAI({
-          apiKey: process.env.OPENROUTER_API_KEY,
-          baseURL: 'https://openrouter.ai/api/v1',
-        })
-      : null;
-
-    const openai = process.env.OPENAI_API_KEY
-      ? createOpenAI({ apiKey: process.env.OPENAI_API_KEY })
-      : null;
-
-    // Use user-selected model or fall back to default
     const selectedModelId = modelId || DEFAULT_OUTLINE_MODEL;
-    const modelInfo = getModelById(selectedModelId);
-    
-    console.log(`[Chapter Outline] Using model: ${selectedModelId} (provider: ${modelInfo?.provider || 'unknown'})`);
-    
-    // Get the appropriate model based on provider
-    let model;
-    if (modelInfo?.provider === 'openrouter' && openrouter) {
-      model = openrouter(selectedModelId);
-    } else if (modelInfo?.provider === 'openai' && openai) {
-      model = openai(selectedModelId);
-    } else if (openrouter) {
-      // Fallback: use OpenRouter with the selected model ID
-      model = openrouter(selectedModelId);
-    } else if (openai) {
-      // Fallback: use OpenAI with gpt-4o-mini
-      model = openai('gpt-4o-mini');
-    } else {
-      throw new Error('No AI provider available');
-    }
+    console.log(`[Chapter Outline] Using model: ${resolveOpenRouterModelId(selectedModelId)}`);
+    const model = getLanguageModel(selectedModelId);
 
     const result = await generateText({
       model,

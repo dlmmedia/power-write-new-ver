@@ -4,20 +4,25 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { SignUpButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { Button } from '@/components/ui/Button';
-import { 
-  BookOpen, 
-  Headphones, 
-  FileText, 
-  Sparkles, 
-  ArrowRight, 
+import { Reveal, RevealStagger, RevealItem } from '@/components/home/Reveal';
+import { LiveWritingDemo } from '@/components/home/hero/LiveWritingDemo';
+import { TrustBar } from '@/components/home/hero/TrustBar';
+import { WritersOnlinePill } from '@/components/home/hero/WritersOnlinePill';
+import { GENRES } from '@/components/home/hero/genre-content';
+import {
+  BookOpen,
+  Headphones,
+  FileText,
+  Sparkles,
+  ArrowRight,
   Play,
   ChevronRight,
-  Download,
-  Feather,
-  Wand2
 } from 'lucide-react';
 
-const typingWords = ['Novel', 'Memoir', 'Cookbook', 'Thriller', 'Guide', 'Epic', 'Story'];
+// The list of genres the typing animation cycles through. Order matches
+// `GENRES` in `hero/genre-content.ts` so the headline word and the live
+// excerpt on the right always describe the same kind of book.
+const typingWords = GENRES.map((g) => g.word);
 
 export function HeroSection() {
   const router = useRouter();
@@ -29,10 +34,14 @@ export function HeroSection() {
     const word = typingWords[currentWordIndex];
     if (isTyping) {
       if (displayedWord.length < word.length) {
-        const timeout = setTimeout(() => setDisplayedWord(word.slice(0, displayedWord.length + 1)), 150);
+        const timeout = setTimeout(
+          () => setDisplayedWord(word.slice(0, displayedWord.length + 1)),
+          150,
+        );
         return () => clearTimeout(timeout);
       } else {
-        const timeout = setTimeout(() => setIsTyping(false), 2500);
+        // Hold the word longer than the excerpt takes to stream.
+        const timeout = setTimeout(() => setIsTyping(false), 5500);
         return () => clearTimeout(timeout);
       }
     } else {
@@ -48,49 +57,61 @@ export function HeroSection() {
 
   return (
     <section className="relative overflow-hidden bg-[var(--background)]">
-      {/* Subtle gradient background */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 opacity-30" style={{
-          backgroundImage: `radial-gradient(circle at 25% 25%, rgba(245, 158, 11, 0.08) 0%, transparent 50%),
-                           radial-gradient(circle at 75% 75%, rgba(245, 158, 11, 0.05) 0%, transparent 50%)`
-        }} />
-      </div>
+      {/* Single ambient glow — replaces the previous stack of competing pulse blobs.
+       * Token-driven so it adapts to light / dark / system themes automatically. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 animate-aurora"
+        style={{ background: 'var(--hero-glow)' }}
+      />
 
-      <div className="container mx-auto px-4 relative z-10 py-16 md:py-28">
-        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-          {/* Left Column */}
-          <div className="text-center lg:text-left">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 mb-6 px-4 py-2 rounded-full bg-[var(--accent-surface)] border border-[var(--accent)]/20">
-              <Sparkles className="w-4 h-4 text-[var(--accent)]" />
-              <span className="text-[var(--accent-text)] text-sm font-medium">AI-Powered Book Creation</span>
+      <div className="container mx-auto px-4 relative z-10 py-16 md:py-24">
+        <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-14 items-center">
+          {/* ---------- Left column ---------- */}
+          <Reveal as="div" className="text-center lg:text-left">
+            {/* Eyebrow row — badge + live-writers pill */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 mb-6">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--accent-surface)] border border-[var(--accent)]/20">
+                <Sparkles className="w-3.5 h-3.5 text-[var(--accent)]" />
+                <span className="text-[var(--accent-text)] text-xs font-medium uppercase tracking-wider">
+                  AI Book Studio
+                </span>
+              </div>
+              <WritersOnlinePill />
             </div>
 
-            {/* Heading */}
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight tracking-tight text-[var(--text-primary)]">
-              Create Your
-              <span className="block text-[var(--accent)] mt-2 min-h-[1.3em]">
-                {displayedWord}
-                <span className="animate-pulse text-[var(--accent)]/60">|</span>
+            {/* Display heading — Fraunces serif, gradient italic typing word */}
+            <h1 className="font-display text-5xl md:text-6xl lg:text-7xl mb-6 leading-[1.05] text-[var(--text-primary)]">
+              Create your
+              <span className="block mt-2 min-h-[1.15em]">
+                <span className="text-gradient-accent font-display-italic">
+                  {displayedWord || '\u00A0'}
+                </span>
+                <span
+                  aria-hidden="true"
+                  className="inline-block w-[2px] h-[0.85em] align-middle ml-1 bg-[var(--accent)] animate-caret translate-y-[-0.05em]"
+                />
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-[var(--text-muted)] mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-              Transform ideas into complete books with AI. Generate chapters, create audio narration, 
-              and export in any format.
+            <p className="text-lg md:text-xl text-[var(--text-secondary)] mb-7 max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              Transform ideas into complete books with AI. Generate chapters, create audio
+              narration, and export in any format.
             </p>
 
-            {/* Steps */}
-            <div className="flex flex-col sm:flex-row items-center gap-4 mb-8 text-sm">
+            {/* Step rail */}
+            <div className="flex flex-col sm:flex-row items-center gap-4 mb-7 text-sm">
               {[
                 { num: '1', text: 'Describe your book' },
                 { num: '2', text: 'AI writes chapters' },
                 { num: '3', text: 'Export & publish' },
               ].map((step, i) => (
-                <div key={i} className="flex items-center gap-2">
-                  {i > 0 && <ChevronRight className="w-4 h-4 text-[var(--text-muted)] hidden sm:block" />}
-                  <div className="flex items-center gap-2 text-[var(--text-muted)]">
-                    <div className="w-6 h-6 rounded-full bg-[var(--accent-surface)] text-[var(--accent)] flex items-center justify-center text-xs font-bold">
+                <div key={step.num} className="flex items-center gap-2">
+                  {i > 0 && (
+                    <ChevronRight className="w-4 h-4 text-[var(--text-muted)] hidden sm:block" />
+                  )}
+                  <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                    <div className="w-6 h-6 rounded-full bg-[var(--accent-surface)] text-[var(--accent)] flex items-center justify-center text-xs font-bold border border-[var(--accent)]/15">
                       {step.num}
                     </div>
                     <span>{step.text}</span>
@@ -99,14 +120,21 @@ export function HeroSection() {
               ))}
             </div>
 
-            {/* CTAs */}
-            <div className="flex flex-col sm:flex-row items-center gap-3 mb-8">
+            {/* CTAs — primary uses the brand gradient. Stacked until the
+             * hero switches to its two-column layout so the buttons never
+             * end up squeezed into a half-column at 640–1023px and wrap
+             * mid-label. `whitespace-nowrap` is a belt-and-braces guard
+             * against label wrapping at unusual zoom levels. */}
+            <div className="flex flex-col lg:flex-row items-stretch lg:items-center gap-3 mb-6">
               <SignedOut>
                 <SignUpButton mode="modal">
-                  <button className="flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3.5 bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-[var(--text-inverse)] font-semibold rounded-xl transition-all shadow-sm hover:shadow-md active:scale-[0.98]">
+                  <button
+                    className="group relative inline-flex items-center justify-center gap-2 w-full lg:w-auto px-8 py-3.5 text-[var(--text-inverse)] font-semibold rounded-xl shadow-md hover:shadow-lg active:scale-[0.98] transition-all overflow-hidden focus-ring whitespace-nowrap"
+                    style={{ background: 'var(--accent-gradient)' }}
+                  >
                     <Sparkles className="w-5 h-5" />
                     Start Creating for Free
-                    <ArrowRight className="w-5 h-5" />
+                    <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
                   </button>
                 </SignUpButton>
               </SignedOut>
@@ -116,7 +144,7 @@ export function HeroSection() {
                   size="lg"
                   onClick={() => router.push('/studio')}
                   leftIcon={<Sparkles className="w-5 h-5" />}
-                  className="w-full sm:w-auto"
+                  className="w-full lg:w-auto whitespace-nowrap"
                 >
                   Create New Book
                 </Button>
@@ -126,14 +154,17 @@ export function HeroSection() {
                 size="lg"
                 onClick={() => router.push('/showcase')}
                 leftIcon={<Play className="w-5 h-5" />}
-                className="w-full sm:w-auto"
+                className="w-full lg:w-auto whitespace-nowrap"
               >
                 Browse Sample Books
               </Button>
             </div>
 
+            {/* Trust bar — rating + counts + featured-in strip */}
+            <TrustBar className="mb-6 mx-auto lg:mx-0 max-w-xl flex flex-col items-center lg:items-start" />
+
             {/* Export formats */}
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-3 text-xs text-[var(--text-muted)]">
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 text-xs text-[var(--text-muted)]">
               <span className="font-medium">Export to:</span>
               {[
                 { icon: <FileText className="w-3 h-3" />, label: 'PDF' },
@@ -141,126 +172,40 @@ export function HeroSection() {
                 { icon: <FileText className="w-3 h-3" />, label: 'DOCX' },
                 { icon: <Headphones className="w-3 h-3" />, label: 'MP3' },
               ].map((fmt) => (
-                <div key={fmt.label} className="flex items-center gap-1 px-2 py-1 bg-[var(--surface-hover)] rounded-md border border-[var(--border)]">
+                <div
+                  key={fmt.label}
+                  className="flex items-center gap-1 px-2 py-1 bg-[var(--surface-hover)] rounded-md border border-[var(--border)]"
+                >
                   {fmt.icon}
                   {fmt.label}
                 </div>
               ))}
             </div>
-          </div>
+          </Reveal>
 
-          {/* Right Column - Book Visual */}
-          <div className="relative">
-            <div className="relative max-w-md mx-auto">
-              <div className="absolute -inset-8 bg-gradient-to-r from-amber-400/20 via-amber-500/10 to-orange-500/20 rounded-3xl blur-3xl animate-pulse" />
-              
-              <div className="relative" style={{ perspective: '1200px' }}>
-                <div className="absolute -top-6 -left-6 w-full h-full pointer-events-none overflow-visible">
-                  {[...Array(6)].map((_, i) => (
-                    <div key={i} className="absolute animate-float"
-                      style={{ left: `${15 + i * 15}%`, top: `${10 + (i % 3) * 25}%`, animationDelay: `${i * 0.5}s`, animationDuration: `${3 + i * 0.5}s` }}>
-                      <Sparkles className="w-4 h-4 text-[var(--accent)]/40" />
-                    </div>
-                  ))}
-                </div>
-
-                <div className="relative bg-[var(--background-secondary)] rounded-2xl p-8 border border-[var(--border)] shadow-[var(--shadow-elevated)]"
-                  style={{ transform: 'rotateY(-5deg) rotateX(3deg)', transformStyle: 'preserve-3d' }}>
-                  <div className="absolute left-0 top-4 bottom-4 w-1.5 bg-gradient-to-b from-amber-400 via-amber-500 to-amber-600 rounded-l-lg" />
-                  
-                  <div className="flex gap-4">
-                    {/* Left Page */}
-                    <div className="flex-1 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 rounded-lg p-4 shadow-inner relative overflow-hidden min-h-[260px]">
-                      <div className="relative">
-                        <div className="text-[var(--text-muted)] text-[10px] uppercase tracking-widest mb-2">Chapter 1</div>
-                        <div className="text-[var(--text-primary)] font-serif font-bold text-lg mb-3 leading-tight">The Beginning</div>
-                        <div className="space-y-2">
-                          {[...Array(7)].map((_, i) => (
-                            <div key={i} className="h-2 bg-[var(--border)] rounded animate-shimmer"
-                              style={{ width: `${85 - (i % 3) * 10}%`, animationDelay: `${i * 0.15}s` }} />
-                          ))}
-                        </div>
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[var(--text-muted)] text-xs">1</div>
-                      </div>
-                    </div>
-                    
-                    {/* Right Page */}
-                    <div className="flex-1 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 rounded-lg p-4 shadow-inner relative overflow-hidden min-h-[260px]">
-                      <div className="relative">
-                        <div className="flex items-center gap-2 mb-3">
-                          <div className="flex items-center gap-1.5 px-2 py-1 bg-[var(--accent-surface)] rounded-full">
-                            <Wand2 className="w-3 h-3 text-[var(--accent)] animate-pulse" />
-                            <span className="text-[10px] text-[var(--accent-text)] font-medium">AI Writing...</span>
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          {[...Array(5)].map((_, i) => (
-                            <div key={i} className="h-2 bg-[var(--border-strong)] rounded animate-shimmer"
-                              style={{ width: i < 4 ? `${90 - (i % 2) * 15}%` : '45%', animationDelay: `${i * 0.3}s` }} />
-                          ))}
-                        </div>
-                        <div className="absolute right-2 top-1/2 -translate-y-1/2">
-                          <Feather className="w-6 h-6 text-amber-600 drop-shadow-lg" />
-                        </div>
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[var(--text-muted)] text-xs">2</div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Stats bar */}
-                  <div className="mt-5 pt-4 border-t border-[var(--border)]">
-                    <div className="flex items-center justify-between text-sm text-[var(--text-muted)]">
-                      <div className="flex items-center gap-3">
-                        <span className="flex items-center gap-1.5"><BookOpen className="w-4 h-4 text-[var(--accent)]" /> 12 Ch</span>
-                        <span className="flex items-center gap-1.5"><FileText className="w-4 h-4 text-[var(--success)]" /> 45K Words</span>
-                      </div>
-                      <span className="flex items-center gap-1.5"><Headphones className="w-4 h-4 text-[var(--info)]" /> 3h Audio</span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap gap-2 mt-4">
-                    {[
-                      { icon: <BookOpen className="w-3 h-3" />, label: 'AI Written', color: 'text-[var(--success)] bg-[var(--success-light)] border-[var(--success)]/20' },
-                      { icon: <Headphones className="w-3 h-3" />, label: 'Audio Ready', color: 'text-[var(--info)] bg-[var(--info-light)] border-[var(--info)]/20' },
-                      { icon: <Download className="w-3 h-3" />, label: 'Export All', color: 'text-purple-500 bg-purple-500/10 border-purple-500/20' },
-                    ].map((badge) => (
-                      <div key={badge.label} className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border ${badge.color}`}>
-                        {badge.icon}
-                        {badge.label}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="absolute -top-3 -right-3 bg-[var(--success)] text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-md animate-bounce">
-                  10 min to publish
-                </div>
-                
-                <div className="absolute -bottom-2 -right-2 w-full h-full bg-[var(--background-tertiary)] rounded-2xl border border-[var(--border)] -z-10" style={{ transform: 'rotateY(-5deg) rotateX(3deg)' }} />
-              </div>
-            </div>
-          </div>
+          {/* ---------- Right column: live writing demo ---------- */}
+          <Reveal as="div" delay={0.08} className="relative">
+            <LiveWritingDemo genreIndex={currentWordIndex} />
+          </Reveal>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 pt-12 border-t border-[var(--border)]">
+        {/* Stats — kept as a section divider; values use the gradient display face. */}
+        <RevealStagger className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-16 pt-12 border-t border-[var(--border)]">
           {[
             { value: '10K+', label: 'Books Created' },
             { value: '500M+', label: 'Words Generated' },
             { value: '50K+', label: 'Hours of Audio' },
             { value: '95%', label: 'Satisfaction' },
           ].map((stat) => (
-            <div key={stat.label} className="text-center p-4">
-              <div className="text-3xl md:text-4xl font-bold text-[var(--accent)] mb-1">{stat.value}</div>
+            <RevealItem key={stat.label} className="text-center p-4">
+              <div className="font-display text-4xl md:text-5xl text-gradient-accent mb-1">
+                {stat.value}
+              </div>
               <div className="text-sm text-[var(--text-muted)]">{stat.label}</div>
-            </div>
+            </RevealItem>
           ))}
-        </div>
+        </RevealStagger>
       </div>
-
-      {/* Decorative */}
-      <div className="absolute top-20 left-10 w-32 h-32 bg-[var(--accent)] rounded-full blur-[100px] opacity-10 animate-pulse" />
-      <div className="absolute bottom-20 right-10 w-48 h-48 bg-amber-500 rounded-full blur-[100px] opacity-5 animate-pulse" style={{ animationDelay: '1s' }} />
     </section>
   );
 }

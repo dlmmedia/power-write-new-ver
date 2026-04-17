@@ -4,8 +4,6 @@ import { ensureDemoUser } from '@/lib/db/operations';
 import { GenerateBookImageRequest } from '@/lib/types/book-images';
 import { DEFAULT_IMAGE_MODEL } from '@/lib/types/models';
 
-export const maxDuration = 60; // 1 minute for image generation
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

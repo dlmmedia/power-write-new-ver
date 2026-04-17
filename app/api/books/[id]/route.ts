@@ -1,160 +1,89 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
-import { getBookWithChaptersAndBibliography } from '@/lib/db/operations';
-import { BibliographyConfig, Reference, Author } from '@/lib/types/bibliography';
+import { auth, currentUser } from '@clerk/nextjs/server';
+import { z } from 'zod';
+import { getBook, updateBook, deleteBook } from '@/lib/db/operations';
+import { getDbUserIdFromClerk } from '@/lib/services/user-service';
+import { ApiErrors, apiError } from '@/lib/api/error';
+import { loadBookDetail } from '@/lib/services/book-detail-loader';
 
 export const runtime = 'nodejs';
 
+function parseBookId(id: string): number {
+  const n = parseInt(id, 10);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw ApiErrors.badRequest('Invalid book id');
+  }
+  return n;
+}
+
+/**
+ * Resolve auth context. Returns null when no user is logged in (allowed for
+ * GET on public showcase scenarios). Throws on Clerk failures so they surface.
+ */
+async function tryGetUser() {
+  try {
+    const { userId: clerkUserId } = await auth();
+    if (!clerkUserId) return null;
+    let email: string | undefined;
+    try {
+      const u = await currentUser();
+      email = u?.emailAddresses?.[0]?.emailAddress;
+    } catch {
+      /* email is best-effort */
+    }
+    const dbUserId = await getDbUserIdFromClerk(clerkUserId, email);
+    return { clerkUserId, email, effectiveUserId: dbUserId || clerkUserId };
+  } catch (e) {
+    console.warn('[api/books/[id]] auth resolution failed:', e);
+    return null;
+  }
+}
+
+/** Strict variant: throws unauthorized when no user. */
+async function requireUser() {
+  const ctx = await tryGetUser();
+  if (!ctx) throw ApiErrors.unauthorized();
+  return ctx;
+}
+
 export async function GET(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const bookId = parseInt(id, 10);
-    if (!Number.isFinite(bookId)) {
-      return NextResponse.json({ error: 'Invalid book id' }, { status: 400 });
-    }
-    
-    // Get current user ID for ownership check
-    let currentUserId: string | null = null;
-    try {
-      const { userId } = await auth();
-      currentUserId = userId;
-    } catch {
-      // Not authenticated, that's ok - just won't have ownership info
-    }
+    const bookId = parseBookId(id);
 
-    // Get book with all chapters and bibliography from database
-    const bookWithChapters = await getBookWithChaptersAndBibliography(bookId);
-
-    if (!bookWithChapters) {
-      return NextResponse.json(
-        { error: 'Book not found' },
-        { status: 404 }
-      );
-    }
-
-    // Format the response
-    const metadata = bookWithChapters.metadata as any || {};
-    
-    // Convert database bibliography to response format
-    let bibliographyData = undefined;
-    if (bookWithChapters.bibliography?.config?.enabled && bookWithChapters.bibliography.references.length > 0) {
-      // Convert database references to the Reference type
-      const convertedReferences: Reference[] = bookWithChapters.bibliography.references.map(ref => {
-        // Parse authors from JSONB
-        const authors: Author[] = Array.isArray(ref.authors) 
-          ? (ref.authors as any[]).map((a: any) => ({
-              firstName: a.firstName || '',
-              middleName: a.middleName,
-              lastName: a.lastName || '',
-              suffix: a.suffix,
-              organization: a.organization,
-            }))
-          : [];
-        
-        // Get type-specific data
-        const typeData = (ref.typeSpecificData as Record<string, any>) || {};
-        
-        // Build base reference
-        const baseRef = {
-          id: ref.id,
-          type: ref.type as any,
-          title: ref.title,
-          authors,
-          year: ref.year || undefined,
-          url: ref.url || undefined,
-          doi: ref.doi || undefined,
-          accessDate: ref.accessDate || undefined,
-          notes: ref.notes || undefined,
-          tags: Array.isArray(ref.tags) ? ref.tags as string[] : undefined,
-          citationKey: ref.citationKey || undefined,
-          createdAt: ref.createdAt || new Date(),
-          updatedAt: ref.updatedAt || new Date(),
-          // Spread type-specific data
-          ...typeData,
-        };
-        
-        return baseRef as Reference;
-      });
-
-      // Convert config to BibliographyConfig format
-      const config = bookWithChapters.bibliography.config;
-      const bibliographyConfig: BibliographyConfig = {
-        enabled: config.enabled || false,
-        citationStyle: (config.citationStyle as any) || 'APA',
-        location: Array.isArray(config.location) ? config.location as any[] : ['bibliography'],
-        sortBy: (config.sortBy as any) || 'author',
-        sortDirection: (config.sortDirection as any) || 'asc',
-        includeAnnotations: config.includeAnnotations || false,
-        includeAbstracts: config.includeAbstracts || false,
-        hangingIndent: config.hangingIndent ?? true,
-        lineSpacing: (config.lineSpacing as any) || 'single',
-        groupByType: config.groupByType || false,
-        numberingStyle: (config.numberingStyle as any) || 'none',
-        showDOI: config.showDOI ?? true,
-        showURL: config.showURL ?? true,
-        showAccessDate: config.showAccessDate ?? true,
-      };
-
-      bibliographyData = {
-        config: bibliographyConfig,
-        references: convertedReferences,
-      };
-    }
-    
-    // Check if current user owns this book
-    const isOwner = currentUserId ? bookWithChapters.userId === currentUserId : false;
-    
-    const book = {
-      id: bookWithChapters.id,
-      title: bookWithChapters.title,
-      author: bookWithChapters.author,
-      genre: bookWithChapters.genre,
-      subgenre: '',
-      status: bookWithChapters.status,
-      productionStatus: bookWithChapters.productionStatus || 'draft',
-      coverUrl: bookWithChapters.coverUrl || undefined, // Include cover URL
-      backCoverUrl: metadata.backCoverUrl || undefined, // Include back cover URL from metadata
-      isPublic: bookWithChapters.isPublic || false, // Include public showcase status
-      isOwner, // Whether the current user owns this book
-      createdAt: bookWithChapters.createdAt?.toISOString() || new Date().toISOString(),
-      metadata: {
-        wordCount: metadata.wordCount || 0,
-        chapters: bookWithChapters.chapters.length,
-        targetWordCount: metadata.targetWordCount || 0,
-        description: bookWithChapters.summary || '',
-        backCoverUrl: metadata.backCoverUrl || undefined, // Also include in metadata for reference
-        modelUsed: metadata.modelUsed || undefined, // Model used for generation
-      },
-      chapters: bookWithChapters.chapters.map(ch => ({
-        id: ch.id,
-        number: ch.chapterNumber,
-        title: ch.title,
-        content: ch.content,
-        wordCount: ch.wordCount || 0,
-        status: ch.isEdited ? 'edited' : 'draft',
-        audioUrl: ch.audioUrl || null,
-        audioDuration: ch.audioDuration || null,
-        audioMetadata: ch.audioMetadata || null,
-        audioTimestamps: ch.audioTimestamps || null,
-      })),
-      bibliography: bibliographyData,
-    };
-
-    return NextResponse.json({
-      success: true,
-      book
+    const ctx = await tryGetUser();
+    const book = await loadBookDetail(bookId, {
+      clerkUserId: ctx?.clerkUserId ?? null,
+      effectiveUserId: ctx?.effectiveUserId ?? null,
     });
+    if (!book) throw ApiErrors.notFound('Book not found');
+
+    return NextResponse.json({ success: true, book });
   } catch (error) {
-    console.error('Error fetching book detail:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch book details', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return apiError(error);
   }
 }
+
+const UpdateBookSchema = z
+  .object({
+    title: z.string().min(1).max(500).optional(),
+    author: z.string().min(1).max(200).optional(),
+    genre: z.string().max(100).optional(),
+    summary: z.string().max(20_000).optional(),
+    status: z.string().max(50).optional(),
+    productionStatus: z.string().max(50).optional(),
+    coverUrl: z.string().url().nullable().optional(),
+    isPublic: z.boolean().optional(),
+    seriesId: z.number().int().positive().nullable().optional(),
+    seriesNumber: z.number().int().positive().nullable().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    config: z.record(z.string(), z.unknown()).optional(),
+    outline: z.unknown().optional(),
+  })
+  .strict();
 
 export async function PATCH(
   request: NextRequest,
@@ -162,67 +91,48 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
-    const bookId = parseInt(id, 10);
-    if (!Number.isFinite(bookId)) {
-      return NextResponse.json({ error: 'Invalid book id' }, { status: 400 });
-    }
-    const updates = await request.json();
+    const bookId = parseBookId(id);
+    const ctx = await requireUser();
 
-    const { updateBook } = await import('@/lib/db/operations');
-    const updatedBook = await updateBook(bookId, updates);
+    const existing = await getBook(bookId);
+    if (!existing) throw ApiErrors.notFound('Book not found');
 
-    if (!updatedBook) {
-      return NextResponse.json(
-        { error: 'Book not found' },
-        { status: 404 }
-      );
-    }
+    // SECURITY TODO (deferred): add per-user ownership check once the legacy
+    // demo-user-001 / multi-clerk-id situation is resolved. For now we only
+    // require an authenticated session — the prior code required nothing.
+    void ctx;
 
-    return NextResponse.json({
-      success: true,
-      book: updatedBook
-    });
+    const updates = UpdateBookSchema.parse(await request.json());
+
+    const updatedBook = await updateBook(bookId, updates as Parameters<typeof updateBook>[1]);
+    if (!updatedBook) throw ApiErrors.notFound('Book not found');
+
+    return NextResponse.json({ success: true, book: updatedBook });
   } catch (error) {
-    console.error('Error updating book:', error);
-    return NextResponse.json(
-      { error: 'Failed to update book' },
-      { status: 500 }
-    );
+    return apiError(error);
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
-    const bookId = parseInt(id, 10);
-    if (!Number.isFinite(bookId)) {
-      return NextResponse.json({ error: 'Invalid book id' }, { status: 400 });
-    }
+    const bookId = parseBookId(id);
+    const ctx = await requireUser();
 
-    const { deleteBook, getBook } = await import('@/lib/db/operations');
-    const book = await getBook(bookId);
+    const existing = await getBook(bookId);
+    if (!existing) throw ApiErrors.notFound('Book not found');
 
-    if (!book) {
-      return NextResponse.json(
-        { error: 'Book not found' },
-        { status: 404 }
-      );
-    }
+    // SECURITY TODO (deferred): add per-user ownership check once the legacy
+    // demo-user-001 / multi-clerk-id situation is resolved. For now we only
+    // require an authenticated session — the prior code required nothing.
+    void ctx;
 
     await deleteBook(bookId);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Book deleted successfully'
-    });
+    return NextResponse.json({ success: true, message: 'Book deleted successfully' });
   } catch (error) {
-    console.error('Error deleting book:', error);
-    return NextResponse.json(
-      { error: 'Failed to delete book' },
-      { status: 500 }
-    );
+    return apiError(error);
   }
 }

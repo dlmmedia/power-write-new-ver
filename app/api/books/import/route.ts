@@ -5,8 +5,6 @@ import { canGenerateBook } from '@/lib/services/user-service';
 import { countWords } from '@/lib/services/book-parser-service';
 
 // Set max duration for database operations
-export const maxDuration = 30;
-
 interface ImportChapter {
   number: number;
   title: string;

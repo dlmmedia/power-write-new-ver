@@ -1,11 +1,11 @@
 # Nixpacks configuration for Railway deployment
-# Ensures Chromium and FFmpeg dependencies are available for video export
+# Chromium is required by lib/services/pdf-html-service.ts (HTML -> PDF via puppeteer-core).
+# It will be removed once we consolidate PDF generation onto pdfkit (Phase 3B).
 
 [phases.setup]
 nixPkgs = [
   "nodejs_20",
   "chromium",
-  "ffmpeg",
   "libuuid"
 ]
 
@@ -18,17 +18,3 @@ cmds = ["npm run build"]
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
 PUPPETEER_EXECUTABLE_PATH = "/nix/var/nix/profiles/default/bin/chromium"
-FFMPEG_PATH = "/nix/var/nix/profiles/default/bin/ffmpeg"
-
-
-
-
-
-
-
-
-
-
-
-
-

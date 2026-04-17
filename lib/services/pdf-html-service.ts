@@ -28,6 +28,13 @@ import {
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 import { isNovel } from '@/lib/utils/book-type';
 
+interface BookPageEntry {
+  number: number;
+  title: string;
+  content: string;
+  slug?: string | null;
+}
+
 interface BookExport {
   title: string;
   author: string;
@@ -38,6 +45,10 @@ interface BookExport {
     title: string;
     content: string;
   }>;
+  /** Front-matter pages (acknowledgments, introduction, etc.) inserted after the TOC. */
+  frontMatter?: BookPageEntry[];
+  /** Back-matter pages (epilogue, afterword, etc.) inserted after the last chapter. */
+  backMatter?: BookPageEntry[];
   description?: string;
   genre?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1017,16 +1028,25 @@ ${settings.customCSS || ''}
       });
       const tocEntries = Array.from(seen.values());
 
+      const slugifyId = (s: string) =>
+        s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
       html += `
 <div class="fm-toc">
   <h1>Contents</h1>
   <ul class="toc-list">
+    ${(book.frontMatter || []).map(p =>
+      `<li class="toc-item"><a href="#page-front-${slugifyId(p.slug || p.title)}"><span class="toc-title">${this.escapeHtml(p.title)}</span></a></li>`
+    ).join('\n    ')}
     ${tocEntries.map(({ ch, idx }) => {
       const label = cs.showChapterNumber
         ? `<span class="toc-label">${cs.chapterNumberLabel} ${this.formatChapterNumber(ch.number, cs.chapterNumberStyle)}</span>`
         : '';
       return `<li class="toc-item"><a href="#chapter-idx-${idx}">${label}<span class="toc-title">${this.escapeHtml(ch.title)}</span></a></li>`;
     }).join('\n    ')}
+    ${(book.backMatter || []).map(p =>
+      `<li class="toc-item"><a href="#page-back-${slugifyId(p.slug || p.title)}"><span class="toc-title">${this.escapeHtml(p.title)}</span></a></li>`
+    ).join('\n    ')}
     ${book.bibliography?.config?.enabled && book.bibliography.references?.length > 0
       ? `<li class="toc-item" style="margin-top: 0.8em;"><a href="#bibliography-section"><span class="toc-title">Bibliography</span></a></li>`
       : ''}
@@ -1034,7 +1054,33 @@ ${settings.customCSS || ''}
 </div>`;
     }
 
+    // Front-matter pages (acknowledgments, introduction, etc.) — render after the TOC
+    // and before the main content.
+    if (book.frontMatter && book.frontMatter.length > 0) {
+      html += this.renderExtraPages(book.frontMatter, 'page-front');
+    }
+
     return html;
+  }
+
+  private static renderExtraPages(
+    pages: BookPageEntry[],
+    idPrefix: 'page-front' | 'page-back',
+  ): string {
+    const slugifyId = (s: string) =>
+      s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return pages.map(page => {
+      const id = `${idPrefix}-${slugifyId(page.slug || page.title)}`;
+      const paragraphs = (page.content || '').split(/\n\n+/).filter(p => p.trim());
+      const body = paragraphs.map(p => `<p>${this.escapeHtml(p.trim())}</p>`).join('\n  ');
+      return `
+<article class="chapter ${idPrefix}" id="${id}">
+  <header class="chapter-header"><h1 class="chapter-title">${this.escapeHtml(page.title)}</h1></header>
+  <div class="chapter-text">
+  ${body}
+  </div>
+</article>`;
+    }).join('\n');
   }
 
   private static generateMainContent(book: BookExport, settings: PublishingSettings): string {
@@ -1098,6 +1144,12 @@ ${settings.customCSS || ''}
   private static generateBackMatter(book: BookExport, settings: PublishingSettings): string {
     const bm = settings.backMatter;
     let html = '';
+
+    // Author-defined back-matter pages (epilogue, afterword, etc.) — render BEFORE
+    // the bibliography so they read as part of the narrative wrap-up.
+    if (book.backMatter && book.backMatter.length > 0) {
+      html += this.renderExtraPages(book.backMatter, 'page-back');
+    }
 
     if (bm.bibliography && book.bibliography?.config?.enabled && book.bibliography.references?.length > 0) {
       const refs = book.bibliography.references;

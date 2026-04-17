@@ -208,8 +208,12 @@ export const TableOfContents: React.FC<ExtendedTableOfContentsProps> = ({
                         >
                           {isCompleted ? (
                             <Check className="w-4 h-4" />
-                          ) : (
+                          ) : (chapter.chapterType ?? 'chapter') === 'chapter' ? (
                             chapter.number
+                          ) : (
+                            <span className="text-[10px] uppercase tracking-wide">
+                              {chapter.chapterType === 'front_matter' ? 'F' : 'B'}
+                            </span>
                           )}
                         </div>
 

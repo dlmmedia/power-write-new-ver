@@ -6,6 +6,10 @@
  * where transient network issues are common.
  */
 
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('db.connection');
+
 // Error types that are considered transient and worth retrying
 const TRANSIENT_ERROR_CODES = [
   'ECONNRESET',
@@ -167,20 +171,29 @@ export async function withRetry<T>(
       const isRetryable = isTransientError(error);
       
       if (isLastAttempt || !isRetryable) {
-        // Log the final error
-        console.error(`[DB] ${operationName} failed after ${attempt + 1} attempt(s):`, {
-          error: error instanceof Error ? error.message : String(error),
-          isTransient: isRetryable,
-          attempts: attempt + 1,
-        });
+        log.error(
+          {
+            err: error,
+            operation: operationName,
+            attempts: attempt + 1,
+            isTransient: isRetryable,
+          },
+          'operation failed (no more retries)',
+        );
         throw error;
       }
-      
-      // Calculate delay and retry
+
       const delay = calculateDelay(attempt, config);
-      console.warn(`[DB] ${operationName} failed (attempt ${attempt + 1}/${config.maxRetries + 1}), retrying in ${Math.round(delay)}ms:`, {
-        error: error instanceof Error ? error.message : String(error),
-      });
+      log.warn(
+        {
+          err: error,
+          operation: operationName,
+          attempt: attempt + 1,
+          maxAttempts: config.maxRetries + 1,
+          retryInMs: Math.round(delay),
+        },
+        'operation failed, retrying',
+      );
       
       await sleep(delay);
     }
@@ -283,7 +296,7 @@ export async function withRobustConnection<T>(
   if (checkHealthFirst) {
     const health = await checkDatabaseHealth(db);
     if (!health.healthy) {
-      console.warn(`[DB] Database unhealthy before ${operationName}, but proceeding anyway:`, health.error);
+      log.warn({ operation: operationName, healthError: health.error }, 'database unhealthy before operation, proceeding anyway');
     }
   }
 

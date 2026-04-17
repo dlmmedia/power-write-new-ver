@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { put, list, del } from '@vercel/blob';
 import type { GeminiVoiceId } from '@/lib/services/tts-service';
 
-export const maxDuration = 60; // 60 seconds for preview generation (Gemini may take longer)
-
 // OpenAI TTS voices with their preview texts (9 supported voices)
 const OPENAI_VOICE_PREVIEWS: Record<string, string> = {
   alloy: "Hello, I'm Morgan Blake. I bring clarity and precision to every word, making complex topics accessible and engaging for all listeners.",

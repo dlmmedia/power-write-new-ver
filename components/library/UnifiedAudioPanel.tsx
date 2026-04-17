@@ -28,6 +28,8 @@ interface Chapter {
   audioUrl?: string | null;
   audioDuration?: number | null;
   audioMetadata?: any;
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 interface AudioPreferences {
@@ -423,10 +425,16 @@ export function UnifiedAudioPanel({
                   )}
                 </div>
                 
-                {/* Chapter Info */}
+                {/* Chapter / Page Info */}
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-500 dark:text-gray-400">Ch {chapter.number}</span>
+                    {(chapter.chapterType ?? 'chapter') === 'chapter' ? (
+                      <span className="text-xs text-gray-500 dark:text-gray-400">Ch {chapter.number}</span>
+                    ) : (
+                      <span className="text-[10px] uppercase tracking-wide font-semibold text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/40 px-1.5 py-0.5 rounded">
+                        {chapter.chapterType === 'front_matter' ? 'Front' : 'Back'}
+                      </span>
+                    )}
                     <span className="font-medium text-gray-900 dark:text-white truncate">{chapter.title}</span>
                   </div>
                   {hasAudio && chapter.audioDuration && (

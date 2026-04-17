@@ -1,49 +1,53 @@
-import { db } from '../lib/db';
-import { generatedBooks, cachedBooks } from '../lib/db/schema';
-import { desc } from 'drizzle-orm';
+/**
+ * Quick sanity check: count books in the DB and show top 5, mirroring the
+ * SELECT used by the /api/books route.
+ */
+import { neon, neonConfig } from '@neondatabase/serverless';
 
-async function checkBooks() {
-  console.log('=== GENERATED BOOKS ===');
-  const genBooks = await db
-    .select({
-      id: generatedBooks.id,
-      title: generatedBooks.title,
-      author: generatedBooks.author,
-      genre: generatedBooks.genre,
-      status: generatedBooks.status,
-      productionStatus: generatedBooks.productionStatus,
-      userId: generatedBooks.userId,
-      createdAt: generatedBooks.createdAt,
-    })
-    .from(generatedBooks)
-    .orderBy(desc(generatedBooks.createdAt));
+neonConfig.fetchConnectionCache = true;
+neonConfig.poolQueryViaFetch = true;
+neonConfig.fetchEndpoint = (host) => {
+  const protocol = host.includes('localhost') ? 'http' : 'https';
+  return `${protocol}://${host}/sql`;
+};
 
-  console.log(`Total generated books: ${genBooks.length}`);
-  for (const book of genBooks) {
-    console.log(`  [${book.id}] "${book.title}" by ${book.author} | status=${book.status} | production=${book.productionStatus} | genre=${book.genre} | created=${book.createdAt}`);
+const connectionString =
+  process.env.DATABASE_URL_UNPOOLED ||
+  process.env.POSTGRES_URL_NON_POOLING ||
+  process.env.DATABASE_URL;
+
+if (!connectionString) {
+  console.error('DATABASE_URL not set');
+  process.exit(1);
+}
+
+const sql = neon(connectionString);
+
+async function main(): Promise<void> {
+  const totalRows = await sql.query('SELECT COUNT(*)::int AS n FROM generated_books');
+  const total = totalRows[0]?.n ?? 0;
+  console.log(`Total books in DB: ${total}`);
+
+  const sample = await sql.query(
+    'SELECT id, user_id, title, author, status, series_id, created_at FROM generated_books ORDER BY created_at DESC LIMIT 5'
+  );
+  console.log('\nMost recent 5 books:');
+  for (const row of sample) {
+    console.log(
+      `  #${row.id}  user=${row.user_id?.substring(0, 16)}…  status=${row.status}  series=${row.series_id ?? '-'}  ${row.title}`
+    );
   }
 
-  console.log('\n=== CACHED BOOKS ===');
-  const cached = await db
-    .select({
-      id: cachedBooks.id,
-      externalId: cachedBooks.externalId,
-      source: cachedBooks.source,
-      title: cachedBooks.title,
-      authors: cachedBooks.authors,
-      categories: cachedBooks.categories,
-    })
-    .from(cachedBooks);
-
-  console.log(`Total cached books: ${cached.length}`);
-  for (const book of cached) {
-    console.log(`  [${book.id}] "${book.title}" by ${JSON.stringify(book.authors)} | source=${book.source} | extId=${book.externalId} | categories=${JSON.stringify(book.categories)}`);
+  const usersRows = await sql.query(
+    'SELECT user_id, COUNT(*)::int AS n FROM generated_books GROUP BY user_id ORDER BY n DESC LIMIT 10'
+  );
+  console.log('\nBooks per user:');
+  for (const row of usersRows) {
+    console.log(`  ${row.user_id}: ${row.n}`);
   }
 }
 
-checkBooks()
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('Error:', err);
-    process.exit(1);
-  });
+main().catch((err) => {
+  console.error('Failed:', err);
+  process.exit(1);
+});

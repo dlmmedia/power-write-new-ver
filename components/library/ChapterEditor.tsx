@@ -12,6 +12,8 @@ interface Chapter {
   content: string;
   wordCount: number;
   status: 'draft' | 'completed';
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 interface ChapterEditorProps {

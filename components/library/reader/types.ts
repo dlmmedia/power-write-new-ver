@@ -74,6 +74,8 @@ export interface Chapter {
   audioUrl?: string | null;
   audioDuration?: number | null;
   audioTimestamps?: AudioTimestamp[] | null;
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 export interface BookData {

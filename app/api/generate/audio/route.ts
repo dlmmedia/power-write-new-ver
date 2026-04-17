@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ttsService, TTSProvider, VoiceId } from '@/lib/services/tts-service';
 import { ensureDemoUser, getBookWithChapters, getChapterByBookAndNumber, updateChapterAudio } from '@/lib/db/operations';
 
-export const maxDuration = 600; // 10 minutes for audio generation - Railway supports up to 15 min
-
 export async function POST(request: NextRequest) {
   console.log('[Audio API] Request received');
   try {
@@ -189,9 +187,16 @@ export async function POST(request: NextRequest) {
 
     // Generate full audiobook
     // Note: This will overwrite any existing full audiobook file with the same filename
+    // Front-matter (acknowledgments, intro, etc.) and back-matter pages are read with
+    // their title only; main chapters keep the "Chapter N: Title" prefix.
     const fullText = book.chapters
       .sort((a, b) => a.chapterNumber - b.chapterNumber)
-      .map(ch => `Chapter ${ch.chapterNumber}: ${ch.title}\n\n${ch.content}`)
+      .map(ch => {
+        const isMainChapter = (ch.chapterType ?? 'chapter') === 'chapter';
+        return isMainChapter
+          ? `Chapter ${ch.chapterNumber}: ${ch.title}\n\n${ch.content}`
+          : `${ch.title}\n\n${ch.content}`;
+      })
       .join('\n\n---\n\n');
 
     const audioResult = await ttsService.generateAudiobook(

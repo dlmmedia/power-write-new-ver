@@ -16,7 +16,7 @@ import {
   VisualStylePreset,
   ColorPalette,
 } from '@/lib/types/cover';
-import { CoverService } from '@/lib/services/cover-service';
+import { CoverService, resolvePalette } from '@/lib/services/cover-service';
 import { IMAGE_MODELS, DEFAULT_IMAGE_MODEL } from '@/lib/types/models';
 import { getDemoUserId } from '@/lib/services/demo-account';
 import CoverGallery from './CoverGallery';
@@ -696,20 +696,29 @@ export default function CoverGenerator({
       ? (textCustomization.customAuthor || 'PowerWrite')
       : (textCustomization.customAuthor || author || '');
 
+  // Resolve the chosen palette so the SVG previews reflect the actual
+  // colorScheme / customColors selected in the Visuals tab instead of a
+  // hardcoded dark theme.
+  const previewPalette = resolvePalette(
+    visualOptions.colorScheme,
+    visualOptions.customColors as any
+  );
+
   const previewDataUrl = CoverService.generatePreviewDataURL(
     textCustomization.customTitle || title || 'Book Title',
     displayAuthorForPreview,
-    '#1a1a1a',
-    '#ffffff',
+    previewPalette.background || previewPalette.primary,
+    previewPalette.text,
     showPowerWriteBranding,
-    hideAuthorName
+    hideAuthorName,
+    previewPalette.accent
   );
 
   const backCoverPreviewDataUrl = CoverService.generateBackCoverPreviewDataURL(
     title || 'Book Title',
     backCoverOptions.customDescription || description || 'Your book description will appear here...',
-    '#1a1a1a',
-    '#ffffff',
+    previewPalette.background || previewPalette.primary,
+    previewPalette.text,
     {
       showPowerWriteBranding,
       hideAuthorName,
@@ -717,6 +726,7 @@ export default function CoverGenerator({
       showWebsite: backCoverOptions.showWebsite,
       showTagline: backCoverOptions.showTagline,
       author: hideAuthorName ? '' : (textCustomization.customAuthor || author),
+      accentColor: previewPalette.accent,
     }
   );
 

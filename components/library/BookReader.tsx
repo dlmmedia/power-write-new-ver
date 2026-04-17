@@ -40,6 +40,8 @@ interface Chapter {
   audioUrl?: string | null;
   audioDuration?: number | null;
   audioMetadata?: any;
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 interface BibliographyData {

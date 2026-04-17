@@ -17,6 +17,8 @@ export interface BookListItem {
   config?: any;
   isOwner?: boolean;
   isPublic?: boolean;
+  seriesId?: number | null;
+  seriesNumber?: number | null;
   metadata: {
     wordCount: number;
     chapters: number;
@@ -42,6 +44,8 @@ export interface BookDetail extends BookListItem {
     audioUrl?: string | null;
     audioDuration?: number | null;
     audioMetadata?: any;
+    chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+    slug?: string | null;
   }>;
   bibliography?: any;
 }
@@ -71,6 +75,8 @@ interface BooksContextActions {
   getBookDetailFromCache: (bookId: number) => BookDetail | null;
   updateBookInCache: (bookId: number, updates: Partial<BookListItem>) => void;
   updateBookDetailInCache: (bookId: number, updates: Partial<BookDetail>) => void;
+  /** Insert/replace a full book detail entry — used for server hydration. */
+  seedBookDetail: (bookId: number, book: BookDetail) => void;
   invalidateBookDetail: (bookId: number) => void;
   addBookToList: (book: BookListItem) => void;
   
@@ -90,23 +96,49 @@ const BOOK_DETAIL_CACHE_DURATION = 5 * 60 * 1000;
 
 interface BooksProviderProps {
   children: ReactNode;
+  /**
+   * Server-rendered books to hydrate with. When provided the provider:
+   *   - starts with these books in state (no loading flicker)
+   *   - records the hydration timestamp as the initial `lastFetched`
+   *   - skips its own auto-fetch on mount (the server already did it)
+   * A background SWR revalidation still kicks in after BOOKS_CACHE_DURATION.
+   *
+   * Pass `[]` (empty array) only if you really want to hydrate-empty;
+   * leaving this `undefined` preserves the legacy client-fetch behavior.
+   */
+  initialBooks?: BookListItem[];
+  /** Server-resolved tier to seed userTier with. */
+  initialTier?: 'free' | 'pro' | null;
 }
 
-export function BooksProvider({ children }: BooksProviderProps) {
+export function BooksProvider({
+  children,
+  initialBooks,
+  initialTier,
+}: BooksProviderProps) {
   const { user, isLoaded: isUserLoaded } = useUser();
-  
-  // State
-  const [books, setBooks] = useState<BookListItem[]>([]);
+
+  const isHydrated = initialBooks !== undefined;
+
+  const [books, setBooks] = useState<BookListItem[]>(initialBooks ?? []);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastFetched, setLastFetched] = useState<number | null>(null);
-  const [userTier, setUserTier] = useState<'free' | 'pro' | null>(null);
+  // If hydrated, treat the SSR moment as the most recent fetch so the
+  // background revalidation timer kicks off from the correct baseline.
+  const [lastFetched, setLastFetched] = useState<number | null>(
+    isHydrated ? Date.now() : null,
+  );
+  const [userTier, setUserTier] = useState<'free' | 'pro' | null>(
+    initialTier ?? null,
+  );
   const [bookDetailsCache, setBookDetailsCache] = useState<Map<number, { book: BookDetail; fetchedAt: number }>>(new Map());
-  
+
   // Refs to track fetch state and prevent duplicates
   const isFetchingRef = useRef(false);
   const fetchPromiseRef = useRef<Promise<void> | null>(null);
-  const hasFetchedOnceRef = useRef(false);
+  // When hydrated we already have data — pretend we've fetched once so the
+  // mount effect doesn't kick off a duplicate load.
+  const hasFetchedOnceRef = useRef(isHydrated);
   const lastUserIdRef = useRef<string | null>(null);
   const prefetchingBookIds = useRef<Set<number>>(new Set());
   const pendingBookFetches = useRef<Map<number, Promise<BookDetail | null>>>(new Map());
@@ -334,6 +366,17 @@ export function BooksProvider({ children }: BooksProviderProps) {
     ));
   }, []);
   
+  // Insert/replace a full book detail entry. Unlike updateBookDetailInCache
+  // (which is a no-op when the entry doesn't exist), this always seeds the
+  // cache. Used by RSC pages that pass server-fetched data into the client.
+  const seedBookDetail = useCallback((bookId: number, book: BookDetail) => {
+    setBookDetailsCache(prev => {
+      const newCache = new Map(prev);
+      newCache.set(bookId, { book, fetchedAt: Date.now() });
+      return newCache;
+    });
+  }, []);
+
   // Update book detail in cache
   const updateBookDetailInCache = useCallback((bookId: number, updates: Partial<BookDetail>) => {
     setBookDetailsCache(prev => {
@@ -378,21 +421,29 @@ export function BooksProvider({ children }: BooksProviderProps) {
     await fetchBooks(true);
   }, [fetchBooks]);
   
-  // Auto-fetch on mount and user change
+  // Auto-fetch on mount and user change.
+  //
+  // When hydrated from the server we already have correct data for the
+  // current user, so we record `lastUserIdRef` without firing a fetch on
+  // first mount. A subsequent user switch still triggers a refetch (and a
+  // logout still clears).
   useEffect(() => {
     if (!isUserLoaded) return;
-    
+
     const currentUserId = user?.id || null;
-    
-    // If user changed, clear cache and refetch
+
     if (lastUserIdRef.current !== currentUserId) {
+      const isFirstMount = lastUserIdRef.current === null;
       lastUserIdRef.current = currentUserId;
-      
+
       if (currentUserId) {
-        // User logged in - fetch books
+        // Skip the duplicate fetch when the server already hydrated us for
+        // this user. Background SWR will still kick in via fetchBooks().
+        if (isFirstMount && isHydrated) {
+          return;
+        }
         fetchBooks(true);
       } else {
-        // User logged out - clear data
         setBooks([]);
         setBookDetailsCache(new Map());
         setLastFetched(null);
@@ -401,12 +452,11 @@ export function BooksProvider({ children }: BooksProviderProps) {
       }
       return;
     }
-    
-    // If user is logged in and we haven't fetched yet, fetch
+
     if (user && !hasFetchedOnceRef.current && !isFetchingRef.current) {
       fetchBooks();
     }
-  }, [isUserLoaded, user, fetchBooks]);
+  }, [isUserLoaded, user, fetchBooks, isHydrated]);
   
   const value: BooksContextType = {
     // State
@@ -425,6 +475,7 @@ export function BooksProvider({ children }: BooksProviderProps) {
     getBookDetailFromCache,
     updateBookInCache,
     updateBookDetailInCache,
+    seedBookDetail,
     invalidateBookDetail,
     addBookToList,
     refreshBooks,

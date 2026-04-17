@@ -12,6 +12,44 @@ import {
   COLOR_PALETTES,
 } from '../types/cover';
 
+/**
+ * Resolve a colorScheme name + optional customColors into an explicit set of
+ * hex values. Diffusion models follow concrete hex codes far more reliably
+ * than vague descriptions like "warm" or "moody", so the enhanced prompt now
+ * always emits the resolved hex tuple alongside the descriptive name.
+ */
+type ResolvedPalette = {
+  primary: string;
+  secondary: string;
+  accent: string;
+  text: string;
+  background?: string;
+};
+
+const PALETTE_PRESETS: Record<string, ResolvedPalette> = {
+  warm: { primary: '#a64b2a', secondary: '#d99058', accent: '#f5c45e', text: '#fff5e6', background: '#3a1f15' },
+  cool: { primary: '#1a3a52', secondary: '#5b8aa6', accent: '#7fcdff', text: '#e8f4ff', background: '#0a1a2a' },
+  monochrome: { primary: '#1a1a1a', secondary: '#5a5a5a', accent: '#d4d4d4', text: '#ffffff', background: '#0a0a0a' },
+  vibrant: { primary: '#ff3d6e', secondary: '#3d8bff', accent: '#ffd93d', text: '#ffffff', background: '#1a0d1a' },
+  pastel: { primary: '#f5d0c5', secondary: '#c5e0d5', accent: '#e8c5e0', text: '#4a3f4a', background: '#fdf8f5' },
+  dark: { primary: '#0a0a14', secondary: '#1f1f2e', accent: '#8a3d6e', text: '#e8e8f0', background: '#000000' },
+  complementary: { primary: '#1a3a8a', secondary: '#8a5a1a', accent: '#f5d04a', text: '#ffffff', background: '#0a1530' },
+  analogous: { primary: '#2a5a8a', secondary: '#3d7aa6', accent: '#5a9fc4', text: '#f0f8ff', background: '#0a1a2e' },
+};
+
+function resolvePalette(
+  scheme: string | undefined,
+  customColors?: ResolvedPalette
+): ResolvedPalette {
+  if (scheme === 'custom' && customColors) {
+    return customColors;
+  }
+  return PALETTE_PRESETS[scheme || 'monochrome'] || PALETTE_PRESETS.monochrome;
+}
+
+export { resolvePalette, PALETTE_PRESETS };
+export type { ResolvedPalette };
+
 export class CoverService {
   /**
    * Generate ENHANCED AI prompt for professional FRONT book cover
@@ -141,7 +179,28 @@ export class CoverService {
     const chosenLayout = layoutOptions?.layout || 'classic';
     const chosenAtmosphere = visualOptions?.atmosphere || 'dramatic';
 
-    let prompt = `Design a publication-ready front book cover for a ${genre} novel. `;
+    // ===== STRICT TEXT RULES — placed at the TOP of the prompt =====
+    // Diffusion models weight the first sentences heavily. Putting branding
+    // and author rules here gives them dramatically higher compliance than
+    // burying them inside paragraph 4.
+    const strictRules: string[] = [];
+    if (hideAuthorName) {
+      strictRules.push(
+        'CRITICAL TEXT RULE: This cover MUST NOT contain any author name, byline, "by ..." text, signature, or person credit anywhere — front, spine, or background.'
+      );
+    }
+    if (!showPowerWriteBranding) {
+      strictRules.push(
+        'CRITICAL TEXT RULE: This cover MUST NOT contain the word "PowerWrite", any PowerWrite logo, watermark, or branding of any kind.'
+      );
+    }
+
+    let prompt = '';
+    if (strictRules.length > 0) {
+      prompt += strictRules.join(' ') + '\n\n';
+    }
+
+    prompt += `Design a publication-ready front book cover for a ${genre} novel. `;
 
     // Scene and visual description (narrative, not bullet points)
     prompt += `The cover uses ${styleNarrative[chosenStyle] || genreInfo.visual}. `;
@@ -156,16 +215,23 @@ export class CoverService {
       prompt += `The background depicts ${visualOptions.backgroundDescription}. `;
     }
 
-    // Atmosphere and lighting
-    prompt += `The overall atmosphere is ${chosenAtmosphere} and ${mood || genreInfo.lighting}. `;
+    // Atmosphere, mood and lighting (now always surfaces user-supplied values)
+    const atmosphereClause = `The overall atmosphere is ${chosenAtmosphere}`;
+    const moodClause = visualOptions?.mood
+      ? ` with a distinctly ${visualOptions.mood} mood`
+      : '';
+    const lightingClause = mood ? `, ${mood}` : `, ${genreInfo.lighting}`;
+    prompt += `${atmosphereClause}${moodClause}${lightingClause}. `;
 
-    // Color palette
-    if (visualOptions?.colorScheme === 'custom' && visualOptions?.customColors) {
-      const c = visualOptions.customColors;
-      prompt += `The color palette centers on ${c.primary} as the primary tone, ${c.secondary} as secondary, with ${c.accent} accents and ${c.text} text${c.background ? ` against a ${c.background} background` : ''}. `;
-    } else {
-      prompt += `The color palette uses ${colorNarrative[chosenColor] || 'balanced genre-appropriate colors'}. `;
-    }
+    // ===== Color palette: ALWAYS emit explicit hex values =====
+    // Models comply with concrete hex codes far better than abstract names like
+    // "warm" or "moody". We resolve every scheme (including custom) to a real
+    // palette and inject the hex tuple alongside the descriptive name.
+    const resolved = resolvePalette(chosenColor, visualOptions?.customColors);
+    const paletteNarrativePart = chosenColor === 'custom'
+      ? 'a bespoke custom palette'
+      : (colorNarrative[chosenColor] || 'balanced genre-appropriate colors');
+    prompt += `The color palette uses ${paletteNarrativePart}, anchored on these EXACT hex values: primary ${resolved.primary}, secondary ${resolved.secondary}, accent ${resolved.accent}, text ${resolved.text}${resolved.background ? `, background ${resolved.background}` : ''}. Use these specific colors throughout the composition. `;
 
     // Layout
     prompt += `The composition follows ${layoutNarrative[chosenLayout] || 'a balanced professional layout'}. `;
@@ -242,9 +308,25 @@ export class CoverService {
       prompt += `\n\nAdditional design direction: ${customPrompt}`;
     }
 
-    // Technical requirements (concise)
-    prompt += `\n\nTechnical specifications: portrait orientation at 2:3 aspect ratio, print-ready resolution, all text rendered with crystal-clear legibility and strong contrast against the background. Each text element appears exactly once with a clear visual hierarchy—title largest, author mid-size, publisher smallest. The finished cover should be indistinguishable from a bestselling book at a major retailer.`;
-    
+    // ===== Closing rules and technical specs =====
+    // Re-state branding/author rules at the END as well. Diffusion models
+    // weight both the start and the end of long prompts, so repeating the
+    // critical rules in both positions improves compliance significantly.
+    if (hideAuthorName) {
+      prompt += `\n\nFinal reminder: NO author name, NO byline, NO "by ..." text — the cover has zero person credits.`;
+    }
+    if (!showPowerWriteBranding) {
+      prompt += `\n\nFinal reminder: NO "PowerWrite" text, NO PowerWrite logo, NO PowerWrite watermark anywhere on this cover.`;
+    }
+
+    // Build a hierarchy description that reflects actually-present text.
+    const hierarchyParts = ['title largest'];
+    if (displayAuthor) hierarchyParts.push('author mid-size');
+    hierarchyParts.push('publisher smallest');
+    const hierarchy = hierarchyParts.join(', ');
+
+    prompt += `\n\nTechnical specifications: portrait orientation at 2:3 aspect ratio, print-ready resolution, all text rendered with crystal-clear legibility and strong contrast against the background. Each text element appears exactly once with a clear visual hierarchy—${hierarchy}. The finished cover should be indistinguishable from a bestselling book at a major retailer.`;
+
     return prompt;
   }
 
@@ -696,7 +778,12 @@ Generate a complete, professional back cover design.`;
 
   /**
    * Generate simplified FRONT cover data URL for client-side preview
-   * This is used when a full server-side render is not available
+   * This is used when a full server-side render is not available.
+   *
+   * Callers should pass the resolved palette (use `resolvePalette` from this
+   * module) so the preview reflects the chosen colorScheme / customColors
+   * instead of a hardcoded dark theme. `accentColor` falls back to a
+   * brightness-aware default if not supplied.
    */
   static generatePreviewDataURL(
     title: string,
@@ -704,9 +791,10 @@ Generate a complete, professional back cover design.`;
     backgroundColor: string = '#2C2C2C',
     textColor: string = '#FFFFFF',
     showPowerWriteBranding: boolean = true,
-    hideAuthorName: boolean = false
+    hideAuthorName: boolean = false,
+    accentColor?: string
   ): string {
-    const accentColor = textColor === '#FFFFFF' ? '#FFD700' : '#4A4A4A';
+    const resolvedAccent = accentColor || (textColor === '#FFFFFF' ? '#FFD700' : '#4A4A4A');
     
     const authorLine = hideAuthorName
       ? ''
@@ -723,13 +811,13 @@ Generate a complete, professional back cover design.`;
           </linearGradient>
         </defs>
         <rect width="400" height="600" fill="url(#bgGrad)"/>
-        <line x1="100" y1="160" x2="300" y2="160" stroke="${accentColor}" stroke-width="2" opacity="0.6"/>
+        <line x1="100" y1="160" x2="300" y2="160" stroke="${resolvedAccent}" stroke-width="2" opacity="0.6"/>
         <text x="200" y="220" text-anchor="middle" fill="${textColor}" font-size="28" font-family="Georgia, serif" font-weight="bold">
           ${title.substring(0, 18)}
         </text>
         ${title.length > 18 ? `<text x="200" y="255" text-anchor="middle" fill="${textColor}" font-size="28" font-family="Georgia, serif" font-weight="bold">${title.substring(18, 36)}</text>` : ''}
-        <line x1="100" y1="290" x2="300" y2="290" stroke="${accentColor}" stroke-width="2" opacity="0.6"/>
-        ${authorLine ? `<text x="200" y="340" text-anchor="middle" fill="${accentColor}" font-size="14" font-family="Arial, sans-serif" font-style="italic">${authorLine}</text>` : ''}
+        <line x1="100" y1="290" x2="300" y2="290" stroke="${resolvedAccent}" stroke-width="2" opacity="0.6"/>
+        ${authorLine ? `<text x="200" y="340" text-anchor="middle" fill="${resolvedAccent}" font-size="14" font-family="Arial, sans-serif" font-style="italic">${authorLine}</text>` : ''}
         <text x="200" y="560" text-anchor="middle" fill="${textColor}" font-size="11" font-family="Arial, sans-serif" letter-spacing="2" opacity="0.7">
           DLM MEDIA
         </text>
@@ -738,7 +826,9 @@ Generate a complete, professional back cover design.`;
   }
 
   /**
-   * Generate simplified BACK cover data URL for client-side preview
+   * Generate simplified BACK cover data URL for client-side preview.
+   * Pass `accentColor` (e.g. from `resolvePalette`) so the preview matches
+   * the chosen palette instead of the brightness-based fallback.
    */
   static generateBackCoverPreviewDataURL(
     title: string,
@@ -752,9 +842,10 @@ Generate a complete, professional back cover design.`;
       showWebsite?: boolean;
       showTagline?: boolean;
       author?: string;
+      accentColor?: string;
     }
   ): string {
-    const accentColor = textColor === '#FFFFFF' ? '#FFD700' : '#4A4A4A';
+    const accentColor = options?.accentColor || (textColor === '#FFFFFF' ? '#FFD700' : '#4A4A4A');
     const shortDesc = description.substring(0, 150) + (description.length > 150 ? '...' : '');
     
     const showPowerWriteBranding = options?.showPowerWriteBranding !== false;

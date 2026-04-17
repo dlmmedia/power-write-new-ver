@@ -47,6 +47,14 @@ import {
 import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 import { isNovel } from '@/lib/utils/book-type';
 
+export interface BookPageEntry {
+  number: number;
+  title: string;
+  content: string;
+  /** Slug like "acknowledgments", "introduction", etc. (front/back matter only). */
+  slug?: string | null;
+}
+
 interface BookExport {
   title: string;
   author: string;
@@ -57,6 +65,10 @@ interface BookExport {
     title: string;
     content: string;
   }>;
+  /** Front-matter pages (acknowledgments, introduction, synopsis, etc.) */
+  frontMatter?: BookPageEntry[];
+  /** Back-matter pages (epilogue, afterword, etc.) */
+  backMatter?: BookPageEntry[];
   description?: string;
   genre?: string;
   bibliography?: {
@@ -527,6 +539,56 @@ export class ExportServiceAdvanced {
     );
 
     // --- TABLE OF CONTENTS ---
+    let tocPageCounter = 0;
+
+    const tocFrontMatterEntries = (book.frontMatter || []).map(page => {
+      tocPageCounter += 1;
+      return new Paragraph({
+        children: [
+          new TextRun({ text: (page.slug || 'PAGE').toUpperCase().replace(/_/g, ' '), font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
+          new TextRun({ text: '    ', font: FONTS.toc }),
+          new TextRun({ text: page.title, font: FONTS.heading, size: 24, italics: true, color: COLORS.primary }),
+          new TextRun({ text: '  ', font: FONTS.toc }),
+          new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
+          new TextRun({ text: `${tocPageCounter}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
+        ],
+        spacing: { after: 240 },
+        indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
+      });
+    });
+
+    const tocChapterEntries = book.chapters.map(chapter => {
+      tocPageCounter += 1;
+      return new Paragraph({
+        children: [
+          new TextRun({ text: `CHAPTER ${chapter.number}`, font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
+          new TextRun({ text: '    ', font: FONTS.toc }),
+          new TextRun({ text: chapter.title, font: FONTS.heading, size: 24, italics: true, color: COLORS.primary }),
+          new TextRun({ text: '  ', font: FONTS.toc }),
+          new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
+          new TextRun({ text: `${tocPageCounter}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
+        ],
+        spacing: { after: 240 },
+        indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
+      });
+    });
+
+    const tocBackMatterEntries = (book.backMatter || []).map(page => {
+      tocPageCounter += 1;
+      return new Paragraph({
+        children: [
+          new TextRun({ text: (page.slug || 'PAGE').toUpperCase().replace(/_/g, ' '), font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
+          new TextRun({ text: '    ', font: FONTS.toc }),
+          new TextRun({ text: page.title, font: FONTS.heading, size: 24, italics: true, color: COLORS.primary }),
+          new TextRun({ text: '  ', font: FONTS.toc }),
+          new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
+          new TextRun({ text: `${tocPageCounter}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
+        ],
+        spacing: { after: 240 },
+        indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
+      });
+    });
+
     frontMatterChildren.push(
       new Paragraph({ text: '', spacing: { before: 600 } }),
       new Paragraph({
@@ -543,34 +605,48 @@ export class ExportServiceAdvanced {
         alignment: AlignmentType.CENTER,
         spacing: { after: 600 },
       }),
-      // TOC entries
-      ...book.chapters.map((chapter, index) => 
-        new Paragraph({
-          children: [
-            new TextRun({ text: `CHAPTER ${chapter.number}`, font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
-            new TextRun({ text: '    ', font: FONTS.toc }),
-            new TextRun({ text: chapter.title, font: FONTS.heading, size: 24, italics: true, color: COLORS.primary }),
-            new TextRun({ text: '  ', font: FONTS.toc }),
-            new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
-            new TextRun({ text: `${index + 1}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
-          ],
-          spacing: { after: 240 },
-          indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
-        })
-      ),
+      ...tocFrontMatterEntries,
+      ...tocChapterEntries,
+      ...tocBackMatterEntries,
       ...(book.bibliography?.config.enabled && book.bibliography.references.length > 0 ? [
         new Paragraph({
           children: [
             new TextRun({ text: 'BIBLIOGRAPHY', font: FONTS.label, size: SIZES.small, color: COLORS.muted }),
             new TextRun({ text: '  ', font: FONTS.toc }),
             new TextRun({ text: '. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ', font: FONTS.toc, size: 18, color: COLORS.divider }),
-            new TextRun({ text: `${book.chapters.length + 1}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
+            new TextRun({ text: `${tocPageCounter + 1}`, font: FONTS.label, size: 24, bold: true, color: COLORS.primary }),
           ],
           spacing: { before: 200, after: 240 },
           indent: { left: convertInchesToTwip(0.3), right: convertInchesToTwip(0.3) },
         }),
       ] : [])
     );
+
+    // --- FRONT MATTER PAGES (after TOC, before Chapter 1) ---
+    (book.frontMatter || []).forEach(page => {
+      const paragraphs = (page.content || '').split('\n\n').filter(p => p.trim());
+      frontMatterChildren.push(
+        new Paragraph({ children: [new PageBreak()] }),
+        new Paragraph({ text: '', spacing: { before: 400 } }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: page.title.toUpperCase(), font: FONTS.heading, size: 40, bold: true, color: COLORS.primary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        ...paragraphs.map(p =>
+          new Paragraph({
+            children: [
+              new TextRun({ text: p.trim(), font: FONTS.body, size: SIZES.body, color: COLORS.primary }),
+            ],
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { after: 240, line: 320 },
+            indent: { firstLine: convertInchesToTwip(0.3) },
+          })
+        ),
+      );
+    });
 
     // Front matter section configuration - uses publishing settings margins
     const frontMatterSection = {
@@ -775,6 +851,32 @@ export class ExportServiceAdvanced {
       // End of chapter spacing
       mainContentChildren.push(
         new Paragraph({ text: '', spacing: { after: 600 } })
+      );
+    });
+
+    // --- BACK MATTER PAGES (after final chapter, before bibliography) ---
+    (book.backMatter || []).forEach(page => {
+      const paragraphs = (page.content || '').split('\n\n').filter(p => p.trim());
+      mainContentChildren.push(
+        new Paragraph({ children: [new PageBreak()] }),
+        new Paragraph({ text: '', spacing: { before: 400 } }),
+        new Paragraph({
+          children: [
+            new TextRun({ text: page.title.toUpperCase(), font: FONTS.heading, size: 40, bold: true, color: COLORS.primary }),
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { after: 400 },
+        }),
+        ...paragraphs.map(p =>
+          new Paragraph({
+            children: [
+              new TextRun({ text: p.trim(), font: FONTS.body, size: SIZES.body, color: COLORS.primary }),
+            ],
+            alignment: AlignmentType.JUSTIFIED,
+            spacing: { after: 240, line: 320 },
+            indent: { firstLine: convertInchesToTwip(0.3) },
+          })
+        ),
       );
     });
 
@@ -1696,7 +1798,27 @@ export class ExportServiceAdvanced {
         beforeToc: true,
       });
 
-      // 3. Book Chapters - using publishing settings
+      // 3. Front matter pages (acknowledgments, introduction, etc.)
+      const renderPageHtml = (page: BookPageEntry, idPrefix: string): string => {
+        const paragraphs = (page.content || '').split('\n\n').filter(p => p.trim());
+        const slugId = (page.slug || page.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        let html = `<div class="chapter-start" id="${idPrefix}-${slugId}">`;
+        html += `<h1 class="chapter-title">${this.escapeHtml(page.title)}</h1>`;
+        for (const para of paragraphs) {
+          html += `<p>${this.escapeHtml(para.trim())}</p>`;
+        }
+        html += '</div>';
+        return html;
+      };
+
+      for (const page of (book.frontMatter || [])) {
+        epubChapters.push({
+          title: page.title,
+          content: renderPageHtml(page, 'page-front'),
+        });
+      }
+
+      // 4. Book Chapters - using publishing settings
       const sceneBreakSymbol = getSceneBreakSymbol(settings);
       
       for (const chapter of book.chapters) {
@@ -1763,7 +1885,15 @@ export class ExportServiceAdvanced {
         });
       }
 
-      // 5. Bibliography (if enabled)
+      // 5. Back matter pages (epilogue, afterword, etc.)
+      for (const page of (book.backMatter || [])) {
+        epubChapters.push({
+          title: page.title,
+          content: renderPageHtml(page, 'page-back'),
+        });
+      }
+
+      // 6. Bibliography (if enabled)
       if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
         const { config, references } = book.bibliography;
         

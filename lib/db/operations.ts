@@ -5,6 +5,9 @@ import {
   QUICK_RETRY_CONFIG,
   EXTENDED_RETRY_CONFIG,
 } from './index';
+import { createLogger } from '@/lib/log';
+
+const log = createLogger('db.operations');
 import {
   generatedBooks,
   bookChapters,
@@ -13,26 +16,26 @@ import {
   bibliographyReferences,
   bibliographyConfigs,
   citations,
-  videoExportJobs,
   savedOutlines,
+  bookSeries,
   InsertGeneratedBook,
   InsertBookChapter,
   InsertReferenceBook,
   InsertBibliographyReference,
   InsertBibliographyConfig,
   InsertCitation,
-  InsertVideoExportJob,
   InsertSavedOutline,
+  InsertBookSeries,
   GeneratedBook,
   BookChapter,
   ReferenceBook,
   BibliographyReference,
   BibliographyConfigDB,
   Citation,
-  VideoExportJob,
   SavedOutline,
+  BookSeries,
 } from './schema';
-import { eq, and, desc, like, inArray, sql, lt } from 'drizzle-orm';
+import { eq, and, desc, asc, like, inArray, sql, lt } from 'drizzle-orm';
 
 // ============ USER OPERATIONS ============
 
@@ -116,7 +119,7 @@ export async function resetStuckBooks(maxAgeMinutes: number = 30): Promise<numbe
       )
       .returning({ id: generatedBooks.id });
     if (result.length > 0) {
-      console.log(`[Cleanup] Reset ${result.length} stuck books to failed: ${result.map(r => r.id).join(', ')}`);
+      log.info({ resetCount: result.length, ids: result.map((r) => r.id) }, 'reset stuck books to failed');
     }
     return result.length;
   }, DEFAULT_RETRY_CONFIG, 'resetStuckBooks');
@@ -146,20 +149,18 @@ export async function getUserBooksWithStats(userId: string) {
       .orderBy(desc(generatedBooks.createdAt));
     
     if (books.length === 0) return [];
-    
-    // Step 2: Get all chapters for these books in ONE query
+
     const bookIds = books.map(b => b.id);
     const allChapters = await db
       .select({
         bookId: bookChapters.bookId,
         wordCount: bookChapters.wordCount,
         audioUrl: bookChapters.audioUrl,
-        audioTimestamps: bookChapters.audioTimestamps,
+        audioDuration: bookChapters.audioDuration,
       })
       .from(bookChapters)
       .where(inArray(bookChapters.bookId, bookIds));
-    
-    // Step 3: Aggregate stats per book
+
     const chapterStats = new Map<number, { count: number; words: number; audioCount: number; totalDuration: number }>();
     for (const ch of allChapters) {
       const existing = chapterStats.get(ch.bookId) || { count: 0, words: 0, audioCount: 0, totalDuration: 0 };
@@ -167,8 +168,7 @@ export async function getUserBooksWithStats(userId: string) {
       existing.words += ch.wordCount || 0;
       if (ch.audioUrl) {
         existing.audioCount++;
-        const timestamps = ch.audioTimestamps as any;
-        if (timestamps?.duration) existing.totalDuration += timestamps.duration;
+        existing.totalDuration += ch.audioDuration || 0;
       }
       chapterStats.set(ch.bookId, existing);
     }
@@ -188,6 +188,67 @@ export async function getUserBooksWithStats(userId: string) {
       };
     });
   }, DEFAULT_RETRY_CONFIG, 'getUserBooksWithStats');
+}
+
+/**
+ * Pro-tier mirror of getUserBooksWithStats: every book in the system, joined
+ * with chapter counts + audio stats in two queries (books + chapters in
+ * parallel inside the function).
+ */
+export async function getAllBooksWithStats() {
+  return withRetry(async () => {
+    const books = await db
+      .select()
+      .from(generatedBooks)
+      .orderBy(desc(generatedBooks.createdAt));
+
+    if (books.length === 0) return [];
+
+    const bookIds = books.map((b) => b.id);
+    const allChapters = await db
+      .select({
+        bookId: bookChapters.bookId,
+        wordCount: bookChapters.wordCount,
+        audioUrl: bookChapters.audioUrl,
+        audioDuration: bookChapters.audioDuration,
+      })
+      .from(bookChapters)
+      .where(inArray(bookChapters.bookId, bookIds));
+
+    const chapterStats = new Map<
+      number,
+      { count: number; words: number; audioCount: number; totalDuration: number }
+    >();
+    for (const ch of allChapters) {
+      const existing =
+        chapterStats.get(ch.bookId) ||
+        { count: 0, words: 0, audioCount: 0, totalDuration: 0 };
+      existing.count++;
+      existing.words += ch.wordCount || 0;
+      if (ch.audioUrl) {
+        existing.audioCount++;
+        existing.totalDuration += ch.audioDuration || 0;
+      }
+      chapterStats.set(ch.bookId, existing);
+    }
+
+    return books.map((book) => {
+      const stats = chapterStats.get(book.id);
+      return {
+        ...book,
+        _chapterCount: stats?.count || 0,
+        _wordCount: stats?.words || 0,
+        _audioStats:
+          stats && stats.audioCount > 0
+            ? {
+                chaptersWithAudio: stats.audioCount,
+                totalChapters: stats.count,
+                totalDuration: stats.totalDuration,
+              }
+            : null,
+      };
+    });
+  }, DEFAULT_RETRY_CONFIG, 'getAllBooksWithStats');
 }
 
 export async function searchBooks(
@@ -554,7 +615,7 @@ export async function getBibliographyConfig(bookId: number): Promise<Bibliograph
   } catch (error: any) {
     // Handle case where table doesn't exist (code 42P01)
     if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
-      console.warn('Bibliography configs table does not exist, skipping');
+      log.warn('bibliography_configs table does not exist, skipping');
       return null;
     }
     throw error;
@@ -601,7 +662,7 @@ export async function getBibliographyReferences(bookId: number): Promise<Bibliog
   } catch (error: any) {
     // Handle case where table doesn't exist (code 42P01)
     if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
-      console.warn('Bibliography references table does not exist, skipping');
+      log.warn('bibliography_references table does not exist, skipping');
       return [];
     }
     throw error;
@@ -645,7 +706,7 @@ export async function getBookCitations(bookId: number): Promise<Citation[]> {
   } catch (error: any) {
     // Handle case where table doesn't exist (code 42P01)
     if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
-      console.warn('Citations table does not exist, skipping');
+      log.warn('citations table does not exist, skipping');
       return [];
     }
     throw error;
@@ -662,7 +723,7 @@ export async function getChapterCitations(chapterId: number): Promise<Citation[]
   } catch (error: any) {
     // Handle case where table doesn't exist (code 42P01)
     if (error?.cause?.code === '42P01' || error?.message?.includes('does not exist')) {
-      console.warn('Citations table does not exist, skipping');
+      log.warn('citations table does not exist, skipping');
       return [];
     }
     throw error;
@@ -784,92 +845,6 @@ export async function getPublicBookWithChapters(bookId: number | string) {
   };
 }
 
-// ============ VIDEO EXPORT JOB OPERATIONS ============
-
-export async function createVideoExportJob(data: InsertVideoExportJob): Promise<VideoExportJob> {
-  return withRetry(async () => {
-    const [job] = await db.insert(videoExportJobs).values(data).returning();
-    return job;
-  }, EXTENDED_RETRY_CONFIG, 'createVideoExportJob');
-}
-
-export async function getVideoExportJob(id: number): Promise<VideoExportJob | null> {
-  return withRetry(async () => {
-    const [job] = await db
-      .select()
-      .from(videoExportJobs)
-      .where(eq(videoExportJobs.id, id))
-      .limit(1);
-    return job || null;
-  }, DEFAULT_RETRY_CONFIG, 'getVideoExportJob');
-}
-
-export async function updateVideoExportJob(
-  id: number,
-  data: Partial<Omit<VideoExportJob, 'id' | 'createdAt'>>
-): Promise<VideoExportJob | null> {
-  return withRetry(async () => {
-    const [job] = await db
-      .update(videoExportJobs)
-      .set(data)
-      .where(eq(videoExportJobs.id, id))
-      .returning();
-    return job || null;
-  }, EXTENDED_RETRY_CONFIG, 'updateVideoExportJob');
-}
-
-export async function getVideoExportJobsByBook(bookId: number): Promise<VideoExportJob[]> {
-  return withRetry(async () => {
-    return await db
-      .select()
-      .from(videoExportJobs)
-      .where(eq(videoExportJobs.bookId, bookId))
-      .orderBy(desc(videoExportJobs.createdAt));
-  }, DEFAULT_RETRY_CONFIG, 'getVideoExportJobsByBook');
-}
-
-export async function getVideoExportJobsByUser(userId: string): Promise<VideoExportJob[]> {
-  return withRetry(async () => {
-    return await db
-      .select()
-      .from(videoExportJobs)
-      .where(eq(videoExportJobs.userId, userId))
-      .orderBy(desc(videoExportJobs.createdAt));
-  }, DEFAULT_RETRY_CONFIG, 'getVideoExportJobsByUser');
-}
-
-export async function getPendingVideoExportJobs(): Promise<VideoExportJob[]> {
-  return withRetry(async () => {
-    return await db
-      .select()
-      .from(videoExportJobs)
-      .where(
-        inArray(videoExportJobs.status, ['pending', 'rendering', 'stitching'])
-      )
-      .orderBy(videoExportJobs.createdAt);
-  }, DEFAULT_RETRY_CONFIG, 'getPendingVideoExportJobs');
-}
-
-export async function cancelVideoExportJob(id: number): Promise<VideoExportJob | null> {
-  return withRetry(async () => {
-    const [job] = await db
-      .update(videoExportJobs)
-      .set({
-        status: 'cancelled',
-        completedAt: new Date(),
-      })
-      .where(eq(videoExportJobs.id, id))
-      .returning();
-    return job || null;
-  }, DEFAULT_RETRY_CONFIG, 'cancelVideoExportJob');
-}
-
-export async function deleteVideoExportJob(id: number): Promise<void> {
-  return withRetry(async () => {
-    await db.delete(videoExportJobs).where(eq(videoExportJobs.id, id));
-  }, DEFAULT_RETRY_CONFIG, 'deleteVideoExportJob');
-}
-
 // ============ SAVED OUTLINE OPERATIONS ============
 
 export async function saveOutline(data: InsertSavedOutline): Promise<SavedOutline> {
@@ -926,4 +901,157 @@ export async function linkOutlineToBook(outlineId: number, bookId: number): Prom
       .returning();
     return outline || null;
   }, DEFAULT_RETRY_CONFIG, 'linkOutlineToBook');
+}
+
+// ============ BOOK SERIES OPERATIONS ============
+
+export async function createSeries(data: InsertBookSeries): Promise<BookSeries> {
+  return withRetry(async () => {
+    const [series] = await db.insert(bookSeries).values(data).returning();
+    return series;
+  }, DEFAULT_RETRY_CONFIG, 'createSeries');
+}
+
+export async function getSeriesById(id: number): Promise<BookSeries | null> {
+  return withRetry(async () => {
+    const [series] = await db
+      .select()
+      .from(bookSeries)
+      .where(eq(bookSeries.id, id))
+      .limit(1);
+    return series || null;
+  }, QUICK_RETRY_CONFIG, 'getSeriesById');
+}
+
+/** List all series for a user with the number of books in each. */
+export async function getUserSeries(
+  userId: string
+): Promise<Array<BookSeries & { bookCount: number }>> {
+  return withRetry(async () => {
+    const rows = await db
+      .select({
+        series: bookSeries,
+        bookCount: sql<number>`count(${generatedBooks.id})::int`.as('book_count'),
+      })
+      .from(bookSeries)
+      .leftJoin(generatedBooks, eq(generatedBooks.seriesId, bookSeries.id))
+      .where(eq(bookSeries.userId, userId))
+      .groupBy(bookSeries.id)
+      .orderBy(desc(bookSeries.updatedAt));
+
+    return rows.map((r) => ({ ...r.series, bookCount: Number(r.bookCount) || 0 }));
+  }, DEFAULT_RETRY_CONFIG, 'getUserSeries');
+}
+
+/** Get a series with its books ordered by series_number. */
+export async function getSeriesWithBooks(
+  seriesId: number
+): Promise<{ series: BookSeries; books: GeneratedBook[] } | null> {
+  return withRetry(async () => {
+    const series = await getSeriesById(seriesId);
+    if (!series) return null;
+
+    const books = await db
+      .select()
+      .from(generatedBooks)
+      .where(eq(generatedBooks.seriesId, seriesId))
+      .orderBy(
+        // NULL series_number sorts last; otherwise ascending by number, then createdAt
+        sql`${generatedBooks.seriesNumber} IS NULL`,
+        asc(generatedBooks.seriesNumber),
+        asc(generatedBooks.createdAt),
+      );
+
+    return { series, books };
+  }, DEFAULT_RETRY_CONFIG, 'getSeriesWithBooks');
+}
+
+export async function updateSeries(
+  id: number,
+  data: Partial<InsertBookSeries>
+): Promise<BookSeries | null> {
+  return withRetry(async () => {
+    const [series] = await db
+      .update(bookSeries)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(bookSeries.id, id))
+      .returning();
+    return series || null;
+  }, DEFAULT_RETRY_CONFIG, 'updateSeries');
+}
+
+export async function deleteSeries(id: number): Promise<void> {
+  return withRetry(async () => {
+    // Books are detached automatically (ON DELETE SET NULL).
+    await db.delete(bookSeries).where(eq(bookSeries.id, id));
+  }, DEFAULT_RETRY_CONFIG, 'deleteSeries');
+}
+
+/**
+ * Compute the next available series_number for a series
+ * (current max + 1, starting at 1 if empty).
+ */
+export async function nextSeriesNumber(seriesId: number): Promise<number> {
+  return withRetry(async () => {
+    const [row] = await db
+      .select({
+        maxNum: sql<number | null>`MAX(${generatedBooks.seriesNumber})`,
+      })
+      .from(generatedBooks)
+      .where(eq(generatedBooks.seriesId, seriesId));
+    const max = row?.maxNum ?? 0;
+    return (max || 0) + 1;
+  }, QUICK_RETRY_CONFIG, 'nextSeriesNumber');
+}
+
+/**
+ * Attach a book to a series. If `seriesNumber` is omitted, the next
+ * available number is used.
+ */
+export async function attachBookToSeries(
+  bookId: number,
+  seriesId: number,
+  seriesNumber?: number
+): Promise<GeneratedBook | null> {
+  return withRetry(async () => {
+    const number = seriesNumber ?? (await nextSeriesNumber(seriesId));
+    const [book] = await db
+      .update(generatedBooks)
+      .set({ seriesId, seriesNumber: number, updatedAt: new Date() })
+      .where(eq(generatedBooks.id, bookId))
+      .returning();
+    return book || null;
+  }, DEFAULT_RETRY_CONFIG, 'attachBookToSeries');
+}
+
+export async function detachBookFromSeries(bookId: number): Promise<GeneratedBook | null> {
+  return withRetry(async () => {
+    const [book] = await db
+      .update(generatedBooks)
+      .set({ seriesId: null, seriesNumber: null, updatedAt: new Date() })
+      .where(eq(generatedBooks.id, bookId))
+      .returning();
+    return book || null;
+  }, DEFAULT_RETRY_CONFIG, 'detachBookFromSeries');
+}
+
+/** Get books in a series excluding `excludeBookId` (for prompt context). */
+export async function getSiblingBooksInSeries(
+  seriesId: number,
+  excludeBookId?: number
+): Promise<GeneratedBook[]> {
+  return withRetry(async () => {
+    const conditions = excludeBookId
+      ? and(eq(generatedBooks.seriesId, seriesId), sql`${generatedBooks.id} <> ${excludeBookId}`)
+      : eq(generatedBooks.seriesId, seriesId);
+    return await db
+      .select()
+      .from(generatedBooks)
+      .where(conditions)
+      .orderBy(
+        sql`${generatedBooks.seriesNumber} IS NULL`,
+        asc(generatedBooks.seriesNumber),
+        asc(generatedBooks.createdAt),
+      );
+  }, QUICK_RETRY_CONFIG, 'getSiblingBooksInSeries');
 }

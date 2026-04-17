@@ -41,10 +41,32 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Book series table - groups multiple books that share style/world/themes
+export const bookSeries = pgTable("book_series", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  description: text("description"),
+  coverUrl: text("cover_url"),
+  // Shared "series bible" — defaults inherited by every book (see lib/types/series.ts SeriesSharedConfig)
+  sharedConfig: jsonb("shared_config"),
+  // Dot-path keys that cannot be overridden per-book (see LOCKABLE_SERIES_FIELDS)
+  lockedFields: jsonb("locked_fields").default([]),
+  status: varchar("status").default("ongoing"), // ongoing, completed, hiatus
+  isPublic: boolean("is_public").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("book_series_user_id_idx").on(table.userId),
+]);
+
 // Generated books table
 export const generatedBooks = pgTable("generated_books", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Optional series link — books inherit shared config from this series.
+  seriesId: integer("series_id").references(() => bookSeries.id, { onDelete: "set null" }),
+  seriesNumber: integer("series_number"),
   title: text("title").notNull(),
   author: text("author"),
   genre: text("genre"),
@@ -69,7 +91,16 @@ export const generatedBooks = pgTable("generated_books", {
   generationStartedAt: timestamp("generation_started_at"), // tracks when generation began for stuck-book detection
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("generated_books_series_id_idx").on(table.seriesId),
+  // Library list filters by user_id and orders by created_at DESC; the
+  // composite covers both the WHERE and the ORDER BY in one index lookup.
+  index("generated_books_user_id_idx").on(table.userId),
+  index("generated_books_user_id_created_at_idx").on(
+    table.userId,
+    table.createdAt.desc(),
+  ),
+]);
 
 // Book chapters table for individual chapter editing
 export const bookChapters = pgTable("book_chapters", {
@@ -81,6 +112,10 @@ export const bookChapters = pgTable("book_chapters", {
   wordCount: integer("word_count").default(0),
   isEdited: boolean("is_edited").default(false),
   modelUsed: varchar("model_used"),
+  // Type of "chapter" record: chapter | front_matter | back_matter
+  // front_matter slugs use negative chapter_number for ordering, back_matter use 1000+
+  chapterType: varchar("chapter_type").default("chapter").notNull(),
+  slug: varchar("slug"), // e.g. acknowledgments, introduction, synopsis, dedication, foreword, prologue, epilogue, afterword
   // Audio fields
   audioUrl: text("audio_url"),
   audioDuration: integer("audio_duration"), // Duration in seconds
@@ -157,7 +192,9 @@ export const bibliographyReferences = pgTable("bibliography_references", {
   citationKey: varchar("citation_key"), // For BibTeX-style citations
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("bibliography_references_book_id_idx").on(table.bookId),
+]);
 
 // In-text citations table
 export const citations = pgTable("citations", {
@@ -173,7 +210,11 @@ export const citations = pgTable("citations", {
   suffix: text("suffix"), // Additional context
   suppressAuthor: boolean("suppress_author").default(false),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("citations_reference_id_idx").on(table.referenceId),
+  index("citations_book_id_idx").on(table.bookId),
+  index("citations_chapter_id_idx").on(table.chapterId),
+]);
 
 // Cover gallery table - stores all generated covers for a book
 export const coverGallery = pgTable("cover_gallery", {
@@ -190,7 +231,9 @@ export const coverGallery = pgTable("cover_gallery", {
   fileName: varchar("file_name"), // Original filename if uploaded
   fileSize: integer("file_size"), // File size in bytes
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("cover_gallery_book_id_idx").on(table.bookId),
+]);
 
 // Bibliography configuration table
 export const bibliographyConfigs = pgTable("bibliography_configs", {
@@ -220,12 +263,25 @@ export const usersRelations = relations(users, ({ many }) => ({
   bookSearches: many(bookSearches),
   referenceBooks: many(referenceBooks),
   savedOutlines: many(savedOutlines),
+  bookSeries: many(bookSeries),
+}));
+
+export const bookSeriesRelations = relations(bookSeries, ({ one, many }) => ({
+  user: one(users, {
+    fields: [bookSeries.userId],
+    references: [users.id],
+  }),
+  books: many(generatedBooks),
 }));
 
 export const generatedBooksRelations = relations(generatedBooks, ({ one, many }) => ({
   user: one(users, {
     fields: [generatedBooks.userId],
     references: [users.id],
+  }),
+  series: one(bookSeries, {
+    fields: [generatedBooks.seriesId],
+    references: [bookSeries.id],
   }),
   chapters: many(bookChapters),
   bibliographyReferences: many(bibliographyReferences),
@@ -236,7 +292,6 @@ export const generatedBooksRelations = relations(generatedBooks, ({ one, many })
   }),
   coverGallery: many(coverGallery),
   chapterImages: many(chapterImages),
-  videoExportJobs: many(videoExportJobs),
 }));
 
 export const bookChaptersRelations = relations(bookChapters, ({ one, many }) => ({
@@ -315,7 +370,10 @@ export const chapterImages = pgTable("chapter_images", {
   metadata: jsonb("metadata"), // width, height, style, format, generationModel, etc.
   source: varchar("source").default("generated"), // generated, uploaded
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("chapter_images_book_id_idx").on(table.bookId),
+  index("chapter_images_chapter_id_idx").on(table.chapterId),
+]);
 
 export const chapterImagesRelations = relations(chapterImages, ({ one }) => ({
   book: one(generatedBooks, {
@@ -338,7 +396,10 @@ export const savedOutlines = pgTable("saved_outlines", {
   bookId: integer("book_id").references(() => generatedBooks.id, { onDelete: "set null" }), // Link to generated book if any
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("saved_outlines_user_id_idx").on(table.userId),
+  index("saved_outlines_book_id_idx").on(table.bookId),
+]);
 
 export const savedOutlinesRelations = relations(savedOutlines, ({ one }) => ({
   user: one(users, {
@@ -351,47 +412,9 @@ export const savedOutlinesRelations = relations(savedOutlines, ({ one }) => ({
   }),
 }));
 
-// Video export jobs table - tracks video generation progress
-export const videoExportJobs = pgTable("video_export_jobs", {
-  id: serial("id").primaryKey(),
-  bookId: integer("book_id").notNull().references(() => generatedBooks.id, { onDelete: "cascade" }),
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  status: varchar("status").notNull().default("pending"), // pending, rendering, stitching, complete, failed, cancelled
-  scope: varchar("scope").notNull().default("full"), // chapter, full
-  chapterNumber: integer("chapter_number"), // Only set if scope is 'chapter'
-  theme: varchar("theme").default("day"), // day, night, sepia, focus
-  // Progress tracking
-  currentPhase: varchar("current_phase").default("initializing"), // initializing, rendering_frames, stitching, uploading, complete
-  currentChapter: integer("current_chapter").default(0),
-  totalChapters: integer("total_chapters").default(0),
-  currentFrame: integer("current_frame").default(0),
-  totalFrames: integer("total_frames").default(0),
-  progress: integer("progress").default(0), // 0-100 percentage
-  // Output
-  outputUrl: text("output_url"), // Final video URL in Vercel Blob
-  outputSize: integer("output_size"), // File size in bytes
-  outputDuration: integer("output_duration"), // Video duration in seconds
-  // Frame storage
-  framesManifest: jsonb("frames_manifest"), // Array of frame URLs and timing info
-  // Error handling
-  error: text("error"),
-  retryCount: integer("retry_count").default(0),
-  // Timestamps
-  createdAt: timestamp("created_at").defaultNow(),
-  startedAt: timestamp("started_at"),
-  completedAt: timestamp("completed_at"),
-});
-
-export const videoExportJobsRelations = relations(videoExportJobs, ({ one }) => ({
-  book: one(generatedBooks, {
-    fields: [videoExportJobs.bookId],
-    references: [generatedBooks.id],
-  }),
-  user: one(users, {
-    fields: [videoExportJobs.userId],
-    references: [users.id],
-  }),
-}));
+// NOTE: video_export_jobs table is deliberately not declared here. The video
+// export feature was removed; the underlying table remains in production for
+// safety and will be dropped in a future migration window.
 
 // Insert and select types
 export type UpsertUser = typeof users.$inferInsert;
@@ -479,11 +502,47 @@ export const insertSavedOutlineSchema = createInsertSchema(savedOutlines).omit({
 export type InsertSavedOutline = z.infer<typeof insertSavedOutlineSchema>;
 export type SavedOutline = typeof savedOutlines.$inferSelect;
 
-export const insertVideoExportJobSchema = createInsertSchema(videoExportJobs).omit({
+export const insertBookSeriesSchema = createInsertSchema(bookSeries).omit({
   id: true,
   createdAt: true,
-  startedAt: true,
+  updatedAt: true,
+});
+export type InsertBookSeries = z.infer<typeof insertBookSeriesSchema>;
+export type BookSeries = typeof bookSeries.$inferSelect;
+
+// Book exports — tracks asynchronous PDF/EPUB exports created via the
+// queue subsystem. Synchronous formats (TXT/MD/HTML/DOCX) bypass this
+// table and stream straight from the API route.
+export const bookExports = pgTable("book_exports", {
+  id: serial("id").primaryKey(),
+  bookId: integer("book_id")
+    .notNull()
+    .references(() => generatedBooks.id, { onDelete: "cascade" }),
+  userId: varchar("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  format: varchar("format").notNull(), // 'pdf' | 'epub'
+  status: varchar("status").notNull().default("pending"), // pending | active | completed | failed
+  jobId: varchar("job_id"), // BullMQ job id (string)
+  fileUrl: text("file_url"), // Vercel Blob URL once ready
+  fileSize: integer("file_size"), // bytes
+  layoutType: varchar("layout_type"), // PDF only — snapshot of layout used
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => [
+  index("book_exports_book_id_created_at_idx").on(
+    table.bookId,
+    table.createdAt.desc(),
+  ),
+  index("book_exports_user_id_status_idx").on(table.userId, table.status),
+]);
+
+export const insertBookExportSchema = createInsertSchema(bookExports).omit({
+  id: true,
+  createdAt: true,
   completedAt: true,
 });
-export type InsertVideoExportJob = z.infer<typeof insertVideoExportJobSchema>;
-export type VideoExportJob = typeof videoExportJobs.$inferSelect;
+export type InsertBookExport = z.infer<typeof insertBookExportSchema>;
+export type BookExportRecord = typeof bookExports.$inferSelect;

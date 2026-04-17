@@ -6,14 +6,19 @@ import {
   createMultipleChapters, 
   getBook,
   getBookChapters,
-  updateBook
+  updateBook,
+  getSeriesById,
+  nextSeriesNumber,
+  getSiblingBooksInSeries,
 } from '@/lib/db/operations';
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
 import { canGenerateBook } from '@/lib/services/user-service';
+import { enforceSeriesLocks } from '@/lib/utils/apply-series-defaults';
+import { buildSeriesContextBlock } from '@/lib/utils/series-context';
+import type { LockableSeriesField } from '@/lib/types/series';
 
-export const maxDuration = 900; // 15 minutes
 export const dynamic = 'force-dynamic';
 
 // Speed model mapping - only used as fallback when no model explicitly selected
@@ -42,6 +47,8 @@ interface StreamGenerationRequest {
   generationSpeed?: GenerationSpeed;
   useParallel?: boolean;
   bookId?: number;
+  seriesId?: number | null;
+  seriesNumber?: number | null;
 }
 
 // Helper to create SSE message
@@ -87,8 +94,29 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { outline, config, modelId, generationSpeed, useParallel = true, bookId } = body;
+  const { outline, config: rawConfig, modelId, generationSpeed, useParallel = true, bookId, seriesId, seriesNumber } = body;
   const userId = clerkUserId;
+  let config = rawConfig;
+
+  // Resolve series + enforce locked fields server-side (only on initial creation).
+  let resolvedSeriesId: number | null = null;
+  let resolvedSeriesNumber: number | null = null;
+  if (!bookId && seriesId && rawConfig) {
+    const series = await getSeriesById(seriesId);
+    if (series && series.userId === userId) {
+      resolvedSeriesId = series.id;
+      const lockedFields = (Array.isArray(series.lockedFields)
+        ? (series.lockedFields as unknown[]).filter((f) => typeof f === 'string')
+        : []) as LockableSeriesField[];
+      if (series.sharedConfig) {
+        config = enforceSeriesLocks(rawConfig, series.sharedConfig as any, lockedFields);
+      }
+      resolvedSeriesNumber =
+        seriesNumber && Number.isFinite(seriesNumber) && seriesNumber > 0
+          ? seriesNumber
+          : await nextSeriesNumber(series.id);
+    }
+  }
 
   if (!outline || !config) {
     return new Response(
@@ -205,6 +233,8 @@ export async function POST(request: NextRequest) {
             } as any,
             status: 'generating',
             generationStartedAt: new Date(),
+            seriesId: resolvedSeriesId,
+            seriesNumber: resolvedSeriesNumber,
           });
           currentBookId = book.id;
           streamBookId = book.id;
@@ -216,6 +246,25 @@ export async function POST(request: NextRequest) {
           })));
         } else {
           streamBookId = bookId;
+        }
+
+        // Build series context (if this book is part of a series).
+        let seriesContextBlock: string | undefined;
+        try {
+          const bookForSeries = await getBook(currentBookId);
+          if (bookForSeries?.seriesId) {
+            const series = await getSeriesById(bookForSeries.seriesId);
+            if (series && series.userId === userId) {
+              const priorBooks = await getSiblingBooksInSeries(bookForSeries.seriesId, currentBookId);
+              seriesContextBlock = buildSeriesContextBlock({
+                series,
+                thisBookNumber: bookForSeries.seriesNumber,
+                priorBooks,
+              });
+            }
+          }
+        } catch (e) {
+          console.error('[Stream] Failed to build series context:', e);
         }
 
         // Get existing chapters
@@ -307,7 +356,8 @@ export async function POST(request: NextRequest) {
                     wordCount: chapter.wordCount,
                     message: `Chapter ${chapterNum} generated`,
                   })));
-                }
+                },
+                seriesContextBlock
               );
 
               generatedChapters = batchResults.map(ch => ({
@@ -327,14 +377,14 @@ export async function POST(request: NextRequest) {
               // Fall back to sequential
               generatedChapters = await generateSequentialBatch(
                 aiService, outline, batchChapterNumbers, previousContext,
-                chapterModel, bibliographyConfig, safeEnqueue, encoder
+                chapterModel, bibliographyConfig, safeEnqueue, encoder, seriesContextBlock
               );
             }
           } else {
             // Sequential generation
             generatedChapters = await generateSequentialBatch(
               aiService, outline, batchChapterNumbers, previousContext,
-              chapterModel, bibliographyConfig, safeEnqueue, encoder
+              chapterModel, bibliographyConfig, safeEnqueue, encoder, seriesContextBlock
             );
           }
 
@@ -526,7 +576,8 @@ async function generateSequentialBatch(
   chapterModel: string,
   bibliographyConfig: BibliographyGenerationConfig | undefined,
   safeEnqueue: (data: Uint8Array) => boolean,
-  encoder: TextEncoder
+  encoder: TextEncoder,
+  seriesContext?: string
 ): Promise<Array<{ title: string; content: string; wordCount: number; chapterNumber: number }>> {
   const generatedChapters: Array<{
     title: string;
@@ -544,7 +595,8 @@ async function generateSequentialBatch(
         chapterNum,
         context,
         chapterModel,
-        bibliographyConfig
+        bibliographyConfig,
+        seriesContext
       );
 
       const sanitizedContent = sanitizeChapter(chapter.content);

@@ -8,14 +8,18 @@ import {
   createBibliographyReference,
   getBook,
   getBookChapters,
-  updateBook
+  updateBook,
+  getSeriesById,
+  nextSeriesNumber,
+  getSiblingBooksInSeries,
 } from '@/lib/db/operations';
 import { BookOutline } from '@/lib/types/generation';
 import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
 import { canGenerateBook } from '@/lib/services/user-service';
-
-export const maxDuration = 900; // 15 minutes - Railway supports up to 15 min timeout
+import { enforceSeriesLocks } from '@/lib/utils/apply-series-defaults';
+import { buildSeriesContextBlock } from '@/lib/utils/series-context';
+import type { LockableSeriesField } from '@/lib/types/series';
 
 // Number of chapters to generate per request
 // Railway has 15-minute timeout, so we can process multiple chapters at once
@@ -40,6 +44,9 @@ interface GenerationRequest {
   // For continuation
   bookId?: number;
   startChapter?: number;
+  // Optional series link
+  seriesId?: number | null;
+  seriesNumber?: number | null;
 }
 
 interface GenerationResponse {
@@ -74,7 +81,8 @@ async function generateSequentially(
   chapterModel: string,
   bibliographyConfig: BibliographyGenerationConfig | undefined,
   totalChapters: number,
-  existingChapters: Array<{ chapterNumber: number; title: string; content: string | null }>
+  existingChapters: Array<{ chapterNumber: number; title: string; content: string | null }>,
+  seriesContext?: string
 ): Promise<Array<{ title: string; content: string; wordCount: number; chapterNumber: number }>> {
   const generatedChapters: Array<{ title: string; content: string; wordCount: number; chapterNumber: number }> = [];
   let previousChapters = initialContext;
@@ -83,7 +91,7 @@ async function generateSequentially(
     console.log(`[Sequential] Generating chapter ${chapterNum}/${totalChapters}${bibliographyConfig ? ' (with citations)' : ''}`);
     
     try {
-      const chapter = await aiService.generateChapter(outline, chapterNum, previousChapters, chapterModel, bibliographyConfig);
+      const chapter = await aiService.generateChapter(outline, chapterNum, previousChapters, chapterModel, bibliographyConfig, seriesContext);
       
       const sanitizedContent = sanitizeChapter(chapter.content);
       const wordCount = countWords(sanitizedContent);
@@ -142,8 +150,29 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
     }
 
     const body = await request.json();
-    const { outline, config, modelId, bookId, startChapter, generationSpeed, useParallel = true } = body as GenerationRequest;
+    const { outline, config: rawConfig, modelId, bookId, startChapter, generationSpeed, useParallel = true, seriesId, seriesNumber } = body as GenerationRequest;
     parsedBookId = bookId;
+    let config = rawConfig;
+
+    // If a series is specified, look it up, verify ownership, and enforce locked fields server-side.
+    let resolvedSeriesId: number | null = null;
+    let resolvedSeriesNumber: number | null = null;
+    if (!bookId && seriesId) {
+      const series = await getSeriesById(seriesId);
+      if (series && series.userId === clerkUserId) {
+        resolvedSeriesId = series.id;
+        const lockedFields = (Array.isArray(series.lockedFields)
+          ? (series.lockedFields as unknown[]).filter((f) => typeof f === 'string')
+          : []) as LockableSeriesField[];
+        if (series.sharedConfig) {
+          config = enforceSeriesLocks(config, series.sharedConfig as any, lockedFields);
+        }
+        resolvedSeriesNumber =
+          seriesNumber && Number.isFinite(seriesNumber) && seriesNumber > 0
+            ? seriesNumber
+            : await nextSeriesNumber(series.id);
+      }
+    }
 
     if (!outline || !config) {
       return NextResponse.json(
@@ -231,6 +260,8 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
         } as any,
         status: 'generating',
         generationStartedAt: new Date(),
+        seriesId: resolvedSeriesId,
+        seriesNumber: resolvedSeriesNumber,
       });
 
       currentBookId = book.id;
@@ -458,7 +489,26 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
     console.log(`[Incremental] Generating chapters: ${batchChapterNumbers.join(', ')} (parallel: ${useParallel})`);
 
     const aiService = new AIService(config.aiSettings?.model, chapterModel);
-    
+
+    // Build series context (if this book is part of a series).
+    let seriesContext: string | undefined;
+    try {
+      const bookForSeries = await getBook(currentBookId);
+      if (bookForSeries?.seriesId) {
+        const series = await getSeriesById(bookForSeries.seriesId);
+        if (series && series.userId === clerkUserId) {
+          const priorBooks = await getSiblingBooksInSeries(bookForSeries.seriesId, currentBookId);
+          seriesContext = buildSeriesContextBlock({
+            series,
+            thisBookNumber: bookForSeries.seriesNumber,
+            priorBooks,
+          });
+        }
+      }
+    } catch (e) {
+      console.error('[Incremental] Failed to build series context:', e);
+    }
+
     // Build previous chapters context from existing chapters
     const sortedExisting = existingChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
     
@@ -501,7 +551,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
           batchChapterNumbers,
           previousChaptersContext,
           chapterModel,
-          bibliographyConfig
+          bibliographyConfig,
+          undefined,
+          seriesContext
         );
 
         // Sanitize and process results
@@ -519,7 +571,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
         // Fall back to sequential generation if parallel fails
         generatedChapters = await generateSequentially(
           aiService, outline, batchChapterNumbers, previousChaptersContext, 
-          chapterModel, bibliographyConfig, totalChapters, sortedExisting
+          chapterModel, bibliographyConfig, totalChapters, sortedExisting, seriesContext
         );
       }
     } else {
@@ -527,7 +579,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<Generatio
       console.log(`[Incremental] Using SEQUENTIAL generation for ${batchChapterNumbers.length} chapters`);
       generatedChapters = await generateSequentially(
         aiService, outline, batchChapterNumbers, previousChaptersContext,
-        chapterModel, bibliographyConfig, totalChapters, sortedExisting
+        chapterModel, bibliographyConfig, totalChapters, sortedExisting, seriesContext
       );
     }
 

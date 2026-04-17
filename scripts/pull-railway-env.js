@@ -50,7 +50,7 @@ function parseArgs(argv) {
           "  --keys-only        Print variable names only (default behavior).",
           "  --include-values   Include values (DANGEROUS: secrets).",
           "  --write <path>     Write output to a file instead of stdout.",
-          "  --required-only    Print required Clerk/Inngest keys status only.",
+          "  --required-only    Print required Clerk keys status only.",
           "",
         ].join("\n"),
       );

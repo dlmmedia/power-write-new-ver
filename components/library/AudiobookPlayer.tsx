@@ -30,6 +30,8 @@ export interface AudiobookChapter {
   audioDuration?: number | null;
   audioMetadata?: any;
   audioTimestamps?: { word: string; start: number; end: number }[] | null;
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 export interface AudiobookPlayerProps {

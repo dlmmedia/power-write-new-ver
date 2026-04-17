@@ -16,6 +16,13 @@ interface ChapterImage {
   altText?: string;
 }
 
+export interface BookPageEntry {
+  number: number;
+  title: string;
+  content: string;
+  slug?: string | null;
+}
+
 interface BookExport {
   title: string;
   author: string;
@@ -29,6 +36,10 @@ interface BookExport {
     content: string;
     images?: ChapterImage[]; // Chapter images
   }>;
+  /** Front-matter pages (acknowledgments, introduction, etc.) inserted after TOC. */
+  frontMatter?: BookPageEntry[];
+  /** Back-matter pages (epilogue, afterword, etc.) inserted before bibliography. */
+  backMatter?: BookPageEntry[];
   bibliography?: {
     config: BibliographyConfig;
     references: Reference[];
@@ -80,25 +91,47 @@ export class ExportService {
   // Export as plain text
   static exportAsText(book: BookExport): string {
     let content = `${book.title}\nby ${book.author}\n\n${'='.repeat(50)}\n\n`;
-    
+
+    (book.frontMatter || []).forEach(page => {
+      content += `\n${page.title}\n\n`;
+      content += page.content + '\n\n';
+      content += '-'.repeat(50) + '\n';
+    });
+
     book.chapters.forEach(chapter => {
       content += `\nChapter ${chapter.number}: ${chapter.title}\n\n`;
       content += this.sanitizeChapterContent(chapter) + '\n\n';
       content += '-'.repeat(50) + '\n';
     });
-    
+
+    (book.backMatter || []).forEach(page => {
+      content += `\n${page.title}\n\n`;
+      content += page.content + '\n\n';
+      content += '-'.repeat(50) + '\n';
+    });
+
     return content;
   }
 
   // Export as Markdown
   static exportAsMarkdown(book: BookExport): string {
     let content = `# ${book.title}\n### by ${book.author}\n\n---\n\n`;
-    
+
+    (book.frontMatter || []).forEach(page => {
+      content += `## ${page.title}\n\n`;
+      content += page.content + '\n\n';
+    });
+
     book.chapters.forEach(chapter => {
       content += `## Chapter ${chapter.number}: ${chapter.title}\n\n`;
       content += this.sanitizeChapterContent(chapter) + '\n\n';
     });
-    
+
+    (book.backMatter || []).forEach(page => {
+      content += `## ${page.title}\n\n`;
+      content += page.content + '\n\n';
+    });
+
     return content;
   }
 
@@ -702,28 +735,59 @@ export class ExportService {
         <h2>Contents</h2>
         <div class="toc-divider"></div>
         <ul class="toc-list">`;
-    
-    book.chapters.forEach((chapter, index) => {
+
+    let pageCounter = 0;
+    const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+    (book.frontMatter || []).forEach(page => {
+      pageCounter += 1;
+      html += `
+            <li class="toc-entry">
+                <a href="#page-${slugify(page.slug || page.title)}">
+                    <span class="toc-chapter-label"></span>
+                    <span class="toc-chapter-title">${page.title}</span>
+                    <span class="toc-dots"></span>
+                    <span class="toc-page-num">${pageCounter}</span>
+                </a>
+            </li>`;
+    });
+
+    book.chapters.forEach(chapter => {
+      pageCounter += 1;
       html += `
             <li class="toc-entry">
                 <a href="#chapter-${chapter.number}">
                     <span class="toc-chapter-label">Chapter ${chapter.number}</span>
                     <span class="toc-chapter-title">${chapter.title}</span>
                     <span class="toc-dots"></span>
-                    <span class="toc-page-num">${index + 1}</span>
+                    <span class="toc-page-num">${pageCounter}</span>
                 </a>
             </li>`;
     });
-    
+
+    (book.backMatter || []).forEach(page => {
+      pageCounter += 1;
+      html += `
+            <li class="toc-entry">
+                <a href="#page-${slugify(page.slug || page.title)}">
+                    <span class="toc-chapter-label"></span>
+                    <span class="toc-chapter-title">${page.title}</span>
+                    <span class="toc-dots"></span>
+                    <span class="toc-page-num">${pageCounter}</span>
+                </a>
+            </li>`;
+    });
+
     // Add bibliography to TOC if exists
     if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
+      pageCounter += 1;
       html += `
             <li class="toc-entry">
                 <a href="#bibliography">
                     <span class="toc-chapter-label"></span>
                     <span class="toc-chapter-title">Bibliography</span>
                     <span class="toc-dots"></span>
-                    <span class="toc-page-num">${book.chapters.length + 1}</span>
+                    <span class="toc-page-num">${pageCounter}</span>
                 </a>
             </li>`;
     }
@@ -731,6 +795,26 @@ export class ExportService {
     html += `
         </ul>
     </div>`;
+
+    // Front matter pages (acknowledgments, introduction, etc.) before chapters
+    (book.frontMatter || []).forEach(page => {
+      const id = `page-${slugify(page.slug || page.title)}`;
+      const paragraphs = page.content.split(/\n\n+/).filter(p => p.trim());
+      html += `
+    <div class="chapter front-matter-page" id="${id}">
+        <div class="chapter-header">
+            <p class="chapter-number-label">${(page.slug ? page.slug.replace(/-/g, ' ').toUpperCase() : 'PAGE')}</p>
+            <div class="chapter-title-divider"></div>
+            <h2 class="chapter-title">${page.title}</h2>
+        </div>
+        <div class="chapter-content chapter-start">`;
+      paragraphs.forEach(p => {
+        html += `\n            <p>${p.trim()}</p>`;
+      });
+      html += `
+        </div>
+    </div>`;
+    });
     
     // Chapters - using publishing settings for formatting
     book.chapters.forEach(chapter => {
@@ -843,6 +927,26 @@ export class ExportService {
     </div>`;
     });
     
+    // Back matter pages (epilogue, afterword, etc.) after the last chapter
+    (book.backMatter || []).forEach(page => {
+      const id = `page-${slugify(page.slug || page.title)}`;
+      const paragraphs = page.content.split(/\n\n+/).filter(p => p.trim());
+      html += `
+    <div class="chapter back-matter-page" id="${id}">
+        <div class="chapter-header">
+            <p class="chapter-number-label">${(page.slug ? page.slug.replace(/-/g, ' ').toUpperCase() : 'PAGE')}</p>
+            <div class="chapter-title-divider"></div>
+            <h2 class="chapter-title">${page.title}</h2>
+        </div>
+        <div class="chapter-content chapter-start">`;
+      paragraphs.forEach(p => {
+        html += `\n            <p>${p.trim()}</p>`;
+      });
+      html += `
+        </div>
+    </div>`;
+    });
+
     // Bibliography if enabled
     if (book.bibliography?.config.enabled && book.bibliography.references.length > 0) {
       const sortedRefs = CitationService.sortReferences(
@@ -1004,14 +1108,33 @@ export class ExportService {
       currentY = margin;
     }
 
+    let needsPageBreakBeforeNextSection = false;
+
+    // Front matter pages (acknowledgments, intro, synopsis, ...)
+    (book.frontMatter || []).forEach(page => {
+      addPageNumber();
+      doc.addPage();
+      pageNumber++;
+      currentY = margin;
+      addText(page.title, 18, true);
+      currentY += 5;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, currentY, pageWidth - margin, currentY);
+      currentY += 10;
+      addText(page.content, 12, false);
+      currentY += 10;
+      needsPageBreakBeforeNextSection = true;
+    });
+
     // Chapters
     book.chapters.forEach((chapter, index) => {
       // Chapter title
-      if (index > 0) {
+      if (index > 0 || needsPageBreakBeforeNextSection) {
         addPageNumber();
         doc.addPage();
         pageNumber++;
         currentY = margin;
+        needsPageBreakBeforeNextSection = false;
       }
       
       addText(`Chapter ${chapter.number}: ${chapter.title}`, 18, true);
@@ -1060,6 +1183,21 @@ export class ExportService {
           });
         }
       }
+    });
+
+    // Back matter pages (epilogue, afterword, ...)
+    (book.backMatter || []).forEach(page => {
+      addPageNumber();
+      doc.addPage();
+      pageNumber++;
+      currentY = margin;
+      addText(page.title, 18, true);
+      currentY += 5;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(margin, currentY, pageWidth - margin, currentY);
+      currentY += 10;
+      addText(page.content, 12, false);
+      currentY += 10;
     });
 
     // Add comprehensive bibliography section at the end

@@ -15,6 +15,69 @@
       "when": 1770744874083,
       "tag": "0001_black_tigra",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1700000002000,
+      "tag": "0001_add_production_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1700000003000,
+      "tag": "0002_add_audio_timestamps",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1700000004000,
+      "tag": "0003_add_video_export_jobs",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1700000005000,
+      "tag": "0004_add_chapter_unique_constraint_and_model",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1700000006000,
+      "tag": "0005_add_chapter_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1700000007000,
+      "tag": "0006_add_series",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1776412800000,
+      "tag": "0007_add_saved_outlines",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1776424100000,
+      "tag": "0008_add_missing_fk_indexes",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1776600000000,
+      "tag": "0009_add_book_exports",
+      "breakpoints": true
     }
   ]
 }

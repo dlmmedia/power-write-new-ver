@@ -21,6 +21,54 @@ const TIER_LIMITS = {
 };
 
 /**
+ * Combined helper: resolve effective user id + tier in ONE round-trip.
+ *
+ * Previous code did `getDbUserIdFromClerk` then `getUserTier` sequentially —
+ * each was up to 2 queries (clerk-id, then email fallback) for a worst-case
+ * total of 4 sequential round-trips. This collapses to a single round-trip
+ * (two SELECTs in parallel) by selecting `id` + `plan` together.
+ *
+ * Used by the library loader. The standalone helpers below are kept for
+ * other callers that only need one of the two values.
+ */
+export async function resolveUserIdAndTier(
+  clerkUserId: string,
+  email?: string,
+): Promise<{ effectiveUserId: string; tier: UserTier }> {
+  return withRetry(async () => {
+    const [byId, byEmail] = await Promise.all([
+      db
+        .select({ id: users.id, plan: users.plan })
+        .from(users)
+        .where(eq(users.id, clerkUserId))
+        .limit(1),
+      email
+        ? db
+            .select({ id: users.id, plan: users.plan })
+            .from(users)
+            .where(eq(users.email, email))
+            .limit(1)
+        : Promise.resolve([] as Array<{ id: string; plan: string | null }>),
+    ]);
+
+    const matched = byId[0] ?? byEmail[0] ?? null;
+    if (!matched) {
+      // No DB row yet — fall back to clerk id, default to free.
+      return { effectiveUserId: clerkUserId, tier: 'free' as const };
+    }
+
+    const tier: UserTier =
+      matched.plan === 'pro' ||
+      matched.plan === 'professional' ||
+      matched.plan === 'enterprise'
+        ? 'pro'
+        : 'free';
+
+    return { effectiveUserId: matched.id, tier };
+  }, DEFAULT_RETRY_CONFIG, 'resolveUserIdAndTier');
+}
+
+/**
  * Get the database user ID from Clerk user ID
  * Handles case where Clerk ID doesn't match but email does
  */

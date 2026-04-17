@@ -38,7 +38,7 @@ coverage/
 # Misc
 *.tsbuildinfo
 
-# Documentation and images
+# Documentation and root-level screenshots/images
 *.md
 *.png
 *.jpg
@@ -46,7 +46,9 @@ coverage/
 *.gif
 *.svg
 docs/
-migrations/
+# NOTE: do NOT ignore migrations/ — drizzle-kit migrations must ship to Railway
+# so the production database can be brought up to date during deploys.
+!migrations/
 
 # Audio files (except public directory for voice previews and sounds)
 *.wav

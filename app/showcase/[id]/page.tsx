@@ -34,6 +34,8 @@ interface Chapter {
   audioDuration?: number | null;
   audioMetadata?: any;
   audioTimestamps?: { word: string; start: number; end: number }[] | null;
+  chapterType?: 'chapter' | 'front_matter' | 'back_matter';
+  slug?: string | null;
 }
 
 interface BibliographyData {

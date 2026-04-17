@@ -1,17 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { ConditionalClerkProvider } from "@/components/providers/ConditionalClerkProvider";
-import { RenderAwareShell } from "@/components/providers/RenderAwareShell";
+import { Providers } from "@/components/providers/Providers";
+import { MainNav } from "@/components/layout/MainNav";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
+  display: "swap",
 });
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  display: "swap",
+});
+
+// Display serif used for editorial headings on marketing surfaces and
+// any "book-feel" moments. Variable font so weight/optical-size are free.
+const fraunces = Fraunces({
+  variable: "--font-fraunces",
+  subsets: ["latin"],
+  display: "swap",
+  axes: ["opsz", "SOFT", "WONK"],
 });
 
 export const metadata: Metadata = {
@@ -62,9 +74,18 @@ export default function RootLayout({
           />
         </head>
         <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} antialiased`}
         >
-          <RenderAwareShell>{children}</RenderAwareShell>
+          {/* Keyboard skip-link — the very first focusable stop on every
+           * page so keyboard users can jump straight to <main> without
+           * tabbing through the sticky nav. Hidden until focused. */}
+          <a href="#main-content" className="skip-link">
+            Skip to content
+          </a>
+          <Providers>
+            <MainNav />
+            {children}
+          </Providers>
         </body>
       </html>
     </ConditionalClerkProvider>

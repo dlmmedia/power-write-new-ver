@@ -10,8 +10,6 @@ import { sanitizeChapter, countWords } from '@/lib/utils/text-sanitizer';
 import { BookConfiguration } from '@/lib/types/studio';
 import { DEFAULT_IMAGE_CONFIG } from '@/lib/types/book-images';
 
-export const maxDuration = 900; // 15 minutes - Railway supports up to 15 min HTTP timeout
-
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();

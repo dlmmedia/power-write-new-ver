@@ -2,22 +2,14 @@
 
 import * as React from 'react';
 import { ClerkProvider } from '@clerk/nextjs';
-import { usePathname } from 'next/navigation';
 
 /**
- * Clerk can trigger redirects/session refresh on every page load.
- * For headless Puppeteer rendering (`/render/...`) we explicitly disable Clerk
- * to avoid auth redirects breaking screenshot capture.
+ * Thin wrapper around Clerk's `ClerkProvider`. Previously this component
+ * disabled Clerk on `/render/*` pages used by the (now-deleted) video export
+ * Puppeteer pipeline; that branch is gone, so this is essentially a passthrough
+ * but we keep it as the single client-side mount point for Clerk so layout.tsx
+ * can remain a server component.
  */
 export function ConditionalClerkProvider({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const disableClerk = pathname?.startsWith('/render/');
-
-  if (disableClerk) return <>{children}</>;
-  return (
-    <ClerkProvider>
-      {children}
-    </ClerkProvider>
-  );
+  return <ClerkProvider>{children}</ClerkProvider>;
 }
-

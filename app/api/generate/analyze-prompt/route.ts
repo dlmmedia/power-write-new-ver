@@ -1,24 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createOpenAI } from '@ai-sdk/openai';
 import { generateText } from 'ai';
-
-// Initialize providers
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
-
-const openai = OPENAI_API_KEY
-  ? createOpenAI({ apiKey: OPENAI_API_KEY })
-  : null;
-
-const openrouter = OPENROUTER_API_KEY
-  ? createOpenAI({
-      apiKey: OPENROUTER_API_KEY,
-      baseURL: 'https://openrouter.ai/api/v1',
-    })
-  : null;
+import { openrouter } from '@/lib/ai/openrouter';
 
 export const runtime = 'nodejs';
-export const maxDuration = 30;
 
 interface ReferenceBook {
   title: string;
@@ -42,21 +26,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Determine which model to use
-    const model = openrouter
-      ? openrouter('openai/gpt-4o-mini') // Use fast model for analysis
-      : openai
-      ? openai('gpt-4o-mini')
-      : null;
-
-    if (!model) {
-      // Fall back to local parsing if no API available
+    if (!openrouter) {
       return NextResponse.json({
         success: true,
         analysis: parsePromptLocally(prompt),
         method: 'local',
       });
     }
+    const model = openrouter('openai/gpt-4o-mini');
 
     // Build context from reference books
     const referenceContext = referenceBooks?.length

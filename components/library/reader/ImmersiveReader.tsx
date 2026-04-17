@@ -463,6 +463,14 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
   const currentChapterData = chapters[currentChapter];
   const themeConfig = READING_THEMES[theme];
 
+  // Display heading: "Chapter N: Title" for main chapters; just "Title" for
+  // front- and back-matter pages (acknowledgments, introduction, etc.).
+  const currentHeading = currentChapterData
+    ? (currentChapterData.chapterType ?? 'chapter') === 'chapter'
+      ? `Chapter ${currentChapterData.number}: ${currentChapterData.title}`
+      : currentChapterData.title
+    : '';
+
   // Build a robust mapping of word index -> character position for the current chapter.
   // This fixes drift/stop issues caused by rough word/char estimates when paging.
   const chapterWordStarts = useMemo(() => {
@@ -1110,7 +1118,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                 color: themeConfig.accentColor,
               }}
             >
-              Chapter {currentChapterData?.number}: {currentChapterData?.title}
+              {currentHeading}
             </div>
           </div>
         </div>
@@ -1176,7 +1184,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                   leftPageNumber={leftPageNumber}
                   rightPageNumber={rightPageNumber}
                   totalPages={totalPagesInChapter}
-                  chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
+                  chapterTitle={currentHeading}
                   theme={theme}
                   fontSize={fontSize}
                   isFlipping={isFlipping}
@@ -1215,7 +1223,7 @@ export const ImmersiveReader: React.FC<ImmersiveReaderProps> = ({
                         content={[...leftPage, ...rightPage]}
                         pageNumber={leftPageNumber}
                         totalPages={totalPagesInChapter}
-                        chapterTitle={`Chapter ${currentChapterData?.number}: ${currentChapterData?.title}`}
+                        chapterTitle={currentHeading}
                         theme={theme}
                         fontSize={fontSize}
                         audioTimestamps={audioTimestamps}
