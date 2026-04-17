@@ -53,12 +53,20 @@ async function main() {
 
   try {
     console.log('\n[1/2] Error-path test (bookId=-99)');
-    const errId = await enqueue('generate-chapter-audio', {
-      bookId: -99,
-      chapterId: -99,
-      voice: 'alloy',
-      provider: 'openai',
-    });
+    // attempts: 1 so a single verification doesn't pollute the dashboard
+    // with 3 retried failures (the queue default is 3 with backoff for
+    // real jobs — that's correct, but pointless for a deliberately-bad
+    // smoke test where every retry will fail identically).
+    const errId = await enqueue(
+      'generate-chapter-audio',
+      {
+        bookId: -99,
+        chapterId: -99,
+        voice: 'alloy',
+        provider: 'openai',
+      },
+      { attempts: 1 },
+    );
     if (!errId) throw new Error('enqueue returned null');
     console.log(`   enqueued jobId=${errId}`);
     const errResult = await poll(errId);

@@ -6,18 +6,67 @@ import { sanitizeForExport } from '@/lib/utils/text-sanitizer';
 export type TTSProvider = 'openai' | 'gemini';
 
 // OpenAI TTS supports 9 voices (as of 2024)
-export type OpenAIVoiceId = 'alloy' | 'ash' | 'coral' | 'echo' | 'fable' | 'nova' | 'onyx' | 'sage' | 'shimmer';
+export const OPENAI_VOICES = [
+  'alloy', 'ash', 'coral', 'echo', 'fable', 'nova', 'onyx', 'sage', 'shimmer',
+] as const;
+export type OpenAIVoiceId = (typeof OPENAI_VOICES)[number];
 
 // Gemini TTS supports 30 voices
-export type GeminiVoiceId = 
-  | 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir' | 'Leda' | 'Orus' | 'Aoede'
-  | 'Callirrhoe' | 'Autonoe' | 'Enceladus' | 'Iapetus' | 'Umbriel' | 'Algieba'
-  | 'Despina' | 'Erinome' | 'Algenib' | 'Rasalgethi' | 'Laomedeia' | 'Achernar'
-  | 'Alnilam' | 'Schedar' | 'Gacrux' | 'Pulcherrima' | 'Achird' | 'Zubenelgenubi'
-  | 'Vindemiatrix' | 'Sadachbia' | 'Sadaltager' | 'Sulafat';
+export const GEMINI_VOICES = [
+  'Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Leda', 'Orus', 'Aoede',
+  'Callirrhoe', 'Autonoe', 'Enceladus', 'Iapetus', 'Umbriel', 'Algieba',
+  'Despina', 'Erinome', 'Algenib', 'Rasalgethi', 'Laomedeia', 'Achernar',
+  'Alnilam', 'Schedar', 'Gacrux', 'Pulcherrima', 'Achird', 'Zubenelgenubi',
+  'Vindemiatrix', 'Sadachbia', 'Sadaltager', 'Sulafat',
+] as const;
+export type GeminiVoiceId = (typeof GEMINI_VOICES)[number];
 
 // Combined voice type for backwards compatibility
 export type VoiceId = OpenAIVoiceId | GeminiVoiceId;
+
+/**
+ * Throws if the requested voice isn't valid for the chosen provider.
+ *
+ * We do this at the request boundary (worker / API route) instead of
+ * letting the upstream TTS service reject the call mid-job — that wastes
+ * an API round-trip and produces opaque error messages for the user.
+ */
+export function assertVoiceForProvider(
+  voice: string,
+  provider: TTSProvider,
+): void {
+  if (provider === 'openai') {
+    if (!(OPENAI_VOICES as readonly string[]).includes(voice)) {
+      throw new Error(
+        `Invalid OpenAI voice "${voice}". Valid voices: ${OPENAI_VOICES.join(', ')}`,
+      );
+    }
+    return;
+  }
+  if (provider === 'gemini') {
+    if (!(GEMINI_VOICES as readonly string[]).includes(voice)) {
+      throw new Error(
+        `Invalid Gemini voice "${voice}". Valid voices: ${GEMINI_VOICES.join(', ')}`,
+      );
+    }
+    return;
+  }
+  throw new Error(`Unknown TTS provider: ${provider}`);
+}
+
+/**
+ * Per-chunk progress callback. Used by the queue worker to
+ *  (a) report progress to the UI, and
+ *  (b) renew the BullMQ stall-lock so long chapters don't hit the
+ *      lockDuration ceiling (10 min for audio jobs).
+ *
+ * Errors thrown by the callback are caught and ignored — progress
+ * reporting must never crash the job.
+ */
+export type TTSChunkProgress = (
+  current: number,
+  total: number,
+) => void | Promise<void>;
 
 export interface TTSConfig {
   provider?: TTSProvider;
@@ -440,21 +489,53 @@ export class TTSService {
 
   /**
    * Generate audio for a single chapter
-   * Supports both OpenAI and Gemini providers
+   * Supports both OpenAI and Gemini providers.
+   *
+   * @param onChunkProgress Optional. Invoked after each chunk uploads with
+   *   (chunksDone, totalChunks). The queue worker uses this to renew its
+   *   BullMQ stall-lock and stream progress to the UI.
    */
   async generateChapterAudio(
     chapterText: string,
     chapterNumber: number,
     bookTitle: string,
-    config: TTSConfig = {}
+    config: TTSConfig = {},
+    onChunkProgress?: TTSChunkProgress,
   ): Promise<AudioResult> {
     const provider = config.provider || 'openai';
-    
-    if (provider === 'gemini') {
-      return this.generateGeminiChapterAudio(chapterText, chapterNumber, bookTitle, config);
+
+    // Reject empty / whitespace-only chapters up front. Both OpenAI and
+    // Gemini reject empty input with an opaque 4xx; this surfaces a
+    // clean message and avoids wasting a network call.
+    const trimmed = (chapterText ?? '').trim();
+    if (trimmed.length === 0) {
+      throw new Error(
+        `Chapter ${chapterNumber} of "${bookTitle}" has no text content; nothing to synthesize.`,
+      );
     }
-    
-    return this.generateOpenAIChapterAudio(chapterText, chapterNumber, bookTitle, config);
+
+    if (provider === 'gemini') {
+      return this.generateGeminiChapterAudio(chapterText, chapterNumber, bookTitle, config, onChunkProgress);
+    }
+
+    return this.generateOpenAIChapterAudio(chapterText, chapterNumber, bookTitle, config, onChunkProgress);
+  }
+
+  /**
+   * Wrap a progress callback so a thrown / rejected callback can never
+   * crash the TTS pipeline. Reporting progress is best-effort.
+   */
+  private async safeReportProgress(
+    cb: TTSChunkProgress | undefined,
+    current: number,
+    total: number,
+  ): Promise<void> {
+    if (!cb) return;
+    try {
+      await cb(current, total);
+    } catch (err) {
+      console.warn('[TTS] onChunkProgress callback threw (ignored):', err);
+    }
   }
 
   /**
@@ -464,7 +545,8 @@ export class TTSService {
     chapterText: string,
     chapterNumber: number,
     bookTitle: string,
-    config: TTSConfig = {}
+    config: TTSConfig = {},
+    onChunkProgress?: TTSChunkProgress,
   ): Promise<AudioResult> {
     try {
       const apiKey = this.getOpenAIApiKey();
@@ -480,7 +562,8 @@ export class TTSService {
       const audioBuffers: Buffer[] = [];
       let totalSize = 0;
 
-      for (const chunk of chunks) {
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
         const response = await fetch(this.openaiApiUrl, {
           method: 'POST',
           headers: {
@@ -505,6 +588,11 @@ export class TTSService {
         const buffer = Buffer.from(arrayBuffer);
         audioBuffers.push(buffer);
         totalSize += buffer.length;
+
+        // Renew the BullMQ stall lock and surface progress to the UI.
+        // Done after each chunk uploads so a 12-chunk chapter ticks
+        // 12 times rather than going dark for ~12 minutes.
+        await this.safeReportProgress(onChunkProgress, i + 1, chunks.length);
       }
 
       const combinedBuffer = Buffer.concat(audioBuffers);
@@ -545,7 +633,8 @@ export class TTSService {
     chapterText: string,
     chapterNumber: number,
     bookTitle: string,
-    config: TTSConfig = {}
+    config: TTSConfig = {},
+    onChunkProgress?: TTSChunkProgress,
   ): Promise<AudioResult> {
     try {
       const apiKey = this.getGeminiApiKey();
@@ -558,7 +647,7 @@ export class TTSService {
 
       // Use smaller chunks for Gemini to avoid timeouts
       const chunks = this.splitTextIntoChunks(cleanedText, 1500);
-      
+
       // Collect raw PCM buffers (not WAV) to concatenate properly
       const pcmBuffers: Buffer[] = [];
       let totalPcmSize = 0;
@@ -570,6 +659,9 @@ export class TTSService {
         const pcmBuffer = await this.generateGeminiAudioChunkRaw(chunk, voice, geminiModel, apiKey);
         pcmBuffers.push(pcmBuffer);
         totalPcmSize += pcmBuffer.length;
+
+        // Renew BullMQ stall lock + surface progress (see OpenAI path).
+        await this.safeReportProgress(onChunkProgress, i + 1, chunks.length);
       }
 
       // Combine all PCM data and create a single WAV file

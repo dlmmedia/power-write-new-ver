@@ -60,12 +60,42 @@ export const processors: ProcessorMap = {
   'generate-chapter-audio': async (job) => {
     const { bookId, chapterId, voice, provider } = job.data;
     const start = Date.now();
+    const requestedProvider = provider ?? 'openai';
 
-    const [{ getBookWithChapters, updateChapterAudio }, { ttsService }] =
-      await Promise.all([
-        import('../db/operations'),
-        import('../services/tts-service'),
-      ]);
+    // Pre-flight env validation. We could let `tts-service` throw further
+    // down, but failing fast here means we never burn an enqueue or
+    // partial generation when the worker is fundamentally misconfigured.
+    if (requestedProvider === 'openai' && !process.env.OPENAI_API_KEY) {
+      throw new Error(
+        'OPENAI_API_KEY is not configured on the worker — cannot synthesize audio.',
+      );
+    }
+    if (
+      requestedProvider === 'gemini' &&
+      !process.env.GEMINI_API_KEY &&
+      !process.env.GOOGLE_AI_API_KEY
+    ) {
+      throw new Error(
+        'GEMINI_API_KEY (or GOOGLE_AI_API_KEY) is not configured on the worker — cannot synthesize audio.',
+      );
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      throw new Error(
+        'BLOB_READ_WRITE_TOKEN is not configured — cannot upload generated audio.',
+      );
+    }
+
+    const [
+      { getBookWithChapters, updateChapterAudio },
+      { ttsService, assertVoiceForProvider },
+    ] = await Promise.all([
+      import('../db/operations'),
+      import('../services/tts-service'),
+    ]);
+
+    // Validates against the provider's allowed voice set so we surface a
+    // clean message instead of an opaque 4xx from OpenAI / Gemini.
+    assertVoiceForProvider(voice, requestedProvider);
 
     const book = await getBookWithChapters(bookId);
     if (!book) {
@@ -74,6 +104,14 @@ export const processors: ProcessorMap = {
     const chapter = book.chapters.find((c) => c.id === chapterId);
     if (!chapter) {
       throw new Error(`Chapter ${chapterId} not found in book ${bookId}`);
+    }
+
+    // Reject empty chapters before idempotency check so callers see a
+    // descriptive message instead of a confusing "skipped" + no audio.
+    if (!chapter.content || chapter.content.trim().length === 0) {
+      throw new Error(
+        `Chapter ${chapter.chapterNumber} ("${chapter.title}") has no text content; nothing to synthesize.`,
+      );
     }
 
     // Idempotency: if the chapter already has audio matching the requested
@@ -91,7 +129,6 @@ export const processors: ProcessorMap = {
       typeof existingMeta?.provider === 'string'
         ? existingMeta.provider
         : 'openai';
-    const requestedProvider = provider ?? 'openai';
     if (
       chapter.audioUrl &&
       existingVoice === voice &&
@@ -109,7 +146,7 @@ export const processors: ProcessorMap = {
       };
     }
 
-    await job.updateProgress({ phase: 'tts', chapterId, voice });
+    await job.updateProgress({ phase: 'tts', chapterId, voice, chunk: 0, totalChunks: 0 });
 
     const result = await ttsService.generateChapterAudio(
       chapter.content,
@@ -121,6 +158,22 @@ export const processors: ProcessorMap = {
         // set, but is typed as `string` on the queue payload to keep the
         // queue contract independent of TTS provider internals.
         voice: voice as never,
+      },
+      // Per-chunk progress callback. Each tick:
+      //  - Reports { phase: 'tts', chunk, totalChunks } so the UI can
+      //    show a real progress bar instead of an indeterminate spinner.
+      //  - Triggers BullMQ to renew the worker lock (10-minute audio
+      //    lockDuration) — without this, a long chapter that exceeds the
+      //    lock window gets re-claimed by a stall checker and processed
+      //    twice. updateProgress is the documented way to extend the lock.
+      async (current, total) => {
+        await job.updateProgress({
+          phase: 'tts',
+          chapterId,
+          voice,
+          chunk: current,
+          totalChunks: total,
+        });
       },
     );
 
